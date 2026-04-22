@@ -4,7 +4,7 @@ const cors = require('cors');
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const app = express();
-app.use(cors());
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 app.post('/create-checkout', async (req, res) => {
