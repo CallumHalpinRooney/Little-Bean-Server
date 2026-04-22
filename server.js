@@ -28,3 +28,4 @@ app.post('/create-checkout', async (req, res) => {
       cancel_url: 'https://littlebean.ie/cancel',
       metadata: { orderRef, customerName, customerPhone, pickupTime },
     });
+app.listen(process.env.PORT || 3000);
