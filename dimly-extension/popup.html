@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <header class="head">
+      <span class="logo">Dimly</span>
+      <span class="tagline">tab theme</span>
+    </header>
+
+    <div class="row">
+      <div class="row-text">
+        <div class="row-title">Theme this site</div>
+        <div class="row-sub" id="origin">—</div>
+      </div>
+      <label class="switch">
+        <input type="checkbox" id="toggle" />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <button class="all-btn" id="allBtn">Apply to all open tabs</button>
+
+    <footer class="foot">Per-site preference is remembered automatically.</footer>
+
+    <script src="popup.js"></script>
+  </body>
+</html>
