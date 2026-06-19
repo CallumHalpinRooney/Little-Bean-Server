@@ -1,0 +1,25 @@
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Official Next.js runtime for Netlify (App Router, server components, image opt).
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[functions]
+  # Bundle the TypeScript functions and their lib/* imports with esbuild.
+  node_bundler = "esbuild"
+
+# Keep live Printful pricing in sync once a day (03:17 UTC).
+# The function also enforces SYNC_SECRET, so a scheduled call must run from a
+# context that has it — or remove the secret check for scheduled-only use.
+[functions."printful-sync"]
+  schedule = "17 3 * * *"
+
+[[redirects]]
+  from = "/sports"
+  to = "/sports-moments"
+  status = 301
+
+[dev]
+  framework = "next"
