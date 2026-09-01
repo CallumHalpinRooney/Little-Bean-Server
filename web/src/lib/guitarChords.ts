@@ -46,7 +46,7 @@ const OPEN_SHAPES: Record<string, StringFrets> = {
   'G|maj7': [3, 2, 0, 0, 0, 2],
   'G|7': [3, 2, 0, 0, 0, 1],
   'G|6': [3, 2, 0, 0, 0, 0],
-  'G|sus4': [3, 2, 0, 0, 1, 3],
+  'G|sus4': [3, 3, 0, 0, 1, 3],
 
   'A|maj': [null, 0, 2, 2, 2, 0],
   'A|min': [null, 0, 2, 2, 1, 0],
@@ -85,12 +85,17 @@ function autoFingers(frets: StringFrets): (number | null)[] {
 }
 
 // Movable-shape fallback: place the root on string 6 or string 5 (whichever
-// gives the lower fret), then walk outward picking the nearest fret on each
-// remaining string that sounds a chord tone. Guarantees every parseable
-// chord symbol renders *some* playable shape, even ones with no hand-tuned
-// entry above.
+// gives the lower fret), then walk outward picking a fret on each remaining
+// string that sounds a chord tone. Guarantees every parseable chord symbol
+// renders *some* playable shape, even ones with no hand-tuned entry above.
+//
+// Each string prefers a tone the shape doesn't have yet (so e.g. a major
+// chord's shape actually contains its 3rd instead of just doubling the root
+// and 5th, which would sound like a power chord) and only repeats a tone
+// once every interval is already covered somewhere in the shape.
 function generateShape(rootPc: number, quality: ChordQuality): StringFrets {
-  const pitchClasses = new Set(CHORD_INTERVALS[quality].map((iv) => (rootPc + iv) % 12))
+  const intervals = CHORD_INTERVALS[quality]
+  const targetPcs = intervals.map((iv) => (rootPc + iv) % 12)
 
   const fretOnString = (stringIdx: number) => (rootPc - OPEN_STRING_PC[stringIdx] + 12) % 12
   const bassOptions = [{ str: 0, fret: fretOnString(0) }, { str: 1, fret: fretOnString(1) }]
@@ -100,17 +105,27 @@ function generateShape(rootPc: number, quality: ChordQuality): StringFrets {
 
   const frets: StringFrets = new Array(6).fill(null)
   frets[rootString] = rootFret
+  const usedIntervalIdx = new Set<number>([0])
 
   for (let s = rootString + 1; s < 6; s++) {
-    let chosen: number | null = null
+    let bestFret: number | null = null
+    let bestIsFresh = false
     for (let f = baseFret; f <= baseFret + 4; f++) {
       const pc = (OPEN_STRING_PC[s] + f) % 12
-      if (pitchClasses.has(pc)) {
-        chosen = f
-        break
+      const intervalIdx = targetPcs.indexOf(pc)
+      if (intervalIdx === -1) continue
+      const isFresh = !usedIntervalIdx.has(intervalIdx)
+      if (bestFret === null || (isFresh && !bestIsFresh)) {
+        bestFret = f
+        bestIsFresh = isFresh
+        if (isFresh) break
       }
     }
-    frets[s] = chosen
+    if (bestFret !== null) {
+      const pc = (OPEN_STRING_PC[s] + bestFret) % 12
+      usedIntervalIdx.add(targetPcs.indexOf(pc))
+    }
+    frets[s] = bestFret
   }
 
   return frets
