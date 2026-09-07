@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+<meta name="theme-color" content="#0B0C10" />
+<title>Apex Grand Prix — Formula 1 Racing</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<canvas id="stage"></canvas>
+
+<!-- ==================== IN-RACE HUD ==================== -->
+<div id="hud" class="hidden">
+  <div class="hud-top">
+    <div class="panel position-panel">
+      <div class="pos-big"><span id="hud-pos">1</span><small id="hud-pos-of">/20</small></div>
+      <div class="pos-label">POSITION</div>
+    </div>
+    <div class="panel lap-panel">
+      <div class="lap-big"><span id="hud-lap">1</span><small id="hud-laps">/58</small></div>
+      <div class="pos-label">LAP</div>
+    </div>
+    <div class="panel timing-panel">
+      <div class="time-row"><span class="k">LAST</span><span class="v" id="hud-last">--:--.---</span></div>
+      <div class="time-row"><span class="k">BEST</span><span class="v purple" id="hud-best">--:--.---</span></div>
+      <div class="time-row"><span class="k">GAP</span><span class="v" id="hud-gap">--.---</span></div>
+    </div>
+    <div class="panel sector-panel">
+      <div class="sector" id="sec-1">S1</div>
+      <div class="sector" id="sec-2">S2</div>
+      <div class="sector" id="sec-3">S3</div>
+    </div>
+    <div class="flex-spacer"></div>
+    <div class="panel flag-panel hidden" id="hud-flag"><span id="hud-flag-text">VSC</span></div>
+  </div>
+
+  <div id="tower" class="tower"></div>
+
+  <div class="hud-bottom">
+    <div class="left-cluster">
+      <canvas id="minimap" width="260" height="200"></canvas>
+    </div>
+
+    <div class="center-cluster">
+      <div class="rpm-bar" id="rpm-bar">
+        <div class="rpm-fill" id="rpm-fill"></div>
+        <div class="rpm-ticks"></div>
+      </div>
+      <div class="speed-block">
+        <div class="gear" id="hud-gear">N</div>
+        <div class="speed"><span id="hud-speed">0</span><small>KM/H</small></div>
+      </div>
+      <div class="bars">
+        <div class="bar-row">
+          <span class="bar-label">ERS</span>
+          <div class="bar"><div class="bar-fill ers" id="bar-ers"></div></div>
+        </div>
+        <div class="bar-row">
+          <span class="bar-label">FUEL</span>
+          <div class="bar"><div class="bar-fill fuel" id="bar-fuel"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="right-cluster">
+      <div class="tyre-panel">
+        <div class="tyre-compound" id="tyre-compound">M</div>
+        <div class="tyre-meta">
+          <div class="tyre-row"><span>WEAR</span><div class="bar small"><div class="bar-fill wear" id="bar-wear"></div></div></div>
+          <div class="tyre-row"><span>TEMP</span><div class="bar small"><div class="bar-fill temp" id="bar-temp"></div></div></div>
+          <div class="tyre-row"><span>DMG</span><div class="bar small"><div class="bar-fill dmg" id="bar-dmg"></div></div></div>
+        </div>
+      </div>
+      <div class="indicators">
+        <div class="ind" id="ind-drs">DRS</div>
+        <div class="ind" id="ind-ers">ERS</div>
+        <div class="ind" id="ind-pit">PIT</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="lights" class="lights hidden">
+    <div class="light"></div><div class="light"></div><div class="light"></div>
+    <div class="light"></div><div class="light"></div>
+  </div>
+
+  <div id="radio" class="radio"></div>
+  <div id="countdown" class="countdown hidden"></div>
+
+  <div id="touch-controls" class="touch hidden">
+    <div class="touch-left">
+      <button data-touch="left" class="tbtn">◀</button>
+      <button data-touch="right" class="tbtn">▶</button>
+    </div>
+    <div class="touch-right">
+      <button data-touch="ers" class="tbtn small">ERS</button>
+      <button data-touch="drs" class="tbtn small">DRS</button>
+      <button data-touch="brake" class="tbtn">BRAKE</button>
+      <button data-touch="throttle" class="tbtn go">GO</button>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SCREENS ==================== -->
+<div id="screens">
+
+  <!-- Loading -->
+  <section id="screen-loading" class="screen active">
+    <div class="loading-inner">
+      <div class="brand">
+        <div class="brand-bars"><i></i><i></i><i></i><i></i></div>
+        <h1>APEX<span>GRAND PRIX</span></h1>
+      </div>
+      <div class="loading-bar"><div id="loading-fill"></div></div>
+      <p id="loading-text">Building circuit…</p>
+    </div>
+  </section>
+
+  <!-- Main menu -->
+  <section id="screen-menu" class="screen">
+    <div class="menu-layout">
+      <header class="menu-header">
+        <div class="brand small">
+          <div class="brand-bars"><i></i><i></i><i></i><i></i></div>
+          <h1>APEX<span>GRAND PRIX</span></h1>
+        </div>
+        <div class="driver-badge" id="menu-driver-badge"></div>
+      </header>
+
+      <nav class="menu-main">
+        <button class="menu-card primary" data-nav="setup">
+          <span class="card-kicker">RACE WEEKEND</span>
+          <span class="card-title">Grand Prix</span>
+          <span class="card-sub">Practice, qualifying and a full race at any circuit</span>
+        </button>
+        <button class="menu-card" data-nav="championship">
+          <span class="card-kicker">24 ROUNDS</span>
+          <span class="card-title">World Championship</span>
+          <span class="card-sub">Fight for the title across the full season</span>
+        </button>
+        <button class="menu-card" data-nav="timetrial">
+          <span class="card-kicker">SOLO</span>
+          <span class="card-title">Time Trial</span>
+          <span class="card-sub">Empty track, perfect lap, personal records</span>
+        </button>
+        <button class="menu-card" data-nav="standings">
+          <span class="card-kicker">SEASON</span>
+          <span class="card-title">Standings</span>
+          <span class="card-sub">Drivers' and constructors' championships</span>
+        </button>
+        <button class="menu-card" data-nav="garage">
+          <span class="card-kicker">TEAM</span>
+          <span class="card-title">Garage</span>
+          <span class="card-sub">Your McLaren, the grid and the calendar</span>
+        </button>
+        <button class="menu-card" data-nav="settings">
+          <span class="card-kicker">OPTIONS</span>
+          <span class="card-title">Settings</span>
+          <span class="card-sub">Assists, controls, audio and display</span>
+        </button>
+      </nav>
+      <footer class="menu-footer">
+        <span>Driving for <strong class="papaya">McLaren</strong></span>
+        <span class="dim">Keyboard · Gamepad · Touch</span>
+      </footer>
+    </div>
+  </section>
+
+  <!-- Weekend setup -->
+  <section id="screen-setup" class="screen">
+    <div class="setup-layout">
+      <header class="sub-header">
+        <button class="back" data-nav="menu">‹ Back</button>
+        <h2 id="setup-title">Race Weekend</h2>
+      </header>
+      <div class="setup-body">
+        <div class="track-list" id="track-list"></div>
+        <div class="track-detail">
+          <canvas id="track-preview" width="520" height="380"></canvas>
+          <div class="track-info">
+            <h3 id="detail-name">—</h3>
+            <p id="detail-loc" class="dim"></p>
+            <div class="stat-grid" id="detail-stats"></div>
+          </div>
+          <div class="options">
+            <div class="opt-group">
+              <label>Driver</label>
+              <div class="seg" id="opt-driver"></div>
+            </div>
+            <div class="opt-group">
+              <label>Session</label>
+              <div class="seg" id="opt-session"></div>
+            </div>
+            <div class="opt-group">
+              <label>Race length</label>
+              <div class="seg" id="opt-length"></div>
+            </div>
+            <div class="opt-group">
+              <label>Difficulty</label>
+              <div class="seg" id="opt-difficulty"></div>
+            </div>
+            <div class="opt-group">
+              <label>Weather</label>
+              <div class="seg" id="opt-weather"></div>
+            </div>
+          </div>
+          <button class="go-btn" id="btn-start">START SESSION</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Championship -->
+  <section id="screen-championship" class="screen">
+    <div class="setup-layout">
+      <header class="sub-header">
+        <button class="back" data-nav="menu">‹ Back</button>
+        <h2>World Championship</h2>
+      </header>
+      <div class="champ-body">
+        <div class="calendar" id="calendar"></div>
+        <aside class="champ-side">
+          <h3>Season</h3>
+          <div id="champ-summary"></div>
+          <div class="opt-group">
+            <label>Race length</label>
+            <div class="seg" id="champ-length"></div>
+          </div>
+          <div class="opt-group">
+            <label>Difficulty</label>
+            <div class="seg" id="champ-difficulty"></div>
+          </div>
+          <button class="go-btn" id="btn-champ-next">GO TO NEXT ROUND</button>
+          <button class="ghost-btn" id="btn-champ-reset">Reset season</button>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- Standings -->
+  <section id="screen-standings" class="screen">
+    <div class="setup-layout">
+      <header class="sub-header">
+        <button class="back" data-nav="menu">‹ Back</button>
+        <h2>Championship Standings</h2>
+      </header>
+      <div class="standings-body">
+        <div class="standings-col">
+          <h3>Drivers</h3>
+          <div id="drivers-standings" class="table"></div>
+        </div>
+        <div class="standings-col">
+          <h3>Constructors</h3>
+          <div id="teams-standings" class="table"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Garage -->
+  <section id="screen-garage" class="screen">
+    <div class="setup-layout">
+      <header class="sub-header">
+        <button class="back" data-nav="menu">‹ Back</button>
+        <h2>Garage</h2>
+      </header>
+      <div class="garage-body">
+        <div class="garage-car" id="garage-car"></div>
+        <div class="grid-list" id="grid-list"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section id="screen-settings" class="screen">
+    <div class="setup-layout">
+      <header class="sub-header">
+        <button class="back" data-nav="menu">‹ Back</button>
+        <h2>Settings</h2>
+      </header>
+      <div class="settings-body" id="settings-body"></div>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section id="screen-results" class="screen">
+    <div class="setup-layout">
+      <header class="sub-header">
+        <h2 id="results-title">Race Result</h2>
+      </header>
+      <div class="results-body">
+        <div class="podium" id="podium"></div>
+        <div class="table" id="results-table"></div>
+        <div class="results-actions">
+          <button class="go-btn" id="btn-results-continue">CONTINUE</button>
+          <button class="ghost-btn" id="btn-results-menu">Main menu</button>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<!-- Pause overlay -->
+<div id="pause" class="overlay hidden">
+  <div class="pause-card">
+    <h2>PAUSED</h2>
+    <div id="pause-info" class="dim"></div>
+    <button class="go-btn" id="btn-resume">RESUME</button>
+    <button class="ghost-btn" id="btn-restart">Restart session</button>
+    <button class="ghost-btn" id="btn-quit">Quit to menu</button>
+    <div class="controls-help">
+      <div><kbd>↑</kbd>/<kbd>W</kbd> Throttle</div>
+      <div><kbd>↓</kbd>/<kbd>S</kbd> Brake</div>
+      <div><kbd>←</kbd><kbd>→</kbd> Steer</div>
+      <div><kbd>Shift</kbd> ERS boost</div>
+      <div><kbd>E</kbd> DRS</div>
+      <div><kbd>P</kbd> Pit request</div>
+      <div><kbd>C</kbd> Camera</div>
+      <div><kbd>L</kbd> Racing line</div>
+      <div><kbd>R</kbd> Recover car</div>
+      <div><kbd>Esc</kbd> Pause</div>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>

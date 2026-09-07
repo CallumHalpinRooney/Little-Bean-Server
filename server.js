@@ -1,11 +1,21 @@
 const express = require('express');
 const Stripe = require('stripe');
 const cors = require('cors');
+const path = require('path');
 
 const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
 const app = express();
 app.use(cors({ origin: '*' }));
 app.use(express.json());
+
+// Apex Grand Prix — the Formula 1 racing game, served as a static site.
+app.use('/f1', express.static(path.join(__dirname, 'public', 'f1'), {
+  extensions: ['html'],
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.js')) res.setHeader('Content-Type', 'application/javascript; charset=utf-8');
+  },
+}));
+app.get('/', (req, res) => res.redirect('/f1/'));
 
 app.post('/create-checkout', async (req, res) => {
   try {
