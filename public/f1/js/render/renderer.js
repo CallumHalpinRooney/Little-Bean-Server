@@ -13,6 +13,11 @@ export class Renderer {
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
     this.camera = { x: 0, y: 0, zoom: 3.2, rot: 0, shake: 0 };
     this.rotateWithCar = true;
+    // 'chase' — the usual pulled-back, slightly-behind view.
+    // 'cockpit' — the driver's eye: right at the car, pinned to its heading,
+    //             with a wheel and halo drawn over the world each frame.
+    // 'tv' — fixed, north-up, the way a broadcast helicopter shot reads.
+    this.cameraMode = 'chase';
     this.showRacingLine = false;
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -185,7 +190,31 @@ export class Renderer {
   updateCamera(player, dt, opts = {}) {
     const cam = this.camera;
     const speed = player.speed;
-    const lead = clamp(speed * 0.28, 0, 24);
+
+    if (this.cameraMode === 'cockpit') {
+      // Sit at the driver's eye point rather than pulled back behind the car,
+      // and snap heading immediately — in a real cockpit the world spins
+      // around you exactly as fast as the car does, with no lag to smooth out.
+      const eyeForward = 0.25;
+      const targetX = player.x + Math.cos(player.heading) * eyeForward;
+      const targetY = player.y + Math.sin(player.heading) * eyeForward;
+      const k = 1 - Math.exp(-dt * 20);
+      cam.x = lerp(cam.x, targetX, k);
+      cam.y = lerp(cam.y, targetY, k);
+
+      const want = -player.heading - Math.PI / 2;
+      let d = want - cam.rot;
+      while (d > Math.PI) d -= Math.PI * 2;
+      while (d < -Math.PI) d += Math.PI * 2;
+      cam.rot += d * (1 - Math.exp(-dt * 22));
+
+      const targetZoom = clamp(9.2 - speed * 0.010, 7.0, 9.2);
+      cam.zoom = lerp(cam.zoom, targetZoom, 1 - Math.exp(-dt * 5));
+      cam.shake = Math.max(0, cam.shake - dt * 2.6);
+      return;
+    }
+
+    const lead = this.cameraMode === 'tv' ? 0 : clamp(speed * 0.28, 0, 24);
     const targetX = player.x + Math.cos(player.heading) * lead;
     const targetY = player.y + Math.sin(player.heading) * lead;
     const k = 1 - Math.exp(-dt * 7.5);
@@ -195,7 +224,7 @@ export class Renderer {
     const targetZoom = opts.zoom ?? clamp(3.55 - speed * 0.0125, 2.15, 3.55);
     cam.zoom = lerp(cam.zoom, targetZoom * (opts.zoomScale ?? 1), 1 - Math.exp(-dt * 3.2));
 
-    if (this.rotateWithCar) {
+    if (this.cameraMode === 'chase' && this.rotateWithCar) {
       const want = -player.heading - Math.PI / 2;
       let d = want - cam.rot;
       while (d > Math.PI) d -= Math.PI * 2;
@@ -205,6 +234,14 @@ export class Renderer {
       cam.rot = lerp(cam.rot, 0, 1 - Math.exp(-dt * 6));
     }
     cam.shake = Math.max(0, cam.shake - dt * 2.6);
+  }
+
+  /** Cycle chase → cockpit → tv → chase, returning the mode now active. */
+  cycleCameraMode() {
+    const order = ['chase', 'cockpit', 'tv'];
+    const i = order.indexOf(this.cameraMode);
+    this.cameraMode = order[(i + 1) % order.length];
+    return this.cameraMode;
   }
 
   addShake(v) { this.camera.shake = Math.min(1.4, this.camera.shake + v); }
@@ -255,14 +292,19 @@ export class Renderer {
     if (this.showRacingLine) this.drawRacingLine(ctx, race);
     this.drawSkidMarks(ctx);
 
-    // Cars
+    // Cars — in the cockpit view the camera sits inside the player's own
+    // car, so its body is skipped rather than drawn around the lens.
+    const inCockpit = this.cameraMode === 'cockpit';
     const cars = race.cars;
-    for (const car of cars) this.drawCarShadow(ctx, car);
+    for (const car of cars) {
+      if (inCockpit && car === player) continue;
+      this.drawCarShadow(ctx, car);
+    }
     for (const car of cars) {
       if (car === player) continue;
       this.drawCar(ctx, car, race, false);
     }
-    if (player) this.drawCar(ctx, player, race, true);
+    if (player && !inCockpit) this.drawCar(ctx, player, race, true);
 
     this.drawParticles(ctx, race);
     if (night) this.drawLighting(ctx, race, player);
@@ -271,6 +313,7 @@ export class Renderer {
 
     if (state?.rain > 0) this.drawRain(ctx, state.rain);
     this.drawVignette(ctx, night);
+    if (inCockpit && player) this.drawCockpit(ctx, player, night);
   }
 
   viewBounds() {
@@ -895,6 +938,139 @@ export class Renderer {
     g.addColorStop(1, night ? 'rgba(0,0,0,0.62)' : 'rgba(0,0,0,0.38)');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, this.w, this.h);
+  }
+
+  /**
+   * Cockpit dressing, drawn in flat screen space after the world is done:
+   * halo pillars framing the view, a dashboard along the bottom, and a
+   * steering wheel that actually turns with the car's front wheels — the
+   * one piece of the HUD that has to line up with what the car is doing.
+   */
+  drawCockpit(ctx, player, night) {
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const w = this.w;
+    const h = this.h;
+    const team = player.team;
+
+    // --- Halo: two pillars and a top bar framing the driver's view --------
+    const pillarW = w * 0.065;
+    const haloTop = h * 0.10;
+    ctx.fillStyle = 'rgba(8,9,11,0.94)';
+    const drawPillar = (fromX, toX) => {
+      ctx.beginPath();
+      ctx.moveTo(fromX, h);
+      ctx.lineTo(fromX + pillarW * 0.35, haloTop + h * 0.05);
+      ctx.lineTo(toX - pillarW * 0.15, haloTop);
+      ctx.lineTo(toX + pillarW * 0.55, haloTop + h * 0.04);
+      ctx.lineTo(toX + pillarW * 0.9, h);
+      ctx.closePath();
+      ctx.fill();
+    };
+    drawPillar(-pillarW * 0.3, pillarW * 0.55);
+    drawPillar(w - pillarW * 1.25, w - pillarW * 0.3);
+    // Top halo bar joining the pillars over the driver's head.
+    ctx.beginPath();
+    ctx.moveTo(pillarW * 0.55, haloTop);
+    ctx.quadraticCurveTo(w / 2, haloTop - h * 0.05, w - pillarW * 1.1, haloTop);
+    ctx.lineTo(w - pillarW * 1.05, haloTop + h * 0.028);
+    ctx.quadraticCurveTo(w / 2, haloTop - h * 0.024, pillarW * 0.6, haloTop + h * 0.028);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = team.accent + '55';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+
+    // --- Dashboard across the bottom --------------------------------------
+    const dashTop = h * 0.86;
+    ctx.fillStyle = 'rgba(10,11,14,0.96)';
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    ctx.lineTo(0, dashTop + h * 0.05);
+    ctx.quadraticCurveTo(w * 0.5, dashTop - h * 0.02, w, dashTop + h * 0.05);
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, dashTop + h * 0.05);
+    ctx.quadraticCurveTo(w * 0.5, dashTop - h * 0.02, w, dashTop + h * 0.05);
+    ctx.stroke();
+
+    // --- Steering wheel, actually rotating with the front wheels ----------
+    const cx = w / 2;
+    const cy = h * 1.02;
+    const radius = Math.min(w, h) * 0.145;
+    const angle = -(player.steerActual || 0) * 2.6;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(angle);
+
+    // Rim.
+    ctx.beginPath();
+    ctx.arc(0, 0, radius, Math.PI * 1.02, Math.PI * 1.98);
+    ctx.lineWidth = radius * 0.22;
+    ctx.strokeStyle = '#17181c';
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.lineWidth = radius * 0.16;
+    ctx.strokeStyle = '#2a2c31';
+    ctx.stroke();
+    // Grip texture.
+    ctx.strokeStyle = 'rgba(0,0,0,0.35)';
+    ctx.lineWidth = radius * 0.04;
+    for (let a = -0.92; a <= 0.92; a += 0.14) {
+      const th = Math.PI * 1.5 + a;
+      const x1 = Math.cos(th) * (radius - radius * 0.05);
+      const y1 = Math.sin(th) * (radius - radius * 0.05);
+      const x2 = Math.cos(th) * (radius + radius * 0.05);
+      const y2 = Math.sin(th) * (radius + radius * 0.05);
+      ctx.beginPath();
+      ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+    }
+    // Spokes and hub.
+    ctx.strokeStyle = '#2a2c31';
+    ctx.lineWidth = radius * 0.16;
+    ctx.beginPath();
+    ctx.moveTo(-radius * 0.86, -radius * 0.12);
+    ctx.lineTo(-radius * 0.22, -radius * 0.02);
+    ctx.moveTo(radius * 0.86, -radius * 0.12);
+    ctx.lineTo(radius * 0.22, -radius * 0.02);
+    ctx.stroke();
+    ctx.fillStyle = '#1c1d21';
+    ctx.beginPath();
+    ctx.arc(0, -radius * 0.02, radius * 0.30, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = team.colour;
+    ctx.beginPath();
+    ctx.arc(0, -radius * 0.02, radius * 0.14, 0, Math.PI * 2);
+    ctx.fill();
+    // Rev-light strip along the top of the hub, the way real F1 wheels carry one.
+    const revCount = 8;
+    const rpmFrac = clamp((player.rpm - 10000) / (15000 - 10000), 0, 1);
+    for (let i = 0; i < revCount; i++) {
+      const t = i / (revCount - 1);
+      const lit = t <= rpmFrac;
+      ctx.fillStyle = lit
+        ? (t > 0.75 ? '#F5333F' : t > 0.4 ? '#FFD24A' : '#3BD16F')
+        : 'rgba(255,255,255,0.08)';
+      const bx = -radius * 0.42 + t * radius * 0.84;
+      ctx.fillRect(bx - radius * 0.035, -radius * 0.30, radius * 0.07, radius * 0.09);
+    }
+    ctx.restore();
+
+    // Faint dashboard glow from the digital display, tinted by team colour.
+    const glow = ctx.createRadialGradient(cx, dashTop, 4, cx, dashTop, w * 0.3);
+    glow.addColorStop(0, team.colour + '22');
+    glow.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, dashTop - h * 0.06, w, h * 0.16);
+
+    if (night) {
+      ctx.fillStyle = 'rgba(0,0,0,0.18)';
+      ctx.fillRect(0, 0, w, h);
+    }
   }
 
   // -------------------------------------------------------------------

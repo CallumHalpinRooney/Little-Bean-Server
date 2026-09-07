@@ -64,6 +64,7 @@ class Game {
     const s = this.menu.settings;
     this.renderer.rotateWithCar = s.rotateCamera;
     this.renderer.showRacingLine = s.racingLine;
+    this.renderer.cameraMode = s.cameraMode || 'chase';
     this.audio.setVolume(s.volume);
     const tower = document.getElementById('tower');
     if (tower) tower.style.display = s.showTower ? '' : 'none';
@@ -181,8 +182,13 @@ class Game {
       if (this.paused) return;
       if (k === 'p') this.togglePit();
       if (k === 'c') {
-        this.menu.settings.rotateCamera = !this.menu.settings.rotateCamera;
-        this.applySettings(); this.menu.saveAll();
+        const mode = this.renderer.cycleCameraMode();
+        this.menu.settings.cameraMode = mode;
+        this.menu.saveAll();
+        this.hud.message(
+          mode === 'cockpit' ? 'Cockpit camera' : mode === 'tv' ? 'TV camera' : 'Chase camera',
+          'info',
+        );
       }
       if (k === 'l') {
         this.menu.settings.racingLine = !this.menu.settings.racingLine;

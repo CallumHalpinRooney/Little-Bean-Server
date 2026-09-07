@@ -23,6 +23,7 @@ const save = (key, value) => {
 export const DEFAULT_SETTINGS = {
   volume: 0.7,
   rotateCamera: true,
+  cameraMode: 'chase',   // 'chase' | 'cockpit' | 'tv'
   racingLine: false,
   showTower: true,
   assistOverride: 'auto',   // 'auto' | 'all' | 'none'
@@ -431,7 +432,15 @@ export class Menu {
         <input type="range" id="set-volume" min="0" max="1" step="0.05" value="${this.settings.volume}">
       </div>
       <div class="setting">
-        <h4>Camera</h4><p>Rotate the world with the car, or keep the circuit fixed.</p>
+        <h4>Camera view</h4><p>Press <kbd>C</kbd> in-race to cycle these on the fly.</p>
+        <div class="seg" id="set-cameramode">
+          <button data-v="chase" class="${(this.settings.cameraMode || 'chase') === 'chase' ? 'on' : ''}">Chase</button>
+          <button data-v="cockpit" class="${this.settings.cameraMode === 'cockpit' ? 'on' : ''}">Cockpit</button>
+          <button data-v="tv" class="${this.settings.cameraMode === 'tv' ? 'on' : ''}">TV</button>
+        </div>
+      </div>
+      <div class="setting">
+        <h4>Chase camera rotation</h4><p>Only applies to the chase view above.</p>
         <div class="seg" id="set-camera">
           <button data-v="1" class="${this.settings.rotateCamera ? 'on' : ''}">Rotate with car</button>
           <button data-v="0" class="${!this.settings.rotateCamera ? 'on' : ''}">Fixed</button>
@@ -475,6 +484,7 @@ export class Menu {
         b.addEventListener('click', () => { apply(b.dataset.v); this.saveAll(); this.renderSettings(); });
       });
     };
+    pick('set-cameramode', (v) => { this.settings.cameraMode = v; this.game.applySettings(); });
     pick('set-camera', (v) => { this.settings.rotateCamera = v === '1'; this.game.applySettings(); });
     pick('set-line', (v) => { this.settings.racingLine = v === '1'; this.game.applySettings(); });
     pick('set-assists', (v) => { this.settings.assistOverride = v; this.game.applySettings(); });
