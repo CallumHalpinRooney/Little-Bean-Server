@@ -23,7 +23,7 @@ const save = (key, value) => {
 export const DEFAULT_SETTINGS = {
   volume: 0.7,
   rotateCamera: true,
-  cameraMode: 'chase',   // 'chase' | 'cockpit' | 'tv'
+  cameraMode: 'cockpit', // 'chase' | 'cockpit' | 'tv'
   racingLine: false,
   showTower: true,
   assistOverride: 'auto',   // 'auto' | 'all' | 'none'
