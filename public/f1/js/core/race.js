@@ -6,6 +6,12 @@ import { COMPOUNDS, POINTS, FASTEST_LAP_POINT } from '../data/teams.js';
 const PHYS_DT = 1 / 120;
 const MAX_SUBSTEPS = 8;
 
+// Yaw inertia of the car, mirroring CAR.yawInertia, and how much of the
+// physically-correct spin from a contact is actually handed to the car. Full
+// strength makes every touch terminal, which is neither realistic nor fun.
+const CAR_YAW_INERTIA = 1150;
+const CONTACT_YAW_SCALE = 0.30;
+
 export const DIFFICULTIES = {
   rookie:   { key: 'rookie',   label: 'Rookie',    aiPace: 0.905, assists: { tc: true,  abs: true,  stability: 1.5 }, damage: 0.35, wear: 0.55 },
   amateur:  { key: 'amateur',  label: 'Amateur',   aiPace: 0.945, assists: { tc: true,  abs: true,  stability: 0.9 }, damage: 0.6,  wear: 0.75 },
@@ -417,19 +423,22 @@ export class RaceDirector {
     wvx *= damp; wvy *= damp;
     car.vx = wvx * cosH + wvy * sinH;
     car.vy = -wvx * sinH + wvy * cosH;
-    car.r *= -0.25;
+    // Damp the rotation rather than reversing it — flipping the sign of yaw
+    // on contact throws the car into a spin the driver never had a chance to
+    // catch.
+    car.r *= 0.35;
 
     if (car.contactCooldown <= 0 && impact > 4) {
       car.contactCooldown = 0.6;
       const severity = clamp(impact / 40, 0, 1) * this.difficulty.damage;
-      car.applyDamage('front', severity * 0.55);
-      car.applyDamage('floor', severity * 0.3);
+      car.applyDamage('front', severity * 0.34);
+      car.applyDamage('floor', severity * 0.18);
       this.spawnDebris(car, severity);
       if (car === this.playerCar) {
         this.emit(impact > 25 ? 'Heavy contact with the barrier — check the car'
           : 'Contact with the wall', 'incident');
       }
-      if (severity > 0.85) this.retire(car, 'Accident damage');
+      if (severity > 0.96) this.retire(car, 'Accident damage');
       this.onImpact?.(clamp(impact / 45, 0, 1));
     }
   }
@@ -564,27 +573,35 @@ export class RaceDirector {
               bv.x += nx * imp; bv.y += ny * imp;
               this.setWorldVel(a, av);
               this.setWorldVel(b, bv);
-              const spin = 0.5 * Math.sign(oa - ob || 1);
-              a.r -= spin * Math.abs(rel) * 0.012;
-              b.r += spin * Math.abs(rel) * 0.012;
 
               const severity = clamp(Math.abs(rel) / 22, 0, 1) * this.difficulty.damage;
               if (severity > 0.04 && a.contactCooldown <= 0 && b.contactCooldown <= 0) {
                 a.contactCooldown = 0.5;
                 b.contactCooldown = 0.5;
+
+                // Yaw from an off-centre hit, as a one-off angular impulse:
+                // lever arm crossed into the collision impulse, over the yaw
+                // inertia. This used to be added every physics tick and
+                // unscaled, so two cars merely rubbing down a straight span
+                // would wind each other up into an unrecoverable spin.
+                this.applyContactYaw(a, oa, -nx * imp, -ny * imp);
+                this.applyContactYaw(b, ob, nx * imp, ny * imp);
+
                 // The car behind takes the front-wing damage.
                 const aAhead = this.circuit.forwardGap(b.lapDistance, a.lapDistance) > 0;
                 const behind = aAhead ? b : a;
                 const front = aAhead ? a : b;
-                behind.applyDamage('front', severity * 0.7);
-                front.applyDamage('rear', severity * 0.45);
+                behind.applyDamage('front', severity * 0.42);
+                front.applyDamage('rear', severity * 0.26);
                 this.spawnDebris(behind, severity);
                 this.onImpact?.(severity);
                 if (severity > 0.3 && (a === this.playerCar || b === this.playerCar)) {
                   this.emit('Contact! Check the front wing', 'incident');
                 }
-                if (severity > 0.75) {
-                  if (this.rand() < 0.35) this.retire(behind, 'Collision damage');
+                // Only a genuinely big hit ends a race. Racing contact should
+                // cost time and a wing, not the afternoon.
+                if (severity > 0.92 && this.rand() < 0.12) {
+                  this.retire(behind, 'Collision damage');
                 }
               }
             }
@@ -593,6 +610,20 @@ export class RaceDirector {
       }
     }
     void dt;
+  }
+
+  /**
+   * Angular impulse from a contact at body-longitudinal offset `offset`,
+   * given the velocity change (jx, jy) that contact imparted. Scaled down from
+   * the raw rigid-body result so a nudge unsettles a car without ending its
+   * race outright.
+   */
+  applyContactYaw(car, offset, jx, jy) {
+    const leverX = Math.cos(car.heading) * offset;
+    const leverY = Math.sin(car.heading) * offset;
+    const mass = car.mass;
+    const dOmega = ((leverX * (jy * mass)) - (leverY * (jx * mass))) / CAR_YAW_INERTIA;
+    car.r = clamp(car.r + dOmega * CONTACT_YAW_SCALE, -3.2, 3.2);
   }
 
   worldVel(c) {

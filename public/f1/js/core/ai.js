@@ -1,5 +1,10 @@
 import { clamp, wrapAngle, mulberry32, gaussian } from './geometry.js';
 
+// How far past its grip limit the car has to be asking before it starts
+// scrubbing speed, and the most it will cut in one go.
+const US_THRESHOLD = 0.88;
+const US_MAX_CUT = 0.45;
+
 /**
  * An AI race driver. It drives the same physics model as the player through
  * synthetic control inputs: a pure-pursuit steering controller aimed at a
@@ -138,6 +143,16 @@ export class AIDriver {
     let cmd = need / Math.max(5, car.latCapacity || 18) - car.r * 0.06;
     car.steer = clamp(cmd, -1, 1);
 
+    // How hard the line itself is bending right where the car is. Used both to
+    // decide the corner is too fast for the tyres and to keep the throttle out
+    // of the same friction circle the cornering is already using.
+    let kNow = 0;
+    const scan = Math.max(1, Math.round((5 + speed * 0.12) / ci.ds));
+    for (let k = 0; k <= scan; k++) {
+      const c = Math.abs(ci.line.curv[(car.node + k) % n]);
+      if (c > kNow) kNow = c;
+    }
+
     // ---- Longitudinal: read the speed profile ahead -------------------
     let target = this.targetSpeed(w);
 
@@ -145,34 +160,71 @@ export class AIDriver {
 
     if (this.mistake > 0 && this.mistakeKind === 'lock') target *= 0.90;
 
-    const delta = speed - target;
-    if (delta > 0.4) {
-      car.brake = clamp(delta * 0.30 + 0.06, 0, 1);
-      car.throttle = 0;
-    } else {
-      car.brake = 0;
-      car.throttle = clamp(0.30 - delta * 0.55, 0, 1);
+    // Understeer feedback. The speed profile is computed from the ideal line,
+    // but the car is never exactly on it, so on a tight corner it can end up
+    // asking the tyres for more lateral grip than they have — the wheel goes
+    // to the stop and the car washes wide no matter what the profile said.
+    // Comparing the lateral acceleration the path actually needs against what
+    // the car can currently deliver closes that loop on any corner of any
+    // circuit, without relying on the profile being right.
+    // Measured from the geometry of the corner the car is actually in, not from
+    // the steering controller's output: the controller spikes on every small
+    // line correction, and braking for those had the car slowing down on the
+    // straights. Curvature of the line ahead times v squared is the lateral
+    // acceleration this corner demands, and if that exceeds what the tyres can
+    // give then no amount of steering will make it — the only answer is to be
+    // going slower.
+    // Compare the lateral acceleration the car is actually asking its front
+    // tyres for against what they can give. Above about one, no amount of
+    // steering will make the corner — the car is simply going too fast for the
+    // line it is trying to hold, and the only answer is to scrub speed. This
+    // closes the loop on every corner of every circuit without depending on the
+    // speed profile being exactly right.
+    const available = Math.max(6, car.latCapacity || 18);
+    const deficit = Math.abs(need) / available;
+    if (deficit > US_THRESHOLD) {
+      target = Math.min(target, speed * (1 - Math.min(US_MAX_CUT, (deficit - US_THRESHOLD) * 1.1)));
     }
 
-    // Trail braking: whatever the brakes are using is not available to the
-    // front tyres, so ease the steering demand rather than asking for grip
-    // that is not there.
-    car.steer *= Math.sqrt(Math.max(0.25, 1 - car.brake * car.brake * 0.75));
+    // Smooth, hysteretic longitudinal control. Recomputing a bang-bang
+    // brake/throttle decision every tick made the pedals chatter between full
+    // brake and full throttle, and because braking eats into the friction
+    // circle the car's cornering grip flickered with it — which is what sent
+    // it wide mid-corner. Demands are now filtered, and the brake is released
+    // progressively rather than dropped.
+    const delta = speed - target;
+    let wantBrake = 0;
+    let wantThrottle = 0;
+    if (delta > 0.35) {
+      wantBrake = clamp((delta - 0.35) * 0.26, 0, 1);
+    } else if (delta < -0.3) {
+      wantThrottle = clamp(-delta * 0.45, 0, 1);
+    } else {
+      wantThrottle = 0.15;   // feather it through the dead band
+    }
+
+    const rate = dt * 6;
+    this.brakeCmd = clamp((this.brakeCmd ?? 0) + clamp(wantBrake - (this.brakeCmd ?? 0), -rate * 2, rate), 0, 1);
+    this.throttleCmd = clamp(
+      (this.throttleCmd ?? 0) + clamp(wantThrottle - (this.throttleCmd ?? 0), -rate * 2, rate), 0, 1,
+    );
+    car.brake = this.brakeCmd;
+    car.throttle = this.brakeCmd > 0.02 ? 0 : this.throttleCmd;
+
+    // Braking is subject to the same friction circle as traction: standing on
+    // the brakes while already loaded up in a corner is how the front washes
+    // out. Trail off the brake as cornering load builds.
+    const loadNow = clamp(Math.abs(car.latG) / Math.max(6, car.latCapacity || 18), 0, 1);
+    car.brake *= Math.sqrt(Math.max(0.12, 1 - loadNow * loadNow * 0.92));
+
+    // Whatever the brakes are still using is not available to the front tyres.
+    car.steer *= Math.sqrt(Math.max(0.35, 1 - car.brake * car.brake * 0.55));
 
     // Respect the friction circle, and do it by looking at the corner rather
     // than by reacting to load already on the tyres. Grip spent on cornering is
     // not available for traction; asking for both is how a car ends up in the
     // run-off with the throttle pinned.
     const latRef = Math.min(11.4 + 0.0042 * speed * speed, 29.5) * w.env.trackGrip;
-    // Only what the car is cornering through *now* — scanning far ahead here
-    // makes the AI lift for a corner it has not reached, all the way round the
-    // lap. Slowing down for what is coming is the speed profile's job.
-    let kNow = 0;
-    const scan = Math.max(1, Math.round((5 + speed * 0.12) / ci.ds));
-    for (let k = 0; k <= scan; k++) {
-      const c = Math.abs(ci.line.curv[(car.node + k) % n]);
-      if (c > kNow) kNow = c;
-    }
     const latDemand = kNow * speed * speed;
     const ceiling = Math.sqrt(Math.max(0.03, 1 - (latDemand / latRef) ** 2))
       * (0.72 + this.d.racecraft * 0.32);

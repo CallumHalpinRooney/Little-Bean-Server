@@ -195,7 +195,13 @@ export class Circuit {
     // margin so a car tracking the profile is never asking for everything it
     // has. Lateral grip saturates at high speed because holding a big corner
     // also means fighting a lot of drag.
-    const MARGIN = 0.88;
+    // The margin has to cover more than measurement error: the car cannot
+    // follow the ideal line exactly, and any throttle or brake it is carrying
+    // eats into the same friction circle the corner speed assumed it had all
+    // of. At 0.88 the profile was asking for corner speeds only achievable on
+    // a perfect line at steady state, and the AI understeered wide at the apex
+    // of every slow corner.
+    const MARGIN = 0.86;
     const latLimit = (speed) => grip * MARGIN
       * Math.min(11.4 + 0.0042 * speed * speed, 29.5);
     const brakeLimit = (speed) => grip * MARGIN * (18.4 + 0.0075 * speed * speed);

@@ -1,6 +1,12 @@
 import { clamp, lerp, mulberry32 } from '../core/geometry.js';
 import { COMPOUNDS } from '../data/teams.js';
 
+// How fast the camera is allowed to swing round, in radians per second. Real
+// cornering rarely asks for more than ~1.3 rad/s, so these sit high enough to
+// track the car exactly while still refusing to follow a full spin.
+const COCKPIT_TURN_RATE = 2.2;
+const CHASE_TURN_RATE = 2.6;
+
 /**
  * Canvas renderer. The circuit is turned into a small set of Path2D objects
  * once, then every frame is a handful of wide strokes (asphalt, run-off,
@@ -187,14 +193,32 @@ export class Renderer {
   // Camera
   // -------------------------------------------------------------------
 
+  /**
+   * Turn the camera towards `target` without ever exceeding `maxRate` rad/s.
+   *
+   * Chasing the car's heading with a plain smoothing filter means the camera
+   * inherits the car's angular velocity — so a spin whips the whole world
+   * round the screen several times a second and the player loses all sense of
+   * where they are. Capping the rate keeps ordinary cornering pinned exactly to
+   * the car (normal yaw rates are well under the cap, so there is no lag you
+   * can see) while a spin simply pans, and you can still read the track.
+   */
+  static rotateTowards(current, target, maxRate, dt) {
+    let d = target - current;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    const step = maxRate * dt;
+    if (d > step) d = step;
+    else if (d < -step) d = -step;
+    return current + d;
+  }
+
   updateCamera(player, dt, opts = {}) {
     const cam = this.camera;
     const speed = player.speed;
 
     if (this.cameraMode === 'cockpit') {
-      // Sit at the driver's eye point rather than pulled back behind the car,
-      // and snap heading immediately — in a real cockpit the world spins
-      // around you exactly as fast as the car does, with no lag to smooth out.
+      // Sit at the driver's eye point rather than pulled back behind the car.
       const eyeForward = 0.25;
       const targetX = player.x + Math.cos(player.heading) * eyeForward;
       const targetY = player.y + Math.sin(player.heading) * eyeForward;
@@ -203,10 +227,7 @@ export class Renderer {
       cam.y = lerp(cam.y, targetY, k);
 
       const want = -player.heading - Math.PI / 2;
-      let d = want - cam.rot;
-      while (d > Math.PI) d -= Math.PI * 2;
-      while (d < -Math.PI) d += Math.PI * 2;
-      cam.rot += d * (1 - Math.exp(-dt * 22));
+      cam.rot = Renderer.rotateTowards(cam.rot, want, COCKPIT_TURN_RATE, dt);
 
       const targetZoom = clamp(9.2 - speed * 0.010, 7.0, 9.2);
       cam.zoom = lerp(cam.zoom, targetZoom, 1 - Math.exp(-dt * 5));
@@ -226,10 +247,7 @@ export class Renderer {
 
     if (this.cameraMode === 'chase' && this.rotateWithCar) {
       const want = -player.heading - Math.PI / 2;
-      let d = want - cam.rot;
-      while (d > Math.PI) d -= Math.PI * 2;
-      while (d < -Math.PI) d += Math.PI * 2;
-      cam.rot += d * (1 - Math.exp(-dt * 8));
+      cam.rot = Renderer.rotateTowards(cam.rot, want, CHASE_TURN_RATE, dt);
     } else {
       cam.rot = lerp(cam.rot, 0, 1 - Math.exp(-dt * 6));
     }
