@@ -23,12 +23,12 @@ const save = (key, value) => {
 export const DEFAULT_SETTINGS = {
   volume: 0.7,
   rotateCamera: true,
-  cameraMode: 'cockpit', // 'chase' | 'cockpit' | 'tv'
+  cameraMode: 'cockpit', // 'cockpit' | 'drive' | 'top'
   racingLine: false,
   showTower: true,
   assistOverride: 'auto',   // 'auto' | 'all' | 'none'
   driverId: 'norris',
-  difficulty: 'pro',
+  difficulty: 'amateur',
   weather: 'dry',
   lengthPct: 25,
   trackId: 'melbourne',
@@ -434,9 +434,9 @@ export class Menu {
       <div class="setting">
         <h4>Camera view</h4><p>Press <kbd>C</kbd> in-race to cycle these on the fly.</p>
         <div class="seg" id="set-cameramode">
-          <button data-v="chase" class="${(this.settings.cameraMode || 'chase') === 'chase' ? 'on' : ''}">Chase</button>
+          <button data-v="drive" class="${(this.settings.cameraMode || 'drive') === 'drive' ? 'on' : ''}">Behind car</button>
           <button data-v="cockpit" class="${this.settings.cameraMode === 'cockpit' ? 'on' : ''}">Cockpit</button>
-          <button data-v="tv" class="${this.settings.cameraMode === 'tv' ? 'on' : ''}">TV</button>
+          <button data-v="top" class="${this.settings.cameraMode === 'top' ? 'on' : ''}">Overhead</button>
         </div>
       </div>
       <div class="setting">

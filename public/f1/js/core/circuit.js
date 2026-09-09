@@ -48,14 +48,18 @@ export class Circuit {
     // which part of the circuit a car is on, so distant parts of the lap are
     // pushed apart until there is real estate between them.
     let shapedNodes = resampleClosed(scaled, NODE_SPACING);
-    shapedNodes = Circuit.relaxCurvature(shapedNodes, data.minRadius || 26);
+    shapedNodes = Circuit.relaxCurvature(shapedNodes, data.minRadius || 46);
     // A mild push is enough to stop two stretches of asphalt overlapping;
     // anything stronger starts to distort the shape of the circuit, and
     // localisation handles genuine crossovers on its own.
-    const relaxed = Circuit.separate(
-      shapedNodes, data.width + 5, Math.round(140 / NODE_SPACING),
-      data.minRadius || 26,
+    const minRadius = data.minRadius || 46;
+    const separated = Circuit.separate(
+      shapedNodes, data.width + 5, Math.round(140 / NODE_SPACING), minRadius,
     );
+    // Separation shoves nodes around and can put kinks back in, so the corner
+    // radius limit is enforced last. Nothing on the circuit ends up tighter
+    // than a corner a car can actually flow through.
+    const relaxed = Circuit.relaxCurvature(separated, minRadius);
     const relaxedLen = polylineLength(relaxed);
     const fix = data.length / relaxedLen;
     let cx = 0;
@@ -451,7 +455,7 @@ export class Circuit {
     const pts = points.map((p) => p.slice());
     const n = pts.length;
     const maxCurv = 1 / minRadius;
-    for (let pass = 0; pass < 240; pass++) {
+    for (let pass = 0; pass < 600; pass++) {
       const curv = curvatureProfile(pts, 2);
       let worst = 0;
       for (let i = 0; i < n; i++) {
@@ -462,7 +466,7 @@ export class Circuit {
         const b = pts[(i + 2) % n];
         const mx = (a[0] + b[0]) * 0.5;
         const my = (a[1] + b[1]) * 0.5;
-        const w = Math.min(0.35, excess / maxCurv * 0.35);
+        const w = Math.min(0.5, excess / maxCurv * 0.5);
         pts[i][0] += (mx - pts[i][0]) * w;
         pts[i][1] += (my - pts[i][1]) * w;
       }

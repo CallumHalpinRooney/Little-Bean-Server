@@ -19,11 +19,12 @@ export class Renderer {
     this.dpr = Math.min(2, window.devicePixelRatio || 1);
     this.camera = { x: 0, y: 0, zoom: 3.2, rot: 0, shake: 0 };
     this.rotateWithCar = true;
-    // 'chase' — the usual pulled-back, slightly-behind view.
-    // 'cockpit' — the driver's eye: right at the car, pinned to its heading,
-    //             with a wheel and halo drawn over the world each frame.
-    // 'tv' — fixed, north-up, the way a broadcast helicopter shot reads.
-    this.cameraMode = 'chase';
+    // 'drive'   — 3D perspective from just behind the car, looking down the
+    //             circuit. Your own car is right there in front of you.
+    // 'cockpit' — the same projection from the driver's eye, car hidden,
+    //             wheel and halo drawn over the world.
+    // 'top'     — the overhead map view, useful for learning a circuit.
+    this.cameraMode = 'drive';
     this.showRacingLine = false;
     this.resize();
     window.addEventListener('resize', () => this.resize());
@@ -217,7 +218,13 @@ export class Renderer {
     const cam = this.camera;
     const speed = player.speed;
 
-    if (this.cameraMode === 'cockpit') {
+    if (this.cameraMode === 'drive' || this.cameraMode === 'cockpit') {
+      this.setupEye(player, dt);
+      cam.shake = Math.max(0, cam.shake - dt * 2.6);
+      return;
+    }
+
+    if (this.cameraMode === 'legacy-cockpit') {
       // Sit at the driver's eye point rather than pulled back behind the car.
       const eyeForward = 0.25;
       const targetX = player.x + Math.cos(player.heading) * eyeForward;
@@ -245,7 +252,7 @@ export class Renderer {
     const targetZoom = opts.zoom ?? clamp(3.55 - speed * 0.0125, 2.15, 3.55);
     cam.zoom = lerp(cam.zoom, targetZoom * (opts.zoomScale ?? 1), 1 - Math.exp(-dt * 3.2));
 
-    if (this.cameraMode === 'chase' && this.rotateWithCar) {
+    if (this.cameraMode === 'top' && this.rotateWithCar) {
       const want = -player.heading - Math.PI / 2;
       cam.rot = Renderer.rotateTowards(cam.rot, want, CHASE_TURN_RATE, dt);
     } else {
@@ -256,7 +263,7 @@ export class Renderer {
 
   /** Cycle chase → cockpit → tv → chase, returning the mode now active. */
   cycleCameraMode() {
-    const order = ['chase', 'cockpit', 'tv'];
+    const order = ['drive', 'cockpit', 'top'];
     const i = order.indexOf(this.cameraMode);
     this.cameraMode = order[(i + 1) % order.length];
     return this.cameraMode;
@@ -282,6 +289,11 @@ export class Renderer {
   // -------------------------------------------------------------------
 
   render(race, player, state) {
+    if (this.cameraMode === 'drive' || this.cameraMode === 'cockpit') {
+      this.renderPerspective(race, player, state);
+      return;
+    }
+
     const ctx = this.ctx;
     const ci = this.circuit;
     const theme = ci.data.theme;
@@ -1088,6 +1100,371 @@ export class Renderer {
     if (night) {
       ctx.fillStyle = 'rgba(0,0,0,0.18)';
       ctx.fillRect(0, 0, w, h);
+    }
+  }
+
+  // ===================================================================
+  // Perspective ("in the car") view
+  // ===================================================================
+
+  /**
+   * A proper 3D-projected view looking down the circuit, rather than a
+   * zoomed-in overhead one. The world is flat, so every point can be projected
+   * with a single perspective divide: distance ahead of the camera shrinks
+   * things towards the horizon.
+   *
+   * Screen space has y pointing down, so the driver's left is (sin h, -cos h)
+   * — the same vector the circuit uses for a positive lateral offset.
+   */
+  setupEye(player, dt) {
+    if (!this.eye) {
+      this.eye = { x: player.x, y: player.y, heading: player.heading };
+    }
+    const eye = this.eye;
+    const cockpit = this.cameraMode === 'cockpit';
+
+    // Rate-limited heading so a spin pans instead of strobing.
+    eye.heading = Renderer.rotateTowards(
+      eye.heading, player.heading, cockpit ? 2.6 : 2.2, dt,
+    );
+
+    // Sit the eye behind and above the car (or at the driver for cockpit).
+    // The onboard sits where a real F1 camera does: on top of the airbox just
+    // behind the driver, so the nose stretches away ahead and the front wheels
+    // sit small at the edges of frame instead of filling it.
+    const back = cockpit ? 0.75 : 7.6;
+    const targetX = player.x - Math.cos(player.heading) * back;
+    const targetY = player.y - Math.sin(player.heading) * back;
+    const k = 1 - Math.exp(-dt * (cockpit ? 18 : 9));
+    eye.x = lerp(eye.x, targetX, k);
+    eye.y = lerp(eye.y, targetY, k);
+    eye.height = cockpit ? 1.34 : 3.05;
+  }
+
+  /** Project a world point at height `pz` metres. Returns null if behind us. */
+  project(px, py, pz) {
+    const eye = this.eye;
+    const ch = Math.cos(eye.heading);
+    const sh = Math.sin(eye.heading);
+    const dx = px - eye.x;
+    const dy = py - eye.y;
+    const depth = dx * ch + dy * sh;
+    if (depth < 0.6) return null;
+    const lateral = dx * -sh + dy * ch;
+    const scale = this.focal / depth;
+    return {
+      x: this.w / 2 + lateral * scale,
+      y: this.horizonY + (eye.height - pz) * scale,
+      scale,
+      depth,
+    };
+  }
+
+  renderPerspective(race, player, state) {
+    const ctx = this.ctx;
+    const ci = this.circuit;
+    const theme = ci.data.theme;
+    const night = !!ci.data.night;
+    const cockpit = this.cameraMode === 'cockpit';
+
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    this.focal = this.h * 1.15;
+    this.horizonY = this.h * (cockpit ? 0.40 : 0.44);
+
+    // --- Sky and ground ------------------------------------------------
+    const sky = ctx.createLinearGradient(0, 0, 0, this.horizonY);
+    if (night) {
+      sky.addColorStop(0, '#05060B');
+      sky.addColorStop(1, '#161B2C');
+    } else {
+      sky.addColorStop(0, '#3E6C9E');
+      sky.addColorStop(0.7, '#9BC0DC');
+      sky.addColorStop(1, '#D6E4EC');
+    }
+    ctx.fillStyle = sky;
+    ctx.fillRect(0, 0, this.w, this.horizonY + 1);
+
+    const ground = ctx.createLinearGradient(0, this.horizonY, 0, this.h);
+    ground.addColorStop(0, night ? '#141A16' : theme.grass2);
+    ground.addColorStop(1, night ? '#0B0F0C' : theme.grass);
+    ctx.fillStyle = ground;
+    ctx.fillRect(0, this.horizonY, this.w, this.h - this.horizonY);
+
+    // --- Road, drawn far to near so nearer strips paint over -----------
+    const half = ci.half;
+    const node = player.node;
+    const far = Math.min(ci.n - 1, Math.round(420 / ci.ds));
+    const behind = Math.round(26 / ci.ds);
+    const strip = [];
+    for (let k = far; k >= -behind; k--) {
+      const i = (node + k + ci.n) % ci.n;
+      const j = (node + k + 1 + ci.n) % ci.n;
+      strip.push({ i, j, k: Math.max(0, k) });
+    }
+
+    const quad = (aL, aR, bR, bL, fill) => {
+      if (!aL || !aR || !bR || !bL) return;
+      ctx.beginPath();
+      ctx.moveTo(aL.x, aL.y);
+      ctx.lineTo(aR.x, aR.y);
+      ctx.lineTo(bR.x, bR.y);
+      ctx.lineTo(bL.x, bL.y);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+
+    const edge = (idx, lat) => {
+      const [x, y] = ci.posAt(idx, lat);
+      return this.project(x, y, 0);
+    };
+
+    for (const s of strip) {
+      const fade = clamp(1 - s.k / far, 0, 1);
+      const shade = 0.55 + fade * 0.45;
+
+      // Run-off / verge, a little wider than the track.
+      const wide = half + (ci.data.street ? 2.6 : 11);
+      quad(edge(s.i, wide), edge(s.i, -wide), edge(s.j, -wide), edge(s.j, wide),
+        night ? `rgba(40,44,40,${shade})` : this.shadeColour(theme.runoff, shade));
+
+      // Asphalt, with a subtle band per strip so speed reads on screen.
+      const band = (s.i % 8 < 4) ? 0.03 : 0;
+      const road = night
+        ? `rgb(${Math.round(34 * shade)},${Math.round(36 * shade)},${Math.round(42 * shade)})`
+        : `rgb(${Math.round((58 + band * 255) * shade)},${Math.round((60 + band * 255) * shade)},${Math.round((66 + band * 255) * shade)})`;
+      quad(edge(s.i, half), edge(s.i, -half), edge(s.j, -half), edge(s.j, half), road);
+
+      // White edge lines.
+      const lineW = 0.32;
+      quad(edge(s.i, half), edge(s.i, half - lineW), edge(s.j, half - lineW), edge(s.j, half),
+        `rgba(236,238,242,${0.5 + fade * 0.45})`);
+      quad(edge(s.i, -half + lineW), edge(s.i, -half), edge(s.j, -half), edge(s.j, -half + lineW),
+        `rgba(236,238,242,${0.5 + fade * 0.45})`);
+
+      // Kerbs on the inside of anything that is actually a corner.
+      const curv = ci.curv[s.i];
+      if (Math.abs(curv) > 0.004) {
+        const side = Math.sign(curv);
+        const inner = side * half;
+        const outer = side * (half + 1.5);
+        const red = (Math.floor(s.i / 2) % 2) === 0;
+        quad(edge(s.i, outer), edge(s.i, inner), edge(s.j, inner), edge(s.j, outer),
+          red ? `rgba(200,54,62,${shade})` : `rgba(238,238,242,${shade})`);
+      }
+
+      // Start/finish line.
+      if (s.i === 0 || s.j === 0) {
+        quad(edge(s.i, half), edge(s.i, -half), edge(s.j, -half), edge(s.j, half),
+          'rgba(240,240,245,0.9)');
+      }
+    }
+
+    this.drawTrackside(ctx, strip, night, theme);
+
+    // Distance haze so the far end of the circuit melts into the horizon
+    // rather than ending in a hard line.
+    const hazeH = this.h * 0.07;
+    const haze = ctx.createLinearGradient(0, this.horizonY - hazeH * 0.3, 0, this.horizonY + hazeH);
+    haze.addColorStop(0, night ? 'rgba(22,27,44,0.75)' : 'rgba(198,216,230,0.70)');
+    haze.addColorStop(1, night ? 'rgba(22,27,44,0)' : 'rgba(198,216,230,0)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, this.horizonY - hazeH * 0.3, this.w, hazeH * 1.3);
+
+    // --- Cars, far to near ---------------------------------------------
+    const others = race.cars
+      .map((c) => ({ car: c, p: this.project(c.x, c.y, 0) }))
+      .filter((o) => o.p && o.p.depth < 420)
+      .sort((a, b) => b.p.depth - a.p.depth);
+    for (const o of others) this.drawCar3D(ctx, o.car, o.car === player);
+
+    if (state?.rain > 0) this.drawRain(ctx, state.rain);
+    this.drawVignette(ctx, night);
+    if (cockpit) this.drawCockpit(ctx, player, night);
+  }
+
+  /**
+   * Barriers, grandstands and greenery, projected the same way the road is.
+   * Without something standing up beside the circuit there is no sense of
+   * speed or scale — the track reads as a flat ribbon on a field.
+   */
+  drawTrackside(ctx, strip, night, theme) {
+    const ci = this.circuit;
+    const street = !!ci.data.street;
+    const half = ci.half;
+    const bar = half + (street ? 3.0 : 13);
+    const barH = street ? 2.6 : 1.15;
+
+    const wall = (idx, jdx, lat, h0, h1, fill) => {
+      const [ax, ay] = ci.posAt(idx, lat);
+      const [bx, by] = ci.posAt(jdx, lat);
+      const a0 = this.project(ax, ay, h0);
+      const a1 = this.project(ax, ay, h1);
+      const b0 = this.project(bx, by, h0);
+      const b1 = this.project(bx, by, h1);
+      if (!a0 || !a1 || !b0 || !b1) return;
+      ctx.beginPath();
+      ctx.moveTo(a1.x, a1.y);
+      ctx.lineTo(b1.x, b1.y);
+      ctx.lineTo(b0.x, b0.y);
+      ctx.lineTo(a0.x, a0.y);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+
+    for (const sgm of strip) {
+      const fade = clamp(1 - sgm.k / Math.max(1, strip.length), 0.25, 1);
+      const shade = 0.5 + fade * 0.5;
+      // Barrier on both sides: alternating panels read as speed going past.
+      const panel = (Math.floor(sgm.i / 3) % 2) === 0;
+      const face = street
+        ? (night ? `rgba(${Math.round(150 * shade)},${Math.round(155 * shade)},${Math.round(165 * shade)},1)`
+          : `rgba(${Math.round(205 * shade)},${Math.round(208 * shade)},${Math.round(214 * shade)},1)`)
+        : (panel ? `rgba(${Math.round(232 * shade)},${Math.round(234 * shade)},${Math.round(238 * shade)},1)`
+          : `rgba(${Math.round(196 * shade)},${Math.round(60 * shade)},${Math.round(64 * shade)},1)`);
+      wall(sgm.i, sgm.j, bar, 0, barH, face);
+      wall(sgm.i, sgm.j, -bar, 0, barH, face);
+    }
+
+    // Standing scenery beyond the barriers.
+    const near = strip[strip.length - 1];
+    void near;
+    for (const sgm of strip) {
+      if (sgm.i % 7 !== 0) continue;
+      const rand = ((sgm.i * 2654435761) >>> 0) / 4294967296;
+      if (rand < 0.45) continue;
+      const side = rand < 0.72 ? 1 : -1;
+      const dist = bar + 8 + rand * 26;
+      const [wx, wy] = ci.posAt(sgm.i, side * dist);
+      const base = this.project(wx, wy, 0);
+      if (!base || base.depth > 340) continue;
+      const fade = clamp(1 - base.depth / 340, 0.2, 1);
+
+      if (street) {
+        // City blocks.
+        const h = 14 + rand * 26;
+        const top = this.project(wx, wy, h);
+        if (!top) continue;
+        const wpx = base.scale * (10 + rand * 12);
+        ctx.fillStyle = night
+          ? `rgba(${Math.round(38 * fade + 12)},${Math.round(42 * fade + 14)},${Math.round(56 * fade + 18)},1)`
+          : `rgba(${Math.round(126 * fade + 40)},${Math.round(132 * fade + 44)},${Math.round(142 * fade + 48)},1)`;
+        ctx.fillRect(base.x - wpx / 2, top.y, wpx, base.y - top.y);
+      } else if (rand > 0.86) {
+        // Grandstand.
+        const h = 11;
+        const top = this.project(wx, wy, h);
+        if (!top) continue;
+        const wpx = base.scale * 46;
+        ctx.fillStyle = night ? `rgba(30,34,42,1)` : `rgba(${Math.round(92 * fade + 30)},${Math.round(98 * fade + 32)},${Math.round(110 * fade + 36)},1)`;
+        ctx.fillRect(base.x - wpx / 2, top.y, wpx, base.y - top.y);
+        // Crowd speckle.
+        ctx.fillStyle = night ? 'rgba(120,130,150,0.35)' : `rgba(210,214,222,${0.5 * fade})`;
+        ctx.fillRect(base.x - wpx / 2, top.y + (base.y - top.y) * 0.18, wpx, (base.y - top.y) * 0.42);
+      } else {
+        // Trees.
+        const h = 7 + rand * 7;
+        const top = this.project(wx, wy, h);
+        if (!top) continue;
+        const r = base.scale * (2.4 + rand * 2.0);
+        const treeH = base.y - top.y;
+        ctx.fillStyle = night ? 'rgba(20,17,14,1)' : `rgba(${Math.round(58 * fade + 22)},${Math.round(44 * fade + 18)},${Math.round(30 * fade + 14)},1)`;
+        ctx.fillRect(base.x - r * 0.16, top.y + treeH * 0.55, r * 0.32, treeH * 0.45);
+        ctx.fillStyle = night ? 'rgba(24,32,26,1)' : `rgba(${Math.round(38 * fade + 18)},${Math.round(78 * fade + 26)},${Math.round(44 * fade + 20)},1)`;
+        ctx.beginPath();
+        ctx.ellipse(base.x, top.y + treeH * 0.34, r, treeH * 0.40, 0, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  }
+
+  shadeColour(hex, mul) {
+    const n = parseInt(String(hex).replace('#', ''), 16);
+    const r = Math.round((((n >> 16) & 255)) * mul);
+    const g = Math.round((((n >> 8) & 255)) * mul);
+    const b = Math.round(((n & 255)) * mul);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  /** A car drawn as a projected ground footprint plus a raised body and wing. */
+  drawCar3D(ctx, car, isPlayer) {
+    const ch = Math.cos(car.heading);
+    const sh = Math.sin(car.heading);
+    // Body-local (forward, left) -> world.
+    const pt = (fwd, left, h) => this.project(
+      car.x + ch * fwd + sh * left,
+      car.y + sh * fwd - ch * left,
+      h,
+    );
+
+    const face = (pts, fill) => {
+      if (pts.some((p) => !p)) return;
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.closePath();
+      ctx.fillStyle = fill;
+      ctx.fill();
+    };
+
+    const team = car.team;
+    const L = 2.55;
+    const W = 0.82;
+
+    // Shadow on the road.
+    face([pt(L, W, 0), pt(L, -W, 0), pt(-L, -W, 0), pt(-L, W, 0)], 'rgba(0,0,0,0.32)');
+
+    // Floor / main body at a low height, then the engine cover raised.
+    face([pt(L * 0.95, W * 0.55, 0.18), pt(L * 0.95, -W * 0.55, 0.18),
+      pt(-L * 0.9, -W * 0.9, 0.18), pt(-L * 0.9, W * 0.9, 0.18)], team.colour);
+    face([pt(0.35, W * 0.36, 0.52), pt(0.35, -W * 0.36, 0.52),
+      pt(-L * 0.72, -W * 0.42, 0.52), pt(-L * 0.72, W * 0.42, 0.52)],
+    this.shadeColour(team.colour, 0.78));
+
+    // Tyres.
+    const tyre = (fwd, left) => {
+      // Outer sidewall and the tread band, so a wheel reads as a cylinder
+      // rather than a sheared sheet of black.
+      const sign = Math.sign(left) || 1;
+      face([pt(fwd + 0.36, left + 0.16 * sign, 0.0), pt(fwd - 0.36, left + 0.16 * sign, 0.0),
+        pt(fwd - 0.36, left + 0.16 * sign, 0.68), pt(fwd + 0.36, left + 0.16 * sign, 0.68)], '#17171B');
+      face([pt(fwd + 0.36, left + 0.16 * sign, 0.68), pt(fwd - 0.36, left + 0.16 * sign, 0.68),
+        pt(fwd - 0.36, left - 0.16 * sign, 0.68), pt(fwd + 0.36, left - 0.16 * sign, 0.68)], '#0E0E11');
+    };
+    tyre(1.45, W); tyre(1.45, -W); tyre(-1.5, W + 0.1); tyre(-1.5, -W - 0.1);
+
+    // Rear wing, raised — the clearest read of which way a car is pointing.
+    face([pt(-L * 0.95, W * 0.78, 0.82), pt(-L * 0.95, -W * 0.78, 0.82),
+      pt(-L * 0.95, -W * 0.78, 0.60), pt(-L * 0.95, W * 0.78, 0.60)],
+    car.drsOpen ? '#3BD16F' : team.accent);
+
+    // Front wing.
+    face([pt(L * 1.05, W * 0.95, 0.10), pt(L * 1.05, -W * 0.95, 0.10),
+      pt(L * 0.78, -W * 0.95, 0.10), pt(L * 0.78, W * 0.95, 0.10)],
+    car.damage.front > 0.5 ? '#5A5A5E' : team.colour);
+
+    // Brake glow.
+    if (car.brake > 0.3 && car.speed > 6) {
+      face([pt(-L * 0.98, W * 0.5, 0.55), pt(-L * 0.98, -W * 0.5, 0.55),
+        pt(-L * 0.98, -W * 0.5, 0.3), pt(-L * 0.98, W * 0.5, 0.3)],
+      `rgba(255,60,40,${0.45 + car.brake * 0.5})`);
+    }
+
+    // Name tag above rivals so the field is readable at a glance.
+    if (!isPlayer) {
+      const top = pt(0, 0, 1.9);
+      if (top && top.depth < 130) {
+        const s = clamp(top.scale * 0.55, 7, 20);
+        ctx.font = `bold ${s}px "Titillium Web", Arial, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillRect(top.x - s * 1.3, top.y - s, s * 2.6, s * 1.25);
+        ctx.fillStyle = team.colour;
+        ctx.fillRect(top.x - s * 1.3, top.y - s, s * 0.22, s * 1.25);
+        ctx.fillStyle = '#fff';
+        ctx.fillText(car.driver.code, top.x + s * 0.1, top.y + s * 0.1);
+      }
     }
   }
 

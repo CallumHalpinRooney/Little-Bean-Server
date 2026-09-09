@@ -37,7 +37,7 @@ export const TRACKS = [
   {
     id: 'melbourne', round: 1, name: 'Albert Park Circuit', gp: 'Australian Grand Prix',
     country: 'Australia', city: 'Melbourne', flag: '🇦🇺', length: 5278, laps: 58, corners: 14,
-    width: 15.5, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.98, cornerScale: 121,
+    width: 20.9, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.98, cornerScale: 230,
     record: { driver: 'C. Leclerc', time: 79.813, year: 2024 },
     pts: [
       [300,820],[400,824],[476,818],[528,796],[544,762],[528,730],[476,712],[404,704],
@@ -51,7 +51,7 @@ export const TRACKS = [
   {
     id: 'shanghai', round: 2, name: 'Shanghai International Circuit', gp: 'Chinese Grand Prix',
     country: 'China', city: 'Shanghai', flag: '🇨🇳', length: 5451, laps: 56, corners: 16,
-    width: 16.5, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.98, cornerScale: 114,
+    width: 22.3, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.98, cornerScale: 217,
     record: { driver: 'M. Schumacher', time: 92.238, year: 2004 },
     pts: [
       [220,760],[320,764],[400,758],[456,736],[492,700],[506,656],[498,614],[470,584],
@@ -66,7 +66,7 @@ export const TRACKS = [
   {
     id: 'suzuka', round: 3, name: 'Suzuka International Racing Course', gp: 'Japanese Grand Prix',
     country: 'Japan', city: 'Suzuka', flag: '🇯🇵', length: 5807, laps: 53, corners: 18,
-    width: 14.5, night: false, theme: THEMES.forest, pitSide: 1, gripBase: 1.01, cornerScale: 109,
+    width: 19.6, night: false, theme: THEMES.forest, pitSide: 1, gripBase: 1.01, cornerScale: 207,
     record: { driver: 'L. Hamilton', time: 90.983, year: 2019 },
     drs: [[0.93, 0.06]],
     pts: [
@@ -83,7 +83,7 @@ export const TRACKS = [
   {
     id: 'bahrain', round: 4, name: 'Bahrain International Circuit', gp: 'Bahrain Grand Prix',
     country: 'Bahrain', city: 'Sakhir', flag: '🇧🇭', length: 5412, laps: 57, corners: 15,
-    width: 16.5, night: true, theme: THEMES.desert, pitSide: -1, gripBase: 0.97, cornerScale: 118,
+    width: 22.3, night: true, theme: THEMES.desert, pitSide: -1, gripBase: 0.97, cornerScale: 224,
     record: { driver: 'P. de la Rosa', time: 91.447, year: 2005 },
     pts: [
       [220,780],[330,784],[430,780],[506,762],[552,730],[560,690],[534,660],[492,650],
@@ -99,7 +99,7 @@ export const TRACKS = [
   {
     id: 'jeddah', round: 5, name: 'Jeddah Corniche Circuit', gp: 'Saudi Arabian Grand Prix',
     country: 'Saudi Arabia', city: 'Jeddah', flag: '🇸🇦', length: 6174, laps: 50, corners: 27,
-    width: 13.5, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.96, cornerScale: 76, street: true,
+    width: 18.2, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.96, cornerScale: 144, street: true,
     record: { driver: 'L. Hamilton', time: 90.734, year: 2021 },
     pts: [
       [180,860],[300,862],[420,856],[520,842],[588,818],[624,786],[618,752],[584,734],
@@ -116,7 +116,7 @@ export const TRACKS = [
   {
     id: 'miami', round: 6, name: 'Miami International Autodrome', gp: 'Miami Grand Prix',
     country: 'United States', city: 'Miami', flag: '🇺🇸', length: 5412, laps: 57, corners: 19,
-    width: 15.0, night: false, theme: THEMES.coastal, pitSide: -1, gripBase: 0.95, cornerScale: 99, street: true,
+    width: 20.2, night: false, theme: THEMES.coastal, pitSide: -1, gripBase: 0.95, cornerScale: 188, street: true,
     record: { driver: 'M. Verstappen', time: 89.708, year: 2023 },
     pts: [
       [200,800],[310,806],[410,800],[482,778],[520,744],[516,706],[484,686],[446,694],
@@ -131,7 +131,7 @@ export const TRACKS = [
   {
     id: 'imola', round: 7, name: 'Autodromo Enzo e Dino Ferrari', gp: 'Emilia-Romagna Grand Prix',
     country: 'Italy', city: 'Imola', flag: '🇮🇹', length: 4909, laps: 63, corners: 19,
-    width: 13.5, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.0, cornerScale: 89,
+    width: 18.2, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.0, cornerScale: 169,
     record: { driver: 'L. Hamilton', time: 75.484, year: 2020 },
     pts: [
       [260,800],[360,806],[448,800],[512,780],[548,752],[560,720],[548,694],[520,684],
@@ -146,7 +146,7 @@ export const TRACKS = [
   {
     id: 'monaco', round: 8, name: 'Circuit de Monaco', gp: 'Monaco Grand Prix',
     country: 'Monaco', city: 'Monte Carlo', flag: '🇲🇨', length: 3337, laps: 78, corners: 19,
-    width: 10.5, night: false, theme: THEMES.street, pitSide: -1, gripBase: 0.94, cornerScale: 58, street: true,
+    width: 14.2, night: false, theme: THEMES.street, pitSide: -1, gripBase: 0.94, cornerScale: 110, street: true,
     record: { driver: 'L. Hamilton', time: 72.909, year: 2021 },
     drs: [[0.88, 0.02]],
     pts: [
@@ -163,7 +163,7 @@ export const TRACKS = [
   {
     id: 'barcelona', round: 9, name: 'Circuit de Barcelona-Catalunya', gp: 'Spanish Grand Prix',
     country: 'Spain', city: 'Barcelona', flag: '🇪🇸', length: 4657, laps: 66, corners: 14,
-    width: 15.5, night: false, theme: THEMES.coastal, pitSide: -1, gripBase: 1.0, cornerScale: 112,
+    width: 20.9, night: false, theme: THEMES.coastal, pitSide: -1, gripBase: 1.0, cornerScale: 213,
     record: { driver: 'M. Verstappen', time: 76.330, year: 2023 },
     pts: [
       [240,780],[350,786],[450,780],[522,758],[562,724],[566,686],[540,660],[502,656],
@@ -178,7 +178,7 @@ export const TRACKS = [
   {
     id: 'montreal', round: 10, name: 'Circuit Gilles-Villeneuve', gp: 'Canadian Grand Prix',
     country: 'Canada', city: 'Montreal', flag: '🇨🇦', length: 4361, laps: 70, corners: 14,
-    width: 14.0, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.96, cornerScale: 107,
+    width: 18.9, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.96, cornerScale: 203,
     record: { driver: 'V. Bottas', time: 73.078, year: 2019 },
     pts: [
       [180,720],[268,724],[330,718],[364,700],[368,676],[350,662],[326,668],[318,690],
@@ -193,7 +193,7 @@ export const TRACKS = [
   {
     id: 'austria', round: 11, name: 'Red Bull Ring', gp: 'Austrian Grand Prix',
     country: 'Austria', city: 'Spielberg', flag: '🇦🇹', length: 4318, laps: 71, corners: 10,
-    width: 15.0, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.01, cornerScale: 130,
+    width: 20.2, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.01, cornerScale: 240,
     record: { driver: 'C. Sainz', time: 65.619, year: 2020 },
     pts: [
       [240,760],[350,766],[456,758],[540,730],[598,690],[628,646],[624,606],[594,584],
@@ -207,7 +207,7 @@ export const TRACKS = [
   {
     id: 'silverstone', round: 12, name: 'Silverstone Circuit', gp: 'British Grand Prix',
     country: 'United Kingdom', city: 'Silverstone', flag: '🇬🇧', length: 5891, laps: 52, corners: 18,
-    width: 16.0, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.0, cornerScale: 111,
+    width: 21.6, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.0, cornerScale: 211,
     record: { driver: 'M. Verstappen', time: 87.097, year: 2020 },
     pts: [
       [220,700],[300,708],[368,702],[416,678],[440,644],[434,610],[404,594],[372,604],
@@ -222,7 +222,7 @@ export const TRACKS = [
   {
     id: 'spa', round: 13, name: 'Circuit de Spa-Francorchamps', gp: 'Belgian Grand Prix',
     country: 'Belgium', city: 'Stavelot', flag: '🇧🇪', length: 7004, laps: 44, corners: 19,
-    width: 16.0, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 0.99, cornerScale: 119,
+    width: 21.6, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 0.99, cornerScale: 226,
     record: { driver: 'V. Bottas', time: 106.286, year: 2018 },
     pts: [
       [300,862],[248,866],[212,856],[198,834],[212,816],[240,814],[270,832],[302,858],
@@ -237,7 +237,7 @@ export const TRACKS = [
   {
     id: 'hungary', round: 14, name: 'Hungaroring', gp: 'Hungarian Grand Prix',
     country: 'Hungary', city: 'Budapest', flag: '🇭🇺', length: 4381, laps: 70, corners: 14,
-    width: 13.5, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.97, cornerScale: 107,
+    width: 18.2, night: false, theme: THEMES.park, pitSide: -1, gripBase: 0.97, cornerScale: 203,
     record: { driver: 'L. Hamilton', time: 76.627, year: 2020 },
     pts: [
       [250,780],[350,786],[440,780],[500,758],[534,724],[534,688],[506,666],[472,672],
@@ -252,7 +252,7 @@ export const TRACKS = [
   {
     id: 'zandvoort', round: 15, name: 'Circuit Zandvoort', gp: 'Dutch Grand Prix',
     country: 'Netherlands', city: 'Zandvoort', flag: '🇳🇱', length: 4259, laps: 72, corners: 14,
-    width: 13.0, night: false, theme: THEMES.dunes, pitSide: -1, gripBase: 0.98, cornerScale: 105,
+    width: 17.6, night: false, theme: THEMES.dunes, pitSide: -1, gripBase: 0.98, cornerScale: 200,
     record: { driver: 'L. Hamilton', time: 71.097, year: 2021 },
     pts: [
       [240,780],[340,786],[430,782],[498,762],[540,730],[550,694],[534,664],[502,652],
@@ -267,7 +267,7 @@ export const TRACKS = [
   {
     id: 'monza', round: 16, name: 'Autodromo Nazionale Monza', gp: 'Italian Grand Prix',
     country: 'Italy', city: 'Monza', flag: '🇮🇹', length: 5793, laps: 53, corners: 11,
-    width: 17.0, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.0, cornerScale: 141,
+    width: 23.0, night: false, theme: THEMES.forest, pitSide: -1, gripBase: 1.0, cornerScale: 240,
     record: { driver: 'R. Barrichello', time: 81.046, year: 2004 },
     pts: [
       [430,900],[430,832],[428,782],[418,758],[400,748],[392,732],[404,720],[424,713],
@@ -282,7 +282,7 @@ export const TRACKS = [
   {
     id: 'baku', round: 17, name: 'Baku City Circuit', gp: 'Azerbaijan Grand Prix',
     country: 'Azerbaijan', city: 'Baku', flag: '🇦🇿', length: 6003, laps: 51, corners: 20,
-    width: 13.0, night: false, theme: THEMES.street, pitSide: -1, gripBase: 0.94, cornerScale: 103, street: true,
+    width: 17.6, night: false, theme: THEMES.street, pitSide: -1, gripBase: 0.94, cornerScale: 196, street: true,
     record: { driver: 'C. Leclerc', time: 103.009, year: 2019 },
     pts: [
       [160,840],[280,846],[400,844],[510,838],[600,826],[664,806],[700,776],[700,742],
@@ -298,7 +298,7 @@ export const TRACKS = [
   {
     id: 'singapore', round: 18, name: 'Marina Bay Street Circuit', gp: 'Singapore Grand Prix',
     country: 'Singapore', city: 'Marina Bay', flag: '🇸🇬', length: 4940, laps: 62, corners: 19,
-    width: 12.5, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.93, cornerScale: 90, street: true,
+    width: 16.9, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.93, cornerScale: 171, street: true,
     record: { driver: 'D. Ricciardo', time: 95.567, year: 2024 },
     pts: [
       [200,820],[300,826],[386,820],[444,798],[472,766],[466,734],[438,720],[410,732],
@@ -313,7 +313,7 @@ export const TRACKS = [
   {
     id: 'austin', round: 19, name: 'Circuit of the Americas', gp: 'United States Grand Prix',
     country: 'United States', city: 'Austin', flag: '🇺🇸', length: 5513, laps: 56, corners: 20,
-    width: 16.0, night: false, theme: THEMES.altitude, pitSide: -1, gripBase: 0.99, cornerScale: 96,
+    width: 21.6, night: false, theme: THEMES.altitude, pitSide: -1, gripBase: 0.99, cornerScale: 182,
     record: { driver: 'C. Leclerc', time: 96.169, year: 2019 },
     pts: [
       [220,800],[300,806],[364,798],[404,772],[412,738],[392,714],[364,716],[352,742],
@@ -329,7 +329,7 @@ export const TRACKS = [
   {
     id: 'mexico', round: 20, name: 'Autodromo Hermanos Rodriguez', gp: 'Mexico City Grand Prix',
     country: 'Mexico', city: 'Mexico City', flag: '🇲🇽', length: 4304, laps: 71, corners: 17,
-    width: 15.0, night: false, theme: THEMES.altitude, pitSide: -1, gripBase: 0.96, cornerScale: 87,
+    width: 20.2, night: false, theme: THEMES.altitude, pitSide: -1, gripBase: 0.96, cornerScale: 165,
     record: { driver: 'V. Bottas', time: 77.774, year: 2021 },
     pts: [
       [200,760],[320,766],[430,762],[512,744],[560,716],[570,684],[550,662],[520,666],
@@ -344,7 +344,7 @@ export const TRACKS = [
   {
     id: 'interlagos', round: 21, name: 'Autodromo Jose Carlos Pace', gp: 'Sao Paulo Grand Prix',
     country: 'Brazil', city: 'Sao Paulo', flag: '🇧🇷', length: 4309, laps: 71, corners: 15,
-    width: 14.0, night: false, theme: THEMES.altitude, pitSide: -1, gripBase: 0.98, cornerScale: 99,
+    width: 18.9, night: false, theme: THEMES.altitude, pitSide: -1, gripBase: 0.98, cornerScale: 188,
     record: { driver: 'V. Bottas', time: 70.540, year: 2018 },
     pts: [
       [260,760],[360,766],[446,758],[500,732],[520,698],[506,668],[472,660],[444,678],
@@ -359,7 +359,7 @@ export const TRACKS = [
   {
     id: 'vegas', round: 22, name: 'Las Vegas Strip Circuit', gp: 'Las Vegas Grand Prix',
     country: 'United States', city: 'Las Vegas', flag: '🇺🇸', length: 6201, laps: 50, corners: 17,
-    width: 15.0, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.9, cornerScale: 119, street: true,
+    width: 20.2, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.9, cornerScale: 226, street: true,
     record: { driver: 'O. Piastri', time: 94.070, year: 2023 },
     pts: [
       [160,840],[300,846],[440,844],[560,838],[660,824],[730,800],[770,768],[772,732],
@@ -374,7 +374,7 @@ export const TRACKS = [
   {
     id: 'qatar', round: 23, name: 'Lusail International Circuit', gp: 'Qatar Grand Prix',
     country: 'Qatar', city: 'Lusail', flag: '🇶🇦', length: 5419, laps: 57, corners: 16,
-    width: 16.0, night: true, theme: THEMES.desert, pitSide: -1, gripBase: 0.99, cornerScale: 113,
+    width: 21.6, night: true, theme: THEMES.desert, pitSide: -1, gripBase: 0.99, cornerScale: 215,
     record: { driver: 'M. Verstappen', time: 82.384, year: 2023 },
     pts: [
       [230,780],[340,786],[440,780],[512,758],[556,726],[566,690],[548,662],[516,656],
@@ -390,7 +390,7 @@ export const TRACKS = [
   {
     id: 'abudhabi', round: 24, name: 'Yas Marina Circuit', gp: 'Abu Dhabi Grand Prix',
     country: 'United Arab Emirates', city: 'Yas Island', flag: '🇦🇪', length: 5281, laps: 58, corners: 16,
-    width: 16.0, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.97, cornerScale: 111,
+    width: 21.6, night: true, theme: THEMES.night, pitSide: -1, gripBase: 0.97, cornerScale: 211,
     record: { driver: 'M. Verstappen', time: 86.103, year: 2021 },
     pts: [
       [220,800],[330,806],[430,800],[500,780],[540,748],[544,712],[520,690],[488,694],
