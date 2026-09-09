@@ -1132,13 +1132,13 @@ export class Renderer {
     // The onboard sits where a real F1 camera does: on top of the airbox just
     // behind the driver, so the nose stretches away ahead and the front wheels
     // sit small at the edges of frame instead of filling it.
-    const back = cockpit ? 0.75 : 7.6;
+    const back = cockpit ? 1.15 : 8.2;
     const targetX = player.x - Math.cos(player.heading) * back;
     const targetY = player.y - Math.sin(player.heading) * back;
     const k = 1 - Math.exp(-dt * (cockpit ? 18 : 9));
     eye.x = lerp(eye.x, targetX, k);
     eye.y = lerp(eye.y, targetY, k);
-    eye.height = cockpit ? 1.34 : 3.05;
+    eye.height = cockpit ? 1.42 : 3.25;
   }
 
   /** Project a world point at height `pz` metres. Returns null if behind us. */
@@ -1149,7 +1149,7 @@ export class Renderer {
     const dx = px - eye.x;
     const dy = py - eye.y;
     const depth = dx * ch + dy * sh;
-    if (depth < 0.6) return null;
+    if (depth < 0.45) return null;
     const lateral = dx * -sh + dy * ch;
     const scale = this.focal / depth;
     return {
@@ -1168,8 +1168,25 @@ export class Renderer {
     const cockpit = this.cameraMode === 'cockpit';
 
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    this.focal = this.h * 1.15;
-    this.horizonY = this.h * (cockpit ? 0.40 : 0.44);
+
+    // The 3D view is drawn into a window no taller than about 3:4, centred a
+    // little above middle. On a wide screen that is the whole viewport; on a
+    // tall one — a phone, or the game in a side panel — the rest becomes the
+    // dark of the cockpit around the opening, which is both what a driver
+    // actually sees and the only way the geometry stays undistorted. Deriving
+    // the field of view from the full height of a tall window made the car's
+    // own nose fill the screen and turned the road into a grey wall.
+    const viewH = Math.min(this.h, this.w * 0.78);
+    const viewTop = (this.h - viewH) * 0.42;
+    this.viewTop = viewTop;
+    this.viewH = viewH;
+    this.focal = Math.min(this.w * 0.62, viewH * 1.05);
+    this.horizonY = viewTop + viewH * (cockpit ? 0.40 : 0.44);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, viewTop, this.w, viewH);
+    ctx.clip();
 
     // --- Sky and ground ------------------------------------------------
     const sky = ctx.createLinearGradient(0, 0, 0, this.horizonY);
@@ -1182,19 +1199,19 @@ export class Renderer {
       sky.addColorStop(1, '#D6E4EC');
     }
     ctx.fillStyle = sky;
-    ctx.fillRect(0, 0, this.w, this.horizonY + 1);
+    ctx.fillRect(0, viewTop, this.w, this.horizonY - viewTop + 1);
 
     const ground = ctx.createLinearGradient(0, this.horizonY, 0, this.h);
     ground.addColorStop(0, night ? '#141A16' : theme.grass2);
     ground.addColorStop(1, night ? '#0B0F0C' : theme.grass);
     ctx.fillStyle = ground;
-    ctx.fillRect(0, this.horizonY, this.w, this.h - this.horizonY);
+    ctx.fillRect(0, this.horizonY, this.w, viewTop + viewH - this.horizonY);
 
     // --- Road, drawn far to near so nearer strips paint over -----------
     const half = ci.half;
     const node = player.node;
     const far = Math.min(ci.n - 1, Math.round(420 / ci.ds));
-    const behind = Math.round(26 / ci.ds);
+    const behind = Math.round(70 / ci.ds);
     const strip = [];
     for (let k = far; k >= -behind; k--) {
       const i = (node + k + ci.n) % ci.n;
@@ -1202,21 +1219,50 @@ export class Renderer {
       strip.push({ i, j, k: Math.max(0, k) });
     }
 
-    const quad = (aL, aR, bR, bL, fill) => {
-      if (!aL || !aR || !bR || !bL) return;
+    // Depth of a world point along the view direction, used for clipping.
+    const eye = this.eye;
+    const ech = Math.cos(eye.heading);
+    const esh = Math.sin(eye.heading);
+    const depthOf = (x, y) => (x - eye.x) * ech + (y - eye.y) * esh;
+    const NEAR = 0.12;
+
+    /**
+     * Project one edge of a strip, clipped against the near plane. The segment
+     * the camera is sitting on has one end behind the lens; dropping the whole
+     * quad in that case left a hole exactly where the road should be widest,
+     * right under the car.
+     */
+    const edgePair = (idx, jdx, lat) => {
+      let [ax, ay] = ci.posAt(idx, lat);
+      let [bx, by] = ci.posAt(jdx, lat);
+      const da = depthOf(ax, ay);
+      const db = depthOf(bx, by);
+      if (da < NEAR && db < NEAR) return null;
+      if (da < NEAR) {
+        const t = (NEAR - da) / (db - da);
+        ax += (bx - ax) * t; ay += (by - ay) * t;
+      } else if (db < NEAR) {
+        const t = (NEAR - db) / (da - db);
+        bx += (ax - bx) * t; by += (ay - by) * t;
+      }
+      const pa = this.project(ax, ay, 0);
+      const pb = this.project(bx, by, 0);
+      return pa && pb ? [pa, pb] : null;
+    };
+
+    /** A strip of surface between two lateral offsets across nodes i and j. */
+    const band = (idx, jdx, latL, latR, fill) => {
+      const left = edgePair(idx, jdx, latL);
+      const right = edgePair(idx, jdx, latR);
+      if (!left || !right) return;
       ctx.beginPath();
-      ctx.moveTo(aL.x, aL.y);
-      ctx.lineTo(aR.x, aR.y);
-      ctx.lineTo(bR.x, bR.y);
-      ctx.lineTo(bL.x, bL.y);
+      ctx.moveTo(left[0].x, left[0].y);
+      ctx.lineTo(right[0].x, right[0].y);
+      ctx.lineTo(right[1].x, right[1].y);
+      ctx.lineTo(left[1].x, left[1].y);
       ctx.closePath();
       ctx.fillStyle = fill;
       ctx.fill();
-    };
-
-    const edge = (idx, lat) => {
-      const [x, y] = ci.posAt(idx, lat);
-      return this.project(x, y, 0);
     };
 
     for (const s of strip) {
@@ -1225,39 +1271,34 @@ export class Renderer {
 
       // Run-off / verge, a little wider than the track.
       const wide = half + (ci.data.street ? 2.6 : 11);
-      quad(edge(s.i, wide), edge(s.i, -wide), edge(s.j, -wide), edge(s.j, wide),
-        night ? `rgba(40,44,40,${shade})` : this.shadeColour(theme.runoff, shade));
+      band(s.i, s.j, wide, -wide,
+        night ? `rgb(${Math.round(40 * shade)},${Math.round(44 * shade)},${Math.round(40 * shade)})`
+          : this.shadeColour(theme.runoff, shade));
 
-      // Asphalt, with a subtle band per strip so speed reads on screen.
-      const band = (s.i % 8 < 4) ? 0.03 : 0;
+      // Asphalt, with a subtle change of tone every few strips so speed reads.
+      const tone = (s.i % 8 < 4) ? 8 : 0;
       const road = night
         ? `rgb(${Math.round(34 * shade)},${Math.round(36 * shade)},${Math.round(42 * shade)})`
-        : `rgb(${Math.round((58 + band * 255) * shade)},${Math.round((60 + band * 255) * shade)},${Math.round((66 + band * 255) * shade)})`;
-      quad(edge(s.i, half), edge(s.i, -half), edge(s.j, -half), edge(s.j, half), road);
+        : `rgb(${Math.round((58 + tone) * shade)},${Math.round((60 + tone) * shade)},${Math.round((66 + tone) * shade)})`;
+      band(s.i, s.j, half, -half, road);
 
       // White edge lines.
       const lineW = 0.32;
-      quad(edge(s.i, half), edge(s.i, half - lineW), edge(s.j, half - lineW), edge(s.j, half),
-        `rgba(236,238,242,${0.5 + fade * 0.45})`);
-      quad(edge(s.i, -half + lineW), edge(s.i, -half), edge(s.j, -half), edge(s.j, -half + lineW),
-        `rgba(236,238,242,${0.5 + fade * 0.45})`);
+      const lineCol = `rgba(236,238,242,${0.5 + fade * 0.45})`;
+      band(s.i, s.j, half, half - lineW, lineCol);
+      band(s.i, s.j, -half + lineW, -half, lineCol);
 
       // Kerbs on the inside of anything that is actually a corner.
       const curv = ci.curv[s.i];
       if (Math.abs(curv) > 0.004) {
         const side = Math.sign(curv);
-        const inner = side * half;
-        const outer = side * (half + 1.5);
         const red = (Math.floor(s.i / 2) % 2) === 0;
-        quad(edge(s.i, outer), edge(s.i, inner), edge(s.j, inner), edge(s.j, outer),
+        band(s.i, s.j, side * (half + 1.5), side * half,
           red ? `rgba(200,54,62,${shade})` : `rgba(238,238,242,${shade})`);
       }
 
       // Start/finish line.
-      if (s.i === 0 || s.j === 0) {
-        quad(edge(s.i, half), edge(s.i, -half), edge(s.j, -half), edge(s.j, half),
-          'rgba(240,240,245,0.9)');
-      }
+      if (s.i === 0 || s.j === 0) band(s.i, s.j, half, -half, 'rgba(240,240,245,0.9)');
     }
 
     this.drawTrackside(ctx, strip, night, theme);
@@ -1272,14 +1313,32 @@ export class Renderer {
     ctx.fillRect(0, this.horizonY - hazeH * 0.3, this.w, hazeH * 1.3);
 
     // --- Cars, far to near ---------------------------------------------
+    // In the onboard view the camera is inside the car, so its own bodywork is
+    // not drawn. On a tall screen the vertical field of view is wide enough
+    // that the nose and front wheels would otherwise fill most of the frame and
+    // hide the very thing the driver needs to see — the track.
     const others = race.cars
+      .filter((c) => !(cockpit && c === player))
       .map((c) => ({ car: c, p: this.project(c.x, c.y, 0) }))
       .filter((o) => o.p && o.p.depth < 420)
       .sort((a, b) => b.p.depth - a.p.depth);
     for (const o of others) this.drawCar3D(ctx, o.car, o.car === player);
 
+    ctx.restore();
+
+    // Cockpit surround above and below the opening.
+    if (viewH < this.h - 1) {
+      ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+      ctx.fillStyle = '#0A0B0E';
+      ctx.fillRect(0, 0, this.w, viewTop);
+      ctx.fillRect(0, viewTop + viewH, this.w, this.h - viewTop - viewH);
+      ctx.fillStyle = 'rgba(255,255,255,0.07)';
+      ctx.fillRect(0, viewTop - 2, this.w, 2);
+      ctx.fillRect(0, viewTop + viewH, this.w, 2);
+    }
+
     if (state?.rain > 0) this.drawRain(ctx, state.rain);
-    this.drawVignette(ctx, night);
+    this.drawPerspectiveVignette(ctx, night);
     if (cockpit) this.drawCockpit(ctx, player, night);
   }
 
@@ -1377,6 +1436,19 @@ export class Renderer {
         ctx.fill();
       }
     }
+  }
+
+  /** A far lighter vignette than the overhead view uses. */
+  drawPerspectiveVignette(ctx, night) {
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    const g = ctx.createRadialGradient(
+      this.w / 2, this.h * 0.5, Math.min(this.w, this.h) * 0.55,
+      this.w / 2, this.h * 0.5, Math.max(this.w, this.h) * 0.82,
+    );
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(1, night ? 'rgba(0,0,0,0.34)' : 'rgba(0,0,0,0.16)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, this.w, this.h);
   }
 
   shadeColour(hex, mul) {
