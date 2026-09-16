@@ -40,6 +40,16 @@ jobs:
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
+      # Diagnostic: prints only the NAMES of credentials visible to this run.
+      # GitHub masks secret values in logs, and no value is echoed here.
+      - name: Check which credentials the runner can see
+        env:
+          SECRET_NAMES: ${{ toJSON(secrets) }}
+          VAR_NAMES: ${{ toJSON(vars) }}
+        run: |
+          echo "Secret names available:   $(node -e 'console.log(Object.keys(JSON.parse(process.env.SECRET_NAMES||"{}")).join(", ")||"(none)")')"
+          echo "Variable names available: $(node -e 'console.log(Object.keys(JSON.parse(process.env.VAR_NAMES||"{}")).join(", ")||"(none)")')"
+
       - name: Deploy
         id: deploy
         working-directory: site
