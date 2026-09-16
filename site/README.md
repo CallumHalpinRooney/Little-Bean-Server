@@ -227,12 +227,27 @@ Re-run these after adding real images or any third-party script.
 
 ## Deploying to Vercel
 
-1. Import the repository.
-2. Set **Root Directory** to `site` (this project lives alongside an unrelated
-   Express service at the repository root).
-3. Framework preset: Next.js. Build `npm run build`, output handled
-   automatically. No environment variables are required until a form backend is
-   connected.
+1. Go to <https://vercel.com/new> and import
+   `CallumHalpinRooney/Little-Bean-Server`.
+2. Set **Root Directory** to `site`. This is the one setting that matters — an
+   unrelated Express service lives at the repository root, and Vercel will
+   detect that instead if the root directory is left at `.`.
+3. Framework preset: Next.js (also pinned in `vercel.json`). No environment
+   variables are required until a form backend is connected.
+4. Deploy. The first build takes a couple of minutes.
+
+**Production vs preview.** Vercel builds its production URL from the project's
+production branch, which defaults to `main`. Deploying the feature branch gives
+a preview URL instead. Either merge to `main`, or change the production branch
+under *Settings → Git → Production Branch*.
+
+`vercel.json` also sets security headers: HSTS, `nosniff`, `frame-ancestors
+'none'`, a referrer policy, a permissions policy and a Content Security Policy.
+The CSP allows `'unsafe-inline'` for scripts and styles because Next.js
+hydration, the no-flash theme script and the JSON-LD blocks are inline; it still
+blocks every third-party origin, which is what matters for a site that loads no
+third-party scripts. To remove `'unsafe-inline'`, move to nonce-based CSP via
+middleware — note that this makes the site require a server runtime.
 
 For a fully static export instead, add `output: 'export'` to
 `next.config.mjs`; every route is already static and `images.unoptimized` is
