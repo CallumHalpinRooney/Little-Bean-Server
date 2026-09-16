@@ -116,7 +116,7 @@ export function Header() {
           </ButtonLink>
           <button
             type="button"
-            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-body lg:hidden"
+            className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-control text-body lg:hidden"
             aria-expanded={mobileOpen}
             aria-controls="mobile-nav"
             onClick={() => setMobileOpen(!mobileOpen)}

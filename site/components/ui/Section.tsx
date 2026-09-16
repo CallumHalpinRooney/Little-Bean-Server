@@ -7,10 +7,11 @@ type SectionProps = {
   className?: string;
   /** `tint` lifts the band off the page background for rhythm. */
   tone?: "default" | "tint" | "ink";
-  labelledBy?: string;
+  /** Accessible name for the landmark, announced when navigating regions. */
+  label?: string;
 };
 
-export function Section({ children, id, className = "", tone = "default", labelledBy }: SectionProps) {
+export function Section({ children, id, className = "", tone = "default", label }: SectionProps) {
   const tones = {
     default: "",
     tint: "bg-surface-2",
@@ -18,7 +19,7 @@ export function Section({ children, id, className = "", tone = "default", labell
   } as const;
 
   return (
-    <section id={id} aria-labelledby={labelledBy} className={`py-section ${tones[tone]} ${className}`}>
+    <section id={id} aria-label={label} className={`py-section ${tones[tone]} ${className}`}>
       <div className="shell">{children}</div>
     </section>
   );

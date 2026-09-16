@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ElementType } from "react";
 import { IconArrowRight, IconCheck, IconChevronDown, IconDash } from "@/components/icons";
 import { ButtonLink } from "@/components/ui/Button";
 import { assessmentDomains } from "@/content/assessment-domains";
@@ -22,7 +23,7 @@ export function CTABand({
   secondary?: { label: string; href: string };
 }) {
   return (
-    <section className="py-section" aria-labelledby={`${id}-title`}>
+    <section className="py-section" aria-label={title}>
       <div className="shell">
         <div className="card relative overflow-hidden bg-ink-950 p-8 text-ink-50 md:p-14 dark:bg-ink-900">
           {/* Decorative grid, drawn rather than photographed. */}
@@ -54,15 +55,12 @@ export function CTABand({
               </ButtonLink>
               <Link
                 href={secondary.href}
-                className="inline-flex items-center justify-center gap-2 rounded-lg border border-ink-600 px-6 py-3.5 text-base text-ink-50 transition-colors hover:border-ink-300"
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-ink-400 px-6 py-3.5 text-base text-ink-50 transition-colors hover:border-ink-200"
               >
                 {secondary.label}
               </Link>
             </div>
           </div>
-          <span id={`${id}-title`} className="sr-only">
-            {title}
-          </span>
         </div>
       </div>
     </section>
@@ -163,7 +161,7 @@ export function ComparisonTable({ rows }: { rows: ComparisonRow[] }) {
 }
 
 /** Package tiers. */
-export function PricingTiers({ tiers }: { tiers: Tier[] }) {
+export function PricingTiers({ tiers, headingLevel: Heading = "h3" }: { tiers: Tier[]; headingLevel?: ElementType }) {
   return (
     <div className="grid gap-6 lg:grid-cols-3">
       {tiers.map((tier) => (
@@ -176,7 +174,7 @@ export function PricingTiers({ tiers }: { tiers: Tier[] }) {
               Most chosen
             </p>
           ) : null}
-          <h3 className="font-display text-2xl">{tier.name}</h3>
+          <Heading className="font-display text-2xl">{tier.name}</Heading>
           <p className="mt-2 text-sm leading-relaxed text-muted">{tier.positioning}</p>
 
           <div className="mt-6 border-y border-line py-5">

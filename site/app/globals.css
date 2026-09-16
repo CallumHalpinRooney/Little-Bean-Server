@@ -12,6 +12,8 @@
   --surface-2: #f1f3f7;
   --line: #e2e6ee;
   --line-strong: #cbd3e1;
+  /* Borders of interactive controls: WCAG 2.2 SC 1.4.11 requires 3:1. */
+  --control-line: #7d879c;
   --text: #0a1124;
   --text-muted: #4e586e;
   --accent: #0b7366;
@@ -29,6 +31,7 @@
   --surface-2: #121c33;
   --line: #1e2b4a;
   --line-strong: #2c3c63;
+  --control-line: #556a9c;
   --text: #eaeef7;
   --text-muted: #a3b2cd;
   --accent: #2dd4bf;
@@ -124,6 +127,11 @@
 
   .link-underline:hover {
     text-decoration-color: var(--accent);
+  }
+
+  /* Native disclosure arrows are replaced with our own chevron. */
+  summary::-webkit-details-marker {
+    display: none;
   }
 
   /* Skip link: visible only when focused. */

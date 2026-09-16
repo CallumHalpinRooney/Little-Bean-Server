@@ -146,7 +146,7 @@ export function CookieConsent() {
         {showDetail ? (
           <div className="mt-5 border-t border-line pt-5">
             <ul className="grid gap-3 md:grid-cols-3">
-              <li className="rounded-lg border border-line p-3">
+              <li className="rounded-lg border border-control p-3">
                 <div className="flex items-start justify-between gap-3">
                   <span className="text-sm font-medium">Strictly necessary</span>
                   <input type="checkbox" checked disabled aria-label="Strictly necessary storage (always on)" className="mt-1 h-4 w-4 accent-[var(--accent)]" />
@@ -155,7 +155,7 @@ export function CookieConsent() {
                   Keeps your cookie choice and colour theme. Cannot be switched off.
                 </p>
               </li>
-              <li className="rounded-lg border border-line p-3">
+              <li className="rounded-lg border border-control p-3">
                 <div className="flex items-start justify-between gap-3">
                   <label htmlFor="consent-analytics" className="text-sm font-medium">
                     Analytics
@@ -172,7 +172,7 @@ export function CookieConsent() {
                   Aggregate page statistics. <span className="font-mono">[PLACEHOLDER: none configured]</span>
                 </p>
               </li>
-              <li className="rounded-lg border border-line p-3">
+              <li className="rounded-lg border border-control p-3">
                 <div className="flex items-start justify-between gap-3">
                   <label htmlFor="consent-marketing" className="text-sm font-medium">
                     Marketing

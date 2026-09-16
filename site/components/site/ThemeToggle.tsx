@@ -31,7 +31,7 @@ export function ThemeToggle({ className = "" }: { className?: string }) {
     <button
       type="button"
       onClick={toggle}
-      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-line text-muted transition-colors hover:border-accent hover:text-accent ${className}`}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border border-control text-muted transition-colors hover:border-accent hover:text-accent ${className}`}
       aria-label={mounted ? `Switch to ${theme === "dark" ? "light" : "dark"} mode` : "Switch colour theme"}
     >
       {mounted && theme === "dark" ? <IconSun className="h-4.5 w-4.5" width={18} height={18} /> : <IconMoon width={18} height={18} />}

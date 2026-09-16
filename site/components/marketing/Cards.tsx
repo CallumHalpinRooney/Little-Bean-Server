@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ElementType } from "react";
 import { getIcon } from "@/components/icons/map";
 import { IconArrowRight, IconQuote } from "@/components/icons";
 import { Placeholder } from "@/components/ui/Placeholder";
@@ -6,18 +7,19 @@ import type { Article } from "@/content/insights";
 import type { Industry } from "@/content/industries";
 import type { Service } from "@/content/services";
 
-export function ServiceCard({ service }: { service: Service }) {
+export function ServiceCard({ service, headingLevel = "h3" }: { service: Service; headingLevel?: ElementType }) {
   const Icon = getIcon(service.icon);
+  const Heading = headingLevel;
   return (
     <article className="card group relative flex h-full flex-col p-6 transition-colors hover:border-accent">
       <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent-soft text-accent">
         <Icon width={22} height={22} />
       </span>
-      <h3 className="mt-5 font-display text-2xl">
+      <Heading className="mt-5 font-display text-2xl">
         <Link href={`/services/${service.slug}`} className="after:absolute after:inset-0 focus-visible:outline-none">
           {service.navLabel}
         </Link>
-      </h3>
+      </Heading>
       <p className="mt-2.5 flex-1 text-sm leading-relaxed text-muted">{service.summary}</p>
       <span className="mt-5 inline-flex items-center gap-1.5 text-sm font-medium text-accent">
         Explore
@@ -27,14 +29,15 @@ export function ServiceCard({ service }: { service: Service }) {
   );
 }
 
-export function IndustryCard({ industry }: { industry: Industry }) {
+export function IndustryCard({ industry, headingLevel = "h3" }: { industry: Industry; headingLevel?: ElementType }) {
   const Icon = getIcon(industry.icon);
+  const Heading = headingLevel;
   return (
     <article className="card h-full p-6">
       <span className="flex h-11 w-11 items-center justify-center rounded-lg bg-accent-soft text-accent">
         <Icon width={22} height={22} />
       </span>
-      <h3 className="mt-5 font-display text-2xl">{industry.name}</h3>
+      <Heading className="mt-5 font-display text-2xl">{industry.name}</Heading>
       <p className="mt-2.5 text-sm leading-relaxed text-muted">{industry.lead}</p>
       <ul className="mt-4 space-y-2">
         {industry.pressures.map((pressure) => (
@@ -49,7 +52,8 @@ export function IndustryCard({ industry }: { industry: Industry }) {
   );
 }
 
-export function ArticleCard({ article }: { article: Article }) {
+export function ArticleCard({ article, headingLevel = "h3" }: { article: Article; headingLevel?: ElementType }) {
+  const Heading = headingLevel;
   return (
     <article className="card group relative flex h-full flex-col p-6 transition-colors hover:border-accent">
       <div className="flex items-center gap-3 text-xs text-muted">
@@ -57,11 +61,11 @@ export function ArticleCard({ article }: { article: Article }) {
         <span aria-hidden="true">·</span>
         <span>{article.date}</span>
       </div>
-      <h3 className="mt-3 font-display text-2xl leading-snug">
+      <Heading className="mt-3 font-display text-2xl leading-snug">
         <Link href={`/insights/${article.slug}`} className="after:absolute after:inset-0">
           {article.title}
         </Link>
-      </h3>
+      </Heading>
       <p className="mt-2.5 flex-1 text-sm leading-relaxed text-muted">{article.description}</p>
       <div className="mt-5 flex items-center justify-between text-xs text-muted">
         <span>{article.author.name}</span>

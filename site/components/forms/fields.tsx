@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 const controlClass =
-  "w-full rounded-lg border border-line bg-surface px-3.5 py-2.5 text-sm text-body transition-colors placeholder:text-muted focus:border-accent";
+  "w-full rounded-lg border border-control bg-surface px-3.5 py-2.5 text-sm text-body transition-colors placeholder:text-muted focus:border-accent";
 
 export function FieldShell({
   id,
@@ -158,7 +158,7 @@ export function CheckboxGroup({
           <label
             key={option.id}
             htmlFor={`${groupId}-${option.id}`}
-            className="flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 text-sm transition-colors hover:border-accent has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
+            className="flex cursor-pointer items-start gap-3 rounded-lg border border-control p-3 text-sm transition-colors hover:border-accent has-[:checked]:border-accent has-[:checked]:bg-accent-soft"
           >
             <input
               id={`${groupId}-${option.id}`}

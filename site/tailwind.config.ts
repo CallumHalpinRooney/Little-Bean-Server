@@ -57,6 +57,7 @@ const config: Config = {
         "surface-2": "var(--surface-2)",
         line: "var(--line)",
         "line-strong": "var(--line-strong)",
+        control: "var(--control-line)",
         body: "var(--text)",
         muted: "var(--text-muted)",
         accent: "var(--accent)",

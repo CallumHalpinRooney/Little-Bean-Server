@@ -11,6 +11,12 @@ import { journey } from "@/content/journey";
  * decorative — the content reads identically without it.
  */
 export function JourneyDiagram({ compact = false }: { compact?: boolean }) {
+  /**
+   * In compact mode the rail is a summary of the stages detailed elsewhere on
+   * the page, so the labels are plain text rather than headings — that keeps
+   * the document outline free of level skips.
+   */
+  const Title = compact ? "p" : "h3";
   const ref = useRef<HTMLDivElement>(null);
   const [drawn, setDrawn] = useState(false);
 
@@ -37,13 +43,18 @@ export function JourneyDiagram({ compact = false }: { compact?: boolean }) {
     <div ref={ref}>
       {/* Desktop: single spine with six nodes. */}
       <ol className="relative hidden lg:grid lg:grid-cols-6 lg:gap-4">
-        <div className="pointer-events-none absolute left-0 right-0 top-7 h-px" aria-hidden="true">
+        {/* Spine runs from the centre of the first node to the centre of the last. */}
+        <div
+          className="pointer-events-none absolute top-7 h-px"
+          aria-hidden="true"
+          style={{ left: "1.75rem", right: "calc(16.666% - 0.583rem - 1.75rem)" }}
+        >
           <svg width="100%" height="2" preserveAspectRatio="none" className="overflow-visible">
-            <line x1="4%" y1="1" x2="96%" y2="1" stroke="var(--line-strong)" strokeWidth="2" strokeDasharray="4 6" />
+            <line x1="0" y1="1" x2="100%" y2="1" stroke="var(--line-strong)" strokeWidth="2" strokeDasharray="4 6" />
             <line
-              x1="4%"
+              x1="0"
               y1="1"
-              x2="96%"
+              x2="100%"
               y2="1"
               stroke="var(--accent)"
               strokeWidth="2"
@@ -72,11 +83,11 @@ export function JourneyDiagram({ compact = false }: { compact?: boolean }) {
                 <Icon width={24} height={24} />
               </div>
               <p className="mt-4 font-mono text-[0.7rem] tracking-wider text-muted">{stage.step}</p>
-              <h3 className="mt-1 font-display text-xl">
+              <Title className="mt-1 font-display text-xl">
                 <Link href={`/how-it-works#${stage.id}`} className="transition-colors hover:text-accent">
                   {stage.title}
                 </Link>
-              </h3>
+              </Title>
               {!compact ? <p className="mt-2 text-sm leading-relaxed text-muted">{stage.summary}</p> : null}
             </li>
           );
@@ -93,11 +104,11 @@ export function JourneyDiagram({ compact = false }: { compact?: boolean }) {
                 <Icon width={20} height={20} />
               </span>
               <p className="font-mono text-[0.7rem] tracking-wider text-muted">{stage.step}</p>
-              <h3 className="mt-0.5 font-display text-xl">
+              <Title className="mt-0.5 font-display text-xl">
                 <Link href={`/how-it-works#${stage.id}`} className="transition-colors hover:text-accent">
                   {stage.title}
                 </Link>
-              </h3>
+              </Title>
               {!compact ? <p className="mt-1.5 text-sm leading-relaxed text-muted">{stage.summary}</p> : null}
             </li>
           );

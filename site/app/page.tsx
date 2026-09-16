@@ -99,7 +99,7 @@ export default function HomePage() {
       </Section>
 
       {/* ------------------------------------------------------------ Journey */}
-      <Section id="journey" labelledBy="journey-title">
+      <Section id="journey" label="The customer journey">
         <SectionHeading
           eyebrow="The programme"
           eyebrowId="home.journey.eyebrow"
@@ -108,9 +108,6 @@ export default function HomePage() {
           lead="Six stages, run once and then maintained annually. Each stage produces something concrete: a completed assessment, a scored report, a closed gap register, trained staff, a dated attestation."
           leadId="home.journey.lead"
         />
-        <span id="journey-title" className="sr-only">
-          The customer journey
-        </span>
         <div className="mt-14">
           <JourneyDiagram />
         </div>
@@ -123,7 +120,7 @@ export default function HomePage() {
       </Section>
 
       {/* ----------------------------------------------------------- Services */}
-      <Section tone="tint" labelledBy="services-title">
+      <Section tone="tint" label="Our services">
         <SectionHeading
           eyebrow="Services"
           eyebrowId="home.services.eyebrow"
@@ -132,9 +129,6 @@ export default function HomePage() {
           lead="Each service stands on its own. Together they form a loop: what the assessment finds shapes the remediation plan, and what remediation changes shapes the training your people receive."
           leadId="home.services.lead"
         />
-        <span id="services-title" className="sr-only">
-          Our services
-        </span>
         <div className="mt-12 grid gap-6 lg:grid-cols-3">
           {services.map((service) => (
             <ServiceCard key={service.slug} service={service} />
@@ -143,7 +137,7 @@ export default function HomePage() {
       </Section>
 
       {/* ----------------------------------------------------- Why it matters */}
-      <Section labelledBy="why-title">
+      <Section label="Why data protection risk matters">
         <SectionHeading
           eyebrow="Why it matters"
           eyebrowId="home.why.eyebrow"
@@ -152,9 +146,6 @@ export default function HomePage() {
           lead="Regulators, customers and procurement teams are all asking the same thing in different words: can you show what you do with personal data, and evidence that it works?"
           leadId="home.why.lead"
         />
-        <span id="why-title" className="sr-only">
-          Why data protection risk matters
-        </span>
         <div className="mt-12 grid gap-px overflow-hidden rounded-card border border-line bg-line md:grid-cols-2">
           {whyItMatters.map((item) => (
             <div key={item.title} className="bg-surface p-7">
@@ -171,7 +162,7 @@ export default function HomePage() {
       </Section>
 
       {/* ----------------------------------------------------------- Verified */}
-      <Section tone="tint" labelledBy="verified-title">
+      <Section tone="tint" label="The Verified attestation">
         <div className="grid items-center gap-12 lg:grid-cols-[0.9fr_1.1fr]">
           <div className="flex justify-center lg:justify-start">
             <AttestationSeal size={220} />
@@ -183,9 +174,6 @@ export default function HomePage() {
             <E id="home.verified.title" as="h2" className="mt-5 font-display text-display-md">
               Evidence you can hand to a procurement team
             </E>
-            <span id="verified-title" className="sr-only">
-              The Verified attestation
-            </span>
             <E id="home.verified.lead" as="p" className="prose-body mt-5">
               {`Organisations that meet the required standard receive a dated {company} Verified attestation — a digital badge for your website and a certificate for tenders, audits and customer due diligence.`}
             </E>
@@ -206,7 +194,7 @@ export default function HomePage() {
       </Section>
 
       {/* -------------------------------------------------------------- Trust */}
-      <Section labelledBy="trust-title">
+      <Section label="Trust and security">
         <SectionHeading
           eyebrow="Trust"
           eyebrowId="home.trust.eyebrow"
@@ -215,9 +203,6 @@ export default function HomePage() {
           lead="Your assessment responses describe your weaknesses in detail. How we store, restrict and retain that information is set out in full on our trust page."
           leadId="home.trust.lead"
         />
-        <span id="trust-title" className="sr-only">
-          Trust and security
-        </span>
         <div className="mt-10">
           <TrustBadges />
         </div>
