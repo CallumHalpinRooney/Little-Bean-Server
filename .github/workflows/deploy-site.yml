@@ -1,0 +1,67 @@
+name: Deploy marketing site to Vercel
+
+# Runs on GitHub's network, which can reach Vercel. The token lives in GitHub
+# repository secrets and is never handled outside the runner.
+#
+# Setup (once):
+#   1. Create a token at https://vercel.com/account/tokens
+#   2. Repository → Settings → Secrets and variables → Actions → New repository
+#      secret, named VERCEL_TOKEN.
+#   3. Run this workflow from the Actions tab, or let a push to main trigger it.
+
+on:
+  workflow_dispatch:
+    inputs:
+      production:
+        description: "Deploy to production (unchecked = preview URL)"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths: ["site/**", ".github/workflows/deploy-site.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-site
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy
+        id: deploy
+        working-directory: site
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          PROD=""
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.production }}" = "true" ]; then
+            PROD="--prod"
+          fi
+          # --yes accepts the inferred project settings; the project is created
+          # on first run under the token's scope, rooted at this directory.
+          URL=$(vercel deploy $PROD --yes --token "$VERCEL_TOKEN" 2>&1 | tee /dev/stderr | grep -Eo 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -1)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Report the live URL
+        run: |
+          echo "### Deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live URL: ${{ steps.deploy.outputs.url }}"
