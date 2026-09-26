@@ -99,6 +99,17 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 .keys kbd{font-family:var(--display);font-weight:800;background:rgba(255,255,255,.1);border-radius:3px;padding:1px 7px;white-space:nowrap}
 .big{background:var(--taxi);color:#111;border:0;border-radius:6px;padding:14px 28px;font-family:var(--display);font-weight:900;font-size:24px;letter-spacing:.04em;text-transform:uppercase}
 
+/* police */
+#wanted{border-left:4px solid var(--bad)}
+#wTitle{font-family:var(--display);font-weight:800;font-size:18px;text-transform:uppercase;letter-spacing:.06em;color:#ff6b61}
+#wanted.flash #wTitle{color:#6f8dff}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}
+.meters small{display:block;font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;margin-bottom:3px}
+.meters i{display:block;height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+.meters b{display:block;height:100%;width:0}
+#wPin{background:var(--bad)} #wEsc{background:var(--good)}
+#wNote{font-size:13px;margin-top:6px;color:var(--muted)}
+
 /* paint shop */
 #design{position:fixed;left:0;top:0;bottom:0;width:min(380px,100%);box-sizing:border-box;z-index:20;background:rgba(21,23,27,.96);border-right:1px solid var(--line);overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) 18px 0;display:flex;flex-direction:column;gap:16px}
 #design h2{font-family:var(--display);font-weight:900;font-size:34px;margin:0;text-transform:uppercase;line-height:1}
@@ -144,6 +155,11 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
 
 <div class="hud" id="tl">
   <div class="chip"><div id="carName">Rossa V12</div><div id="carTag">Mid-engine supercar</div></div>
+  <div class="chip" id="wanted" hidden>
+    <div id="wTitle">Police chase</div>
+    <div class="meters"><div><small>Arrest</small><i><b id="wPin"></b></i></div><div><small>Escape</small><i><b id="wEsc"></b></i></div></div>
+    <div id="wNote"></div>
+  </div>
   <div class="chip" id="mission" hidden>
     <div id="mTitle"></div>
     <div id="mObj"></div>
@@ -164,6 +180,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
   <button class="btn" id="bGarage"><kbd>G</kbd>Garage</button>
   <button class="btn" id="bPaint"><kbd>P</kbd>Paint shop</button>
   <button class="btn" id="bMissions"><kbd>M</kbd>Missions</button>
+  <button class="btn" id="bPolice"><kbd>O</kbd><span id="polT">Police: off</span></button>
   <button class="btn" id="bCam"><kbd>C</kbd>Camera</button>
   <button class="btn" id="bReset"><kbd>R</kbd>Reset</button>
   <button class="btn" id="bSound"><kbd>N</kbd><span id="sndT">Sound on</span></button>
@@ -187,6 +204,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
       <kbd>E</kbd><span>Start a mission at a yellow marker</span>
       <kbd>G · M · C</kbd><span>Garage · Missions · Camera</span>
       <kbd>P</kbd><span>Paint shop: design your own car</span>
+      <kbd>O</kbd><span>Police chases on or off</span>
       <kbd>1 – 7</kbd><span>Quick swap car</span>
       <kbd>R · Q</kbd><span>Reset car · Quit mission</span>
     </div>
@@ -1297,26 +1315,9 @@ function updateAgent(a, dt) {
     else for (const o of agents) if (o !== a && ahead(o.x, o.z)) { want = 0; break; }
   }
   const near = a.s > P - 22 || a.s < 8;
-  if (near && !a.police) want = Math.min(want, 8);
+  if (near) want = Math.min(want, a.police ? 15 : 8);
   if (a.stun > 0) want = 0;
   a.speed += clamp(want - a.speed, -dt * 10, dt * 4);
-  if (a.police && chase.active) {
-    const dp = Math.hypot(player.x - a.x, player.z - a.z);
-    if (dp < 34) { // leave the lane and ram
-      const hh = Math.atan2(player.x - a.x, player.z - a.z);
-      a.h += clamp(angDiff(a.h, hh), -dt * 2.4, dt * 2.4);
-      const v = Math.min(a.speed + dt * 6, 27);
-      a.speed = v;
-      a.x += Math.sin(a.h) * v * dt; a.z += Math.cos(a.h) * v * dt;
-      const pen = penOct(a.x, a.z, 1.1); if (pen) { a.x += pen.nx * pen.p; a.z += pen.nz * pen.p; }
-      a.direct = true; a.spin += v * dt / .33; return;
-    } else if (a.direct) { // rejoin the nearest street
-      a.direct = false;
-      let bi = 0, bj = 0, bd = 1e9;
-      for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) { const d = Math.hypot(XS[i] - a.x, ZS[j] - a.z); if (d < bd) { bd = d; bi = i; bj = j; } }
-      a.to = [bi, bj]; a.from = neighbors(bi, bj)[0]; a.s = P - 1; chooseNext(a); a.s = 0;
-    }
-  }
   a.s += a.speed * dt;
   if (a.s >= P) { a.s -= P; chooseNext(a); }
   g = agentGeom(a);
@@ -1375,11 +1376,19 @@ const audio = {
       const mk = (type, f, q) => { const s = A.createBufferSource(); s.buffer = buf; s.loop = true; const fl = A.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const gg = A.createGain(); gg.gain.value = 0; s.connect(fl); fl.connect(gg); gg.connect(this.master); s.start(); return gg; };
       this.screech = mk('bandpass', 1500, 8); this.road = mk('lowpass', 380, .7);
       this.sir = A.createOscillator(); this.sir.type = 'triangle'; this.sg = A.createGain(); this.sg.gain.value = 0; this.sir.connect(this.sg); this.sg.connect(this.master); this.sir.start();
+      // helicopter: low rumble chopped by the rotor at 13 blade-passes per second
+      const hs = A.createBufferSource(); hs.buffer = buf; hs.loop = true;
+      const hl = A.createBiquadFilter(); hl.type = 'lowpass'; hl.frequency.value = 260;
+      const chop = A.createGain(); chop.gain.value = .55;
+      const lfo = A.createOscillator(); lfo.type = 'square'; lfo.frequency.value = 13;
+      const lg = A.createGain(); lg.gain.value = .45; lfo.connect(lg); lg.connect(chop.gain);
+      this.hg = A.createGain(); this.hg.gain.value = 0;
+      hs.connect(hl); hl.connect(chop); chop.connect(this.hg); this.hg.connect(this.master); hs.start(); lfo.start();
       this.retune();
     } catch (e) { this.ctx = null; }
   },
   retune() { if (!this.ctx || !player.spec) return; this.o1.type = player.spec.ev ? 'sine' : 'sawtooth'; },
-  update(c, sirenDist) {
+  update(c, sirenDist, heliDist = 1e9) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, s = c.spec;
     const f = s.ev ? 80 + c.rpm / s.redline * 1300 : Math.max(22, c.rpm / 60 * s.cyl / 2);
@@ -1393,6 +1402,7 @@ const audio = {
     const sv = sirenDist < 400 ? clamp(1 - sirenDist / 400, 0, 1) * .12 : 0;
     this.sg.gain.setTargetAtTime(sv, t, .1);
     this.sir.frequency.setTargetAtTime(Math.floor(performance.now() / 600) % 2 ? 960 : 720, t, .02);
+    this.hg.gain.setTargetAtTime(heliDist < 500 ? clamp(1 - heliDist / 500, 0, 1) * .5 : 0, t, .2);
   },
   crash(p) {
     if (!this.ctx) return;
@@ -1417,6 +1427,289 @@ const audio = {
   toggle() { this.on = !this.on; if (this.master) this.master.gain.value = this.on ? .55 : 0; $('sndT').textContent = this.on ? 'Sound on' : 'Sound off'; }
 };
 
+/* ================= PEOPLE ================= */
+const SKIN = ['#f1c7a5', '#d9a47c', '#b07650', '#7a4b2e', '#e8b996', '#5a3825'];
+const SHIRTS = ['#c8102e', '#1f4fd0', '#f4f4f4', '#2fbf4a', '#f9c80e', '#222222', '#7b2cbf', '#e2711d', '#8a8f96', '#1f9e8f', '#ff5fa2', '#394a6b'];
+const PANTS = ['#1d2a44', '#2b2d31', '#5a6470', '#6b3e26', '#c9b48a', '#3a3a3a'];
+const pick = a => a[(Math.random() * a.length) | 0];
+// shared body parts; limbs pivot at the hip and shoulder so they swing like real legs and arms
+const PG = {
+  torso: new THREE.BoxGeometry(.42, .6, .24).translate(0, .3, 0),
+  head: new THREE.SphereGeometry(.12, 10, 8),
+  leg: new THREE.BoxGeometry(.15, .9, .17).translate(0, -.45, 0),
+  arm: new THREE.BoxGeometry(.1, .62, .11).translate(0, -.31, 0),
+};
+const matCache = {};
+const flat = hex => matCache[hex] || (matCache[hex] = new THREE.MeshStandardMaterial({ color: C(hex), roughness: .85 }));
+function makePerson(shirt, pants, skin, opts = {}) {
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
+  const mk = (geo, hex, x, y, z) => { const m = new THREE.Mesh(geo, flat(hex)); m.position.set(x, y, z); m.castShadow = true; body.add(m); return m; };
+  const torso = mk(PG.torso, shirt, 0, .92, 0), head = mk(PG.head, skin, 0, 1.66, 0);
+  const legs = [mk(PG.leg, pants, -.1, .93, 0), mk(PG.leg, pants, .1, .93, 0)];
+  const arms = [mk(PG.arm, shirt, -.27, 1.47, 0), mk(PG.arm, shirt, .27, 1.47, 0)];
+  if (opts.cap) { const cap = mk(new THREE.CylinderGeometry(.13, .13, .08, 10), opts.cap, 0, 1.77, 0); const peak = mk(new THREE.BoxGeometry(.22, .02, .12), opts.cap, 0, 1.74, .12); }
+  return { root, body, torso, head, legs, arms };
+}
+// walk cycle: legs and arms swing in opposition, the body bobs twice per stride
+function animPerson(p, ph, amp, armsUp = 0) {
+  const s = Math.sin(ph);
+  p.legs[0].rotation.x = s * amp; p.legs[1].rotation.x = -s * amp;
+  p.arms[0].rotation.x = -s * amp * .8 - armsUp; p.arms[1].rotation.x = s * amp * .8 - armsUp;
+  p.body.position.y = Math.abs(Math.cos(ph)) * amp * .06;
+}
+
+// pedestrians: hundreds of instanced walkers with swinging limbs
+const OCTP = (() => {
+  const h = SIDE_H - 3.4, c = SIDE_CUT - 1, v = [[h, -(h - c)], [h, h - c], [h - c, h], [-(h - c), h], [-h, h - c], [-h, -(h - c)], [-(h - c), -h], [h - c, -h]];
+  const segs = []; let L = 0;
+  for (let k = 0; k < 8; k++) { const a = v[k], b = v[(k + 1) % 8], l = Math.hypot(b[0] - a[0], b[1] - a[1]); segs.push({ a, b, l, s: L }); L += l; }
+  return { segs, L };
+})();
+function octPos(p) {
+  p = ((p % OCTP.L) + OCTP.L) % OCTP.L;
+  for (const sg of OCTP.segs) if (p <= sg.s + sg.l) { const t = (p - sg.s) / sg.l; return [lerp(sg.a[0], sg.b[0], t), lerp(sg.a[1], sg.b[1], t), (sg.b[0] - sg.a[0]) / sg.l, (sg.b[1] - sg.a[1]) / sg.l]; }
+  return [0, 0, 1, 0];
+}
+const peds = [];
+for (const b of blocks.values()) if (b.kind === 'bld' || b.kind === 'sagrada') for (let n = 0; n < 2; n++)
+  peds.push({ kind: 'blk', cx: b.cx, cz: b.cz, p: rnd(0, OCTP.L), dir: Math.random() < .5 ? 1 : -1, v: rnd(1.1, 1.7), y: .18 });
+for (let n = 0; n < 70; n++) peds.push({ kind: 'line', p: rnd(-W, W), zl: W + rnd(11, 15.5), dir: Math.random() < .5 ? 1 : -1, v: rnd(1, 1.6), y: .12 });
+for (let n = 0; n < 10; n++) peds.push({ kind: 'pier', p: rnd(PIER.z0 + 30, PIER.z1 - 10), xl: PIER.x + rnd(-2, 2), dir: Math.random() < .5 ? 1 : -1, v: rnd(.8, 1.3), y: PIER.h });
+const PN = peds.length;
+const pedIM = {
+  torso: new THREE.InstancedMesh(PG.torso, new THREE.MeshStandardMaterial({ roughness: .85 }), PN),
+  head: new THREE.InstancedMesh(PG.head, new THREE.MeshStandardMaterial({ roughness: .7 }), PN),
+  leg: new THREE.InstancedMesh(PG.leg, new THREE.MeshStandardMaterial({ roughness: .85 }), PN * 2),
+  arm: new THREE.InstancedMesh(PG.arm, new THREE.MeshStandardMaterial({ roughness: .85 }), PN * 2),
+};
+{
+  const col = new THREE.Color();
+  peds.forEach((q, k) => {
+    q.ph = rnd(0, 6); q.dodge = 0; q.x = 0; q.z = 0; q.h = 0;
+    const sh = pick(SHIRTS), pa = pick(PANTS);
+    pedIM.torso.setColorAt(k, col.set(sh).convertSRGBToLinear()); pedIM.head.setColorAt(k, col.set(pick(SKIN)).convertSRGBToLinear());
+    for (const i of [0, 1]) { pedIM.leg.setColorAt(k * 2 + i, col.set(pa).convertSRGBToLinear()); pedIM.arm.setColorAt(k * 2 + i, col.set(sh).convertSRGBToLinear()); }
+  });
+  for (const m of Object.values(pedIM)) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
+}
+const _M = new THREE.Matrix4(), _L = new THREE.Matrix4(), _O = new THREE.Matrix4();
+function updatePeds(dt, full) {
+  const pvx = player.u * Math.sin(player.h) + player.v * Math.cos(player.h), pvz = player.u * Math.cos(player.h) - player.v * Math.sin(player.h);
+  const pspd = Math.hypot(pvx, pvz), cx = camera.position.x, cz = camera.position.z;
+  peds.forEach((q, k) => {
+    if (!full && Math.abs(q.x - cx) + Math.abs(q.z - cz) > 320) return;
+    // is a car coming at me?
+    const rx = q.x - player.x, rz = q.z - player.z, d = Math.hypot(rx, rz);
+    const threat = d < 11 && pspd > 3 && (rx * pvx + rz * pvz) > -2;
+    q.dodge = threat ? Math.min(1, q.dodge + dt * 5) : Math.max(0, q.dodge - dt * .6);
+    const run = 1 + q.dodge * 1.8;
+    q.p += q.dir * q.v * run * (1 - q.dodge * .6) * dt; q.ph += q.v * run * dt * 3.3;
+    let x, z, tx, tz, ix, iz;
+    if (q.kind === 'blk') { const r = octPos(q.p); x = q.cx + r[0]; z = q.cz + r[1]; tx = r[2] * q.dir; tz = r[3] * q.dir; const l = Math.hypot(r[0], r[1]) || 1; ix = -r[0] / l; iz = -r[1] / l; }
+    else if (q.kind === 'line') { if (q.p > W) q.p = -W; if (q.p < -W) q.p = W; x = q.p; z = q.zl; tx = q.dir; tz = 0; ix = 0; iz = 1; if (Math.abs(x - PIER.x) < PIER.w / 2 + .5) ix = 0; }
+    else { if (q.p > PIER.z1 - 8 || q.p < PIER.z0 + 25) q.dir *= -1; x = q.xl; z = q.p; tx = 0; tz = q.dir; ix = Math.sign(q.xl - PIER.x) || 1; iz = 0; }
+    // jump out of the way, towards the buildings (or the sand, or the railing)
+    const off = smooth01(q.dodge) * (q.kind === 'pier' ? 1.8 : 2.8);
+    q.x = x + ix * off; q.z = z + iz * off; q.h = Math.atan2(tx, tz);
+    const hop = q.dodge > .05 && q.dodge < .95 && threat ? Math.sin(q.dodge * Math.PI) * .25 : 0;
+    const s = Math.sin(q.ph), amp = .5 + q.dodge * .35, armsUp = q.dodge * 2.2;
+    _M.makeRotationY(q.h); _M.setPosition(q.x, q.y + Math.abs(Math.cos(q.ph)) * .035 + hop, q.z);
+    _L.makeTranslation(0, .92, 0); pedIM.torso.setMatrixAt(k, _O.multiplyMatrices(_M, _L));
+    _L.makeTranslation(0, 1.66, 0); pedIM.head.setMatrixAt(k, _O.multiplyMatrices(_M, _L));
+    for (const i of [0, 1]) {
+      const sg = i ? -1 : 1;
+      _L.makeRotationX(s * amp * sg); _L.setPosition(i ? .1 : -.1, .93, 0); pedIM.leg.setMatrixAt(k * 2 + i, _O.multiplyMatrices(_M, _L));
+      _L.makeRotationX(-s * amp * .8 * sg - armsUp); _L.setPosition(i ? .27 : -.27, 1.47, 0); pedIM.arm.setMatrixAt(k * 2 + i, _O.multiplyMatrices(_M, _L));
+    }
+  });
+  for (const m of Object.values(pedIM)) m.instanceMatrix.needsUpdate = true;
+}
+updatePeds(0, true);
+{ // sunbathers, towels and parasols on the beach
+  const spots = [];
+  for (let n = 0; n < 400 && spots.length < 70; n++) {
+    const x = rnd(-W + 30, W - 30), z = rnd(W + 30, W + 68);
+    if (Math.abs(x - PIER.x) < 18 || Math.abs(x) < 130 || Math.abs(x - HOTEL.x) < 60 || Math.abs(x - COLOM.x) < 20 || spots.some(s => Math.hypot(s[0] - x, s[1] - z) < 6)) continue;
+    spots.push([x, z, rnd(-.3, .3)]); addCircle(x, z, 1.1);
+  }
+  const towel = new THREE.InstancedMesh(new THREE.BoxGeometry(.95, .02, 1.9), new THREE.MeshStandardMaterial({ roughness: .9 }), spots.length);
+  const lie = new THREE.InstancedMesh(new THREE.BoxGeometry(.42, .2, 1.55), new THREE.MeshStandardMaterial({ roughness: .8 }), spots.length);
+  const hd = new THREE.InstancedMesh(PG.head, new THREE.MeshStandardMaterial({ roughness: .7 }), spots.length);
+  const pole = new THREE.InstancedMesh(new THREE.CylinderGeometry(.03, .03, 2.3, 6).translate(0, 1.15, 0), darkMat, spots.length);
+  const shade = new THREE.InstancedMesh(new THREE.ConeGeometry(1.35, .5, 10).translate(0, 2.3, 0), new THREE.MeshStandardMaterial({ roughness: .7, side: THREE.DoubleSide }), spots.length);
+  const col = new THREE.Color(), m4 = new THREE.Matrix4(), cols = ['#c8102e', '#f9c80e', '#1f4fd0', '#2fbf4a', '#ff5fa2', '#f4f4f4', '#e2711d'];
+  spots.forEach(([x, z, a], k) => {
+    m4.makeRotationY(a); m4.setPosition(x, .05, z); towel.setMatrixAt(k, m4); towel.setColorAt(k, col.set(pick(cols)).convertSRGBToLinear());
+    m4.setPosition(x, .16, z - .1); lie.setMatrixAt(k, m4); lie.setColorAt(k, col.set(pick(SKIN)).convertSRGBToLinear());
+    m4.makeTranslation(x + Math.sin(a) * .8, .2, z + Math.cos(a) * .8); hd.setMatrixAt(k, m4); hd.setColorAt(k, col.set(pick(SKIN)).convertSRGBToLinear());
+    m4.makeTranslation(x + .9, 0, z - .5); pole.setMatrixAt(k, m4); shade.setMatrixAt(k, m4); shade.setColorAt(k, col.set(pick(cols)).convertSRGBToLinear());
+  });
+  for (const m of [towel, lie, hd, pole, shade]) { m.castShadow = true; m.receiveShadow = true; scene.add(m); }
+}
+
+/* ================= POLICE ================= */
+const police = { on: false, state: 'off', cops: [], pin: 0, escape: 0, cool: 0, arrest: null, mission: false, dmin: 1e9, arrests: 0 };
+function nearestRoadPoint(x, z) {
+  const mr = z < MTN.foot + 60 && Math.abs(x) < 1150 ? nearMR(x, z) : { d: 1e9 };
+  if (mr.d < 250) return [mr.p.x, mr.p.z];
+  let best = [x, z], bd = 1e9;
+  for (const r of ROADS) { if (r.hidden) continue; const { d, t } = segDist(r, x, z); if (d < bd) { bd = d; best = [r.ax + (r.bx - r.ax) * t, r.az + (r.bz - r.az) * t]; } }
+  return best;
+}
+function spawnCop(back, side) {
+  const fx = Math.sin(player.h), fz = Math.cos(player.h);
+  const x = player.x - fx * back + fz * side, z = player.z - fz * back - fx * side;
+  let a;
+  if (inCity(x, z) && inCity(player.x, player.z) && player.z < W + 10) {
+    let bi = 0, bj = 0, bd = 1e9;
+    for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) { const d = Math.hypot(XS[i] - x, ZS[j] - z); if (d < bd && Math.hypot(XS[i] - player.x, ZS[j] - player.z) > 60) { bd = d; bi = i; bj = j; } }
+    a = makeAgent(bi, bj, 'police'); a.s = 0; placeAgent(a, true);
+  } else {
+    const [px, pz] = nearestRoadPoint(x, z);
+    a = makeAgent(0, 0, 'police'); a.x = px; a.z = pz; a.direct = true; a.h = Math.atan2(player.x - px, player.z - pz);
+  }
+  a.vmax = 30; a.speed = 14; police.cops.push(a); return a;
+}
+function despawnCops() { for (const a of police.cops) { scene.remove(a.vis.root); agents.splice(agents.indexOf(a), 1); } police.cops = []; }
+function startPursuit(n) {
+  despawnCops();
+  for (let k = 0; k < n; k++) spawnCop(160 + k * 45, (k - (n - 1) / 2) * 45);
+  police.state = 'hunt'; police.pin = 0; police.escape = 0;
+  if (!heli.g.visible) { heli.x = player.x - Math.sin(player.h) * 260; heli.z = player.z - Math.cos(player.h) * 260; heli.y = groundH(player.x, player.z) + 160; heli.vx = heli.vy = heli.vz = 0; heli.g.visible = true; }
+  heli.active = true;
+}
+function endPursuit(cool) { despawnCops(); police.state = cool > 0 ? 'cool' : 'off'; police.cool = cool; police.pin = police.escape = 0; heli.active = false; }
+function setPolice(on) {
+  police.on = on; $('polT').textContent = on ? 'Police: on' : 'Police: off';
+  if (police.mission) return;
+  if (on && !M) { startPursuit(3); show('Police!', 'Three patrol cars and a helicopter are after you. Get 300 m away to escape.', 3.5); }
+  if (!on) { endPursuit(0); if (police.arrest) { for (const o of police.arrest.officers) scene.remove(o.p.root); police.arrest = null; } }
+}
+function updateCop(a, dt) {
+  const dx = player.x - a.x, dz = player.z - a.z, dist = Math.hypot(dx, dz);
+  const cityChase = inCity(a.x, a.z) && inCity(player.x, player.z) && player.z < W + 10;
+  if (!a.direct && cityChase && dist > 60 && !police.arrest) return updateAgent(a, dt); // follow the street grid
+  if (!a.direct) a.direct = true;
+  if (a.stun > 0) a.stun -= dt;
+  // chase a point ahead of you, steering around buildings with look-ahead probes
+  const pvx = player.u * Math.sin(player.h) + player.v * Math.cos(player.h), pvz = player.u * Math.cos(player.h) - player.v * Math.sin(player.h);
+  const lead = clamp(dist / 45, 0, 1.4);
+  let want = Math.atan2(player.x + pvx * lead - a.x, player.z + pvz * lead - a.z);
+  const probe = (ang, d) => !!penOct(a.x + Math.sin(a.h + ang) * d, a.z + Math.cos(a.h + ang) * d, 1.3);
+  const look = 7 + a.speed * .55;
+  if (probe(0, look)) { const l = probe(.55, look), r = probe(-.55, look); want = a.h + (l && !r ? -1.1 : 1.1); }
+  const err = angDiff(a.h, want);
+  let target = police.arrest || a.stun > 0 ? 0 : cityChase ? 30 : 44;
+  if (Math.abs(err) > .7) target = Math.min(target, 13);
+  if (dist < 16) target = Math.min(target, Math.hypot(pvx, pvz) + 5); // match your speed to box you in
+  a.speed += clamp(target - a.speed, -dt * 12, dt * 8);
+  const turn = Math.min(2.4, 11 / Math.max(a.speed, 4));
+  a.h += clamp(err, -turn * dt, turn * dt);
+  a.x += Math.sin(a.h) * a.speed * dt; a.z += Math.cos(a.h) * a.speed * dt;
+  for (const k of [1.6, -1.6]) { const pen = penOct(a.x + Math.sin(a.h) * k, a.z + Math.cos(a.h) * k, 1.05); if (pen) { a.x += pen.nx * pen.p; a.z += pen.nz * pen.p; a.speed *= .97; } }
+  a.spin += a.speed * dt / .33;
+  if (cityChase && dist > 110) { // far behind in the grid again: rejoin the lanes
+    a.direct = false; let bi = 0, bj = 0, bd = 1e9;
+    for (let i = 0; i <= N; i++) for (let j = 0; j <= N; j++) { const d = Math.hypot(XS[i] - a.x, ZS[j] - a.z); if (d < bd) { bd = d; bi = i; bj = j; } }
+    a.to = [bi, bj]; a.from = neighbors(bi, bj)[0]; chooseNext(a); a.s = 0;
+  }
+}
+function startArrest(cop) {
+  const A = police.arrest = { t: 0, officers: [] };
+  const clx = Math.cos(cop.h), clz = -Math.sin(cop.h), plx = Math.cos(player.h), plz = -Math.sin(player.h);
+  for (const sd of [-1, 1]) {
+    const p = makePerson('#1b2a4a', '#1b2a4a', pick(SKIN), { cap: '#10182c' }); scene.add(p.root);
+    A.officers.push({ p, x: cop.x + clx * 1.3 * sd, z: cop.z + clz * 1.3 * sd, tx: player.x + plx * 1.7 * sd, tz: player.z + plz * 1.7 * sd, h: 0, ph: rnd(0, 6) });
+  }
+  show('Busted!', 'Police officers are getting out to arrest you.', 5);
+}
+function updateArrest(dt) {
+  const A = police.arrest; A.t += dt;
+  player.u = player.v = player.r = 0;
+  for (const o of A.officers) {
+    const dx = o.tx - o.x, dz = o.tz - o.z, d = Math.hypot(dx, dz);
+    if (d > .25) { const v = Math.min(1.8, d * 2); o.x += dx / d * v * dt; o.z += dz / d * v * dt; o.ph += dt * v * 3.3; o.h = Math.atan2(dx, dz); animPerson(o.p, o.ph, .55); }
+    else { o.h += angDiff(o.h, Math.atan2(player.x - o.x, player.z - o.z)) * .2; animPerson(o.p, 0, 0, 1.45); } // arm up: "step out of the car"
+    o.p.root.position.set(o.x, groundH(o.x, o.z), o.z); o.p.root.rotation.y = o.h;
+  }
+  if (A.t > 5.5) {
+    for (const o of A.officers) scene.remove(o.p.root);
+    police.arrest = null; police.arrests++;
+    endPursuit(20);
+    show('Arrested', `You paid a €500 fine (arrests so far: ${police.arrests}). The police will look again in 20 s.`, 4);
+  }
+}
+function updatePolice(dt) {
+  if (police.arrest) return updateArrest(dt);
+  if (police.state === 'cool') {
+    if (!M) police.cool -= dt;
+    if (police.cool <= 0) { if (police.on && !M) { startPursuit(3); show('Spotted!', 'A patrol car recognised your car.', 2.5); } else police.state = 'off'; }
+    return;
+  }
+  if (police.state !== 'hunt') return;
+  let dmin = 1e9, near = null;
+  for (const a of police.cops) { const d = Math.hypot(a.x - player.x, a.z - player.z); if (d < dmin) { dmin = d; near = a; } }
+  police.dmin = dmin;
+  const spd = Math.hypot(player.u, player.v);
+  if (dmin < 9 && spd < 4) police.pin += dt; else police.pin = Math.max(0, police.pin - dt * .6);
+  if (dmin > 300) police.escape += dt; else police.escape = Math.max(0, police.escape - dt * 2);
+  if (police.mission) return; // the Getaway mission decides how it ends
+  if (police.pin >= 3) startArrest(near);
+  else if (police.escape >= 8) { endPursuit(25); show('You got away', 'The police lost you. They will look again in 25 s.', 3.5); }
+}
+
+/* ---------- police helicopter ---------- */
+const heli = (() => {
+  const g = new THREE.Group(); g.visible = false; scene.add(g);
+  const white = paint('#f2f2f2'), blue = paint('#1b3a8c');
+  const body = new THREE.Mesh(new THREE.SphereGeometry(1.5, 18, 12), white); body.scale.set(1, .95, 1.9); g.add(body);
+  const glass = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), glassMat); glass.rotation.x = Math.PI / 2 - .5; glass.position.set(0, .15, 1.6); g.add(glass);
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(3.02, .35, 3.5), blue); stripe.position.set(0, -.3, -.2); g.add(stripe);
+  const boom = new THREE.Mesh(new THREE.CylinderGeometry(.22, .4, 6, 10).rotateX(Math.PI / 2), white); boom.position.set(0, .3, -5.2); g.add(boom);
+  const fin = new THREE.Mesh(new THREE.BoxGeometry(.12, 1.6, 1), blue); fin.position.set(0, 1, -8); g.add(fin);
+  const tailR = new THREE.Group(); tailR.position.set(.25, 1.1, -8); g.add(tailR);
+  for (const a of [0, Math.PI / 2]) { const bl = new THREE.Mesh(new THREE.BoxGeometry(.04, 1.5, .14), darkMat); bl.rotation.x = a; tailR.add(bl); }
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, .6, 8), darkMat); mast.position.y = 1.6; g.add(mast);
+  const rotor = new THREE.Group(); rotor.position.y = 1.9; g.add(rotor);
+  for (const a of [0, Math.PI / 2]) { const bl = new THREE.Mesh(new THREE.BoxGeometry(11.5, .05, .32), darkMat); bl.rotation.y = a; rotor.add(bl); }
+  const disc = new THREE.Mesh(new THREE.CircleGeometry(5.8, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: .18, depthWrite: false })); disc.position.y = 1.9; g.add(disc);
+  for (const sx of [-1, 1]) { const sk = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 3.6, 6).rotateX(Math.PI / 2), darkMat); sk.position.set(sx * .95, -1.75, .2); g.add(sk); }
+  const beacon = new THREE.Mesh(new THREE.SphereGeometry(.15, 8, 6), new THREE.MeshBasicMaterial({ color: 0xff2020 })); beacon.position.set(0, -1.3, -1); g.add(beacon);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(1, 1, 24, 1, true).translate(0, -.5, 0), new THREE.MeshBasicMaterial({ color: 0xfff1c4, transparent: true, opacity: .09, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, fog: false }));
+  const spot = new THREE.Mesh(new THREE.CircleGeometry(1, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ map: glowTex, color: 0xfff1c4, transparent: true, opacity: .6, blending: THREE.AdditiveBlending, depthWrite: false }));
+  cone.visible = spot.visible = false; scene.add(cone, spot);
+  return { g, rotor, tailR, beacon, cone, spot, x: 0, y: 300, z: 0, vx: 0, vy: 0, vz: 0, h: 0, ang: 0, pitch: 0, bank: 0, active: false };
+})();
+const _up = new THREE.Vector3(0, -1, 0), _dir = new THREE.Vector3();
+function updateHeli(dt) {
+  const H = heli;
+  if (!H.g.visible) return;
+  const gy = groundH(player.x, player.z);
+  let tx, ty, tz;
+  if (H.active) { H.ang += dt * .2; tx = player.x + Math.sin(H.ang) * 40; tz = player.z + Math.cos(H.ang) * 40; ty = gy + 58; }
+  else { tx = H.x + 300; ty = H.y + 120; tz = H.z - 300; }
+  let ax = (tx - H.x) * 1.1 - H.vx * 1.6, ay = (ty - H.y) * 1.2 - H.vy * 1.8, az = (tz - H.z) * 1.1 - H.vz * 1.6;
+  const am = Math.hypot(ax, az); if (am > 16) { ax *= 16 / am; az *= 16 / am; }
+  H.vx += ax * dt; H.vy += clamp(ay, -8, 8) * dt; H.vz += az * dt;
+  H.x += H.vx * dt; H.y += H.vy * dt; H.z += H.vz * dt;
+  // nose down to accelerate, bank into turns, always turning to watch you
+  const face = Math.atan2(player.x - H.x, player.z - H.z); H.h += angDiff(H.h, H.active ? face : Math.atan2(H.vx, H.vz)) * (1 - Math.exp(-dt * 1.5));
+  const fA = ax * Math.sin(H.h) + az * Math.cos(H.h), lA = ax * Math.cos(H.h) - az * Math.sin(H.h);
+  H.pitch = lerp(H.pitch, clamp(fA * .03, -.3, .3), .08); H.bank = lerp(H.bank, clamp(-lA * .03, -.35, .35), .08);
+  H.g.position.set(H.x, H.y, H.z); H.g.rotation.set(H.pitch, H.h, H.bank, 'YXZ');
+  H.rotor.rotation.y += dt * 30; H.tailR.rotation.x += dt * 45;
+  H.beacon.visible = Math.floor(performance.now() / 500) % 2 === 0;
+  const lit = H.active && H.y - gy > 20;
+  H.cone.visible = H.spot.visible = lit;
+  if (lit) {
+    const t = performance.now() / 1000, sx = player.x + Math.sin(t * 1.3) * 1.5, sz = player.z + Math.cos(t * 1.1) * 1.5;
+    _dir.set(sx - H.x, gy - (H.y - 1.4), sz - H.z); const len = _dir.length(); _dir.normalize();
+    H.cone.position.set(H.x, H.y - 1.4, H.z); H.cone.quaternion.setFromUnitVectors(_up, _dir); H.cone.scale.set(len * .09, len, len * .09);
+    H.spot.position.set(sx, gy + .12, sz); H.spot.scale.setScalar(len * .12);
+  }
+  if (!H.active && H.y - gy > 400) H.g.visible = false;
+}
+
 /* ================= MISSIONS ================= */
 const node = (i, j) => ({ x: XS[i + 3], z: ZS[j + 3] }); // city missions sit on the central grid
 const SAGB = blocks.get(bkey(...SAGRADA)), SAGF = { x: SAGB.cx, z: SAGB.cz - P / 2 };
@@ -1429,7 +1722,7 @@ const MISSIONS = [
     cps: [{ x: XS[5], z: ZS[6] + 50, stop: 1, label: 'Pick up passenger' }, { ...SAGF, stop: 1, label: 'Drop off at Sagrada Família' }, { x: XS[8], z: ZS[8] + 60, stop: 1, label: 'Pick up next fare' }, { x: COLOM.x + 40, z: W, stop: 1, label: 'Drop off at Passeig Marítim' }] },
   { id: 'drift', name: 'Sand Drift', type: 'drift', desc: 'Score 6,000 drift points in 60 seconds. The beach has half the grip. Use the handbrake.', start: { x: 0, z: W + 44, h: Math.PI / 2 }, time: 60, target: 6000 },
   { id: 'speed', name: 'Speed Camera', type: 'speed', desc: 'Pass the radar on Passeig Marítim at 200 km/h or more. Pick a fast car.', start: { x: -W + 20, z: W - 3.6, h: Math.PI / 2 }, time: 45, target: 200, radar: { x: W * .45, z: W } },
-  { id: 'chase', name: 'Getaway', type: 'chase', desc: 'A patrol car is on your tail. Stay free for 60 seconds. If it pins you for 3 seconds, you are caught.', start: { ...node(4, 2), h: Math.PI / 2 }, time: 60 },
+  { id: 'chase', name: 'Getaway', type: 'chase', desc: 'Two patrol cars and the helicopter are on your tail. Stay free for 60 seconds. If they pin you for 3 seconds, you are caught.', start: { ...node(4, 2), h: Math.PI / 2 }, time: 60 },
   { id: 'ronda', name: 'Ronda Run', type: 'race', desc: 'A full lap of the Ronda motorway around the whole city, back along the seafront. Almost 10 km.', start: { x: -RING, z: 150, h: Math.PI }, time: 330,
     cps: [{ x: -RING, z: -RING }, { x: 0, z: -RING }, { x: RING, z: -RING }, { x: RING, z: -300 }, { x: RING, z: W }, { x: 0, z: W }, { x: -RING, z: W }, { x: -RING, z: 260, label: 'Finish' }] },
   { id: 'hill', name: 'Rabassada Climb', type: 'race', desc: 'Up the mountain road to Tibidabo: five hairpins and 390 m of climbing. Brake before every bend.', start: { x: 0, z: -1690, h: Math.PI }, time: 200,
@@ -1457,7 +1750,6 @@ const radarMesh = new THREE.Group();
 const arrow = new THREE.Mesh(new THREE.ConeGeometry(.55, 1.8, 12).rotateX(Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xf9c80e, fog: false }));
 arrow.visible = false; scene.add(arrow);
 
-const chase = { active: false, cop: null, pin: 0 };
 let M = null; // running mission
 function startMission(idx) {
   closeAll();
@@ -1466,17 +1758,15 @@ function startMission(idx) {
   M = { idx, def, cp: 0, t: def.time, score: 0, combo: 0, fare: 30, count: 3, stopT: 0, done: false, passed: false };
   player.x = def.start.x; player.z = def.start.z; player.h = def.start.h; player.u = player.v = player.r = 0; player.gear = 1; player.steer = 0;
   lastSkid[0] = lastSkid[1] = null;
-  if (def.type === 'chase') {
-    chase.active = true; chase.pin = 0;
-    const cop = makeAgent(6, 5, 'police'); cop.from = [6, 5]; cop.to = [7, 5]; cop.s = 40; placeAgent(cop, true); cop.vmax = 25; chase.cop = cop;
-  }
+  if (def.type === 'chase') { police.mission = true; startPursuit(2); }
   $('mission').hidden = false; $('mTitle').textContent = def.name;
   startMarkers.forEach(b => b.visible = false);
   show('3', def.desc, 1.1);
 }
-function endChase() {
-  if (chase.cop) { scene.remove(chase.cop.vis.root); agents.splice(agents.indexOf(chase.cop), 1); chase.cop = null; }
-  chase.active = false;
+function endChase() { // missions and free-roam pursuits never overlap
+  police.mission = false;
+  if (police.arrest) { for (const o of police.arrest.officers) scene.remove(o.p.root); police.arrest = null; }
+  if (police.state !== 'off') endPursuit(police.on ? 8 : 0);
 }
 function finishMission(ok, text) {
   const def = M.def; let rec = '';
@@ -1547,10 +1837,9 @@ function updateMission(dt) {
       if (!M.passed) { M.passed = true; return finishMission(false, `Only ${Math.round(kmh)} km/h through the camera. Try the Rossa V12 or Volt S.`); }
     }
   } else if (d.type === 'chase') {
-    const c = chase.cop, dist = Math.hypot(c.x - player.x, c.z - player.z);
-    if (dist < 8 && spd < 5) chase.pin += dt; else chase.pin = Math.max(0, chase.pin - dt * .5);
-    obj = chase.pin > 0 ? 'Break free!' : 'Lose the patrol car'; stats.push(['Gap', Math.round(dist) + ' m'], ['Caught', Math.round(chase.pin / 3 * 100) + '%']);
-    if (chase.pin >= 3) return finishMission(false, 'Boxed in. The patrol car caught you.');
+    const dist = police.dmin;
+    obj = police.pin > 0 ? 'Break free!' : 'Lose the patrol cars'; stats.push(['Gap', Math.round(dist) + ' m'], ['Caught', Math.round(police.pin / 3 * 100) + '%']);
+    if (police.pin >= 3) return finishMission(false, 'Boxed in. The police caught you.');
     if (M.t <= 0) return finishMission(true, `You stayed free for a minute. Final gap: ${Math.round(dist)} m.`);
   }
   if (M.t <= 0) return finishMission(false, d.type === 'drift' ? `Time up at ${Math.round(M.score)} of ${d.target} points.` : 'Out of time. Try a faster car or cut through the chamfered corners.');
@@ -1663,6 +1952,7 @@ $('bPaint').onclick = openDesign;
 $('gPaint').onclick = openDesign;
 $('bMissions').onclick = () => openPanel('missions');
 $('bCam').onclick = () => camMode = (camMode + 1) % 3;
+$('bPolice').onclick = () => setPolice(!police.on);
 $('bReset').onclick = resetCar;
 $('bSound').onclick = () => audio.toggle();
 $('bStart').onclick = () => { $('start').hidden = true; paused = false; audio.init(); show('Bon viatge', 'Yellow beams are missions. Drive into one and press E.', 3.5); };
@@ -1704,6 +1994,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyM') $('missions').hidden ? openPanel('missions') : closeAll();
   if (e.code === 'Escape') closeAll();
   if (e.code === 'KeyC') camMode = (camMode + 1) % 3;
+  if (e.code === 'KeyO' && !paused) setPolice(!police.on);
   if (e.code === 'KeyR') resetCar();
   if (e.code === 'KeyN') audio.toggle();
   if (e.code === 'KeyQ' && M) finishMission(false, 'Mission abandoned.');
@@ -1770,6 +2061,7 @@ function drawMap() {
   const dot = (x, z, col, r) => { const [a, b] = toS(x, z, true); g.fillStyle = col; g.strokeStyle = '#111'; g.lineWidth = 3; g.beginPath(); g.arc(a, b, r, 0, 7); g.fill(); g.stroke(); };
   if (!M) MISSIONS.forEach(m => dot(m.start.x, m.start.z, '#f9c80e', 9));
   for (const a of agents) if (a.police) dot(a.x, a.z, Math.floor(performance.now() / 250) % 2 ? '#ff3030' : '#2a5bff', 8);
+  if (heli.g.visible) dot(heli.x, heli.z, '#f4f4f4', 6);
   const t = missionTarget(); if (t) dot(t.x, t.z, '#4fd1ff', 11);
   g.save(); g.translate(S / 2, S / 2); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 3;
   g.beginPath(); g.moveTo(0, -16); g.lineTo(11, 12); g.lineTo(0, 6); g.lineTo(-11, 12); g.closePath(); g.fill(); g.stroke(); g.restore();
@@ -1811,7 +2103,7 @@ function loop() {
   frame++;
   const c = player, vis = c.vis;
   if (!paused) {
-    const frozen = M && M.count > 0;
+    const frozen = (M && M.count > 0) || !!police.arrest;
     const inp = frozen ? { up: 0, down: 0, left: 0, right: 0, hand: 1 } : input;
     { // terrain grade under the car (for gravity and body tilt)
       const e = 1.6, sf = Math.sin(c.h), cf = Math.cos(c.h);
@@ -1843,7 +2135,8 @@ function loop() {
     const impact = Math.max(hit, traffic);
     c.hitCd -= dt;
     if (impact > 3 && c.hitCd <= 0) { c.hv -= Math.min(impact, 20) * .012; audio.crash(impact); cam.shake = Math.min(1, impact / 15); c.hitCd = .35; if (M && M.def.type === 'taxi' && M.count <= 0) M.fare = Math.max(0, M.fare - 3); if (M && M.def.type === 'drift') { M.combo = 0; $('drift').hidden = true; } }
-    for (const a of agents) updateAgent(a, dt);
+    for (const a of agents) a.police ? updateCop(a, dt) : updateAgent(a, dt);
+    updatePolice(dt); updateHeli(dt);
     updateMission(dt);
     // mission start proximity
     nearMission = -1;
@@ -1854,7 +2147,7 @@ function loop() {
 
   // visuals: car body pitch and roll
   c.spin += c.u * dt / c.spec.R;
-  const gy = groundH(c.x, c.z);
+  const gy = c.gy = groundH(c.x, c.z);
   syncVis(vis, c.x, c.z, c.h, c.spin, c.steer, gy);
   vis.root.rotation.order = 'YXZ';
   vis.root.rotation.x = lerp(vis.root.rotation.x, -Math.atan(c.gradeF || 0), .3);
@@ -1879,9 +2172,10 @@ function loop() {
   for (const a of agents) {
     a.vis.root.visible = Math.abs(a.x - camera.position.x) + Math.abs(a.z - camera.position.z) < 520;
     if (!a.vis.root.visible) continue;
-    syncVis(a.vis, a.x, a.z, a.h, a.spin, 0);
+    syncVis(a.vis, a.x, a.z, a.h, a.spin, 0, a.police ? groundH(a.x, a.z) : 0);
     if (a.vis.lightbar) { const on = Math.floor(performance.now() / 160) % 2; a.vis.lightbar[0].emissiveIntensity = on ? 3 : .1; a.vis.lightbar[1].emissiveIntensity = on ? .1 : 3; }
   }
+  if (!paused) updatePeds(dt, false);
   // skids and smoke
   const fx = Math.sin(c.h), fz = Math.cos(c.h), lx = Math.cos(c.h), lz = -Math.sin(c.h);
   const sp = Math.hypot(c.u, c.v);
@@ -1946,10 +2240,18 @@ function loop() {
     $('rpmFill').style.width = clamp(c.rpm / c.spec.redline, 0, 1) * 100 + '%';
     const st = streetName(c.x, c.z);
     $('plaque').hidden = !st; if (st) { $('plaqueT').textContent = st[0]; $('plaqueD').textContent = st[1]; }
+    const wv = police.state !== 'off' || !!police.arrest;
+    $('wanted').hidden = !wv;
+    if (wv) {
+      $('wanted').classList.toggle('flash', Math.floor(performance.now() / 400) % 2 === 0 && police.state === 'hunt');
+      $('wTitle').textContent = police.arrest ? 'Busted' : police.state === 'cool' ? 'Lying low' : `Police chase · ${police.cops.length} cars + helicopter`;
+      $('wPin').style.width = clamp(police.pin / 3, 0, 1) * 100 + '%'; $('wEsc').style.width = clamp(police.escape / 8, 0, 1) * 100 + '%';
+      $('wNote').textContent = police.arrest ? 'Officers are arresting you.' : police.state === 'cool' ? (M ? 'Paused during the mission.' : `Next patrol in ${Math.ceil(police.cool)} s`) : police.dmin > 300 ? 'Out of sight: keep going!' : police.pin > 0 ? 'Keep moving or they will arrest you!' : `Nearest police car: ${Math.round(police.dmin)} m. Get 300 m away.`;
+    }
   }
   if (frame % 2 === 0) drawMap();
   if (msgT > 0) { msgT -= dt; if (msgT <= 0) { $('msg').hidden = true; $('sub').hidden = true; } }
-  audio.update(c, chase.cop ? Math.hypot(chase.cop.x - c.x, chase.cop.z - c.z) : 1e9);
+  audio.update(c, police.state === 'hunt' ? police.dmin : 1e9, heli.g.visible ? Math.hypot(heli.x - c.x, heli.y - (c.gy || 0), heli.z - c.z) : 1e9);
   renderer.render(scene, camera);
 }
 loop();
