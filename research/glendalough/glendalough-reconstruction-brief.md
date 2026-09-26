@@ -16,7 +16,7 @@ Every claim is tagged with how firm it is:
 
 **Things I couldn't do, and what to check yourself:**
 
-- **The drone photo didn't come through.** No image was attached to the request, and none is in the repository. Section 3 therefore uses the most common aerial composition (from the east, looking west up the valley) and keeps the camera description in its own block so you can replace it. Send the photo and I'll match the prompts to it.
+- **The reference photo** (an aerial view, 1460 × 840, supplied separately) is mapped building by building in §4.2, and the prompts in §4 follow its composition. The copy supplied still has a Google image-search overlay, which suggests it came from the web. **Don't use it as a ControlNet input, or publish anything derived from it, until you've confirmed the rights**, or shoot your own drone plate from the same spot.
 - **Several academic sources are print-only or were blocked when I tried to fetch them** (Wicklow Heritage Forum, Monastic Ireland, the UCD project page). Where a detail comes from memory of the literature and I couldn't check it online, it's marked *(verify)*. Check those against the books in §5 before publishing.
 - **Take exact footprints and positions from the NMS Historic Environment Viewer** (maps.archaeology.ie) or the OPW site plan, not from this text.
 
@@ -110,7 +110,7 @@ If you prefer an **earlier date (c. 1150)**, show the cathedral as the nave alon
 - **Trinity Church**, on the approach road east of the gateway. It had a west annex with a round belfry that **fell in a storm in 1818** [E], so restore it if it is in frame.
 - **St Saviour's**, 1.5 km east. A 12th-c. Romanesque church with some of the finest carving in Ireland, restored in the 1870s. It is probably out of frame.
 
-> **Geography note:** The main monastic cluster lies at the **east end of the valley, by the Lower Lake**, where the Glendasan and Glenealo rivers meet. The Upper Lake is about 1.5 km further west. If your photo shows the Upper Lake close by, it's probably taken from a different spot, or the cluster in it is Reefert rather than the main site.
+> **Geography note:** The main monastic cluster lies at the **east end of the valley, by the Lower Lake**, where the Glendasan and Glenealo rivers meet. The Upper Lake is about 1.5 km further west. The reference photo agrees: the small lake mid-left is the **Lower Lake**, and the water just visible under the steep slopes at the top-left edge is the **Upper Lake**.
 
 ---
 
@@ -154,40 +154,70 @@ The layout reads as a **graded journey**, from the busy lay settlement at the ga
 
 A text prompt alone **won't reproduce a specific drone vantage point**. To get "this view, restored":
 
-1. **SDXL / Flux + ControlNet** (depth + canny or MLSD) using the drone photo as the control image, at a control weight of about 0.6–0.8. This fixes the camera, the terrain and the building footprints. The prompt then only has to supply materials, roofs and atmosphere.
+1. **SDXL / Flux + ControlNet** (depth + canny or MLSD) using the drone photo as the control image, at a control weight of about 0.6–0.8. This fixes the camera, the terrain and the building footprints. The prompt then only has to supply materials, roofs and atmosphere. **In this photo, the dark cypress and yew clumps around the cathedral and the rows of headstones will be read as solid shapes and carried into the result.** Paint them out of the control image (or mask them out of the depth and edge maps) before generating.
 2. **Inpaint** the specific additions: roofs, St Kevin's chancel, the gateway's upper storey, lay houses. Also inpaint *out* the modern features: headstones, car parks, the visitor centre, the hotel, tarmac paths, fences, the 1870s walls around St Kieran's, and conifer plantations.
 3. **Midjourney:** use the drone photo as an image prompt (`--iw 1.5–2`) and `--style raw`. Expect some geometry drift, and fix it in a paint-over.
 4. For AR, the stronger long-term route is a **3D model** built from photogrammetry of the ruins, with roofs added from these specs and the renders used as look-dev. Say if you want that brief.
 
-### 4.2 Camera block (assumed, so replace it once the photo arrives)
+### 4.2 The reference photo, read against the site plan
 
-> `aerial drone photograph from about 80 m altitude, positioned east of the monastic site and looking west up the glacial valley; the Gateway in the right foreground, St Kevin's Church with its round belfry by the river on the left foreground, the Cathedral in the centre with the Round Tower rising just behind and to the right of it, the Lower Lake and then the Upper Lake receding into the valley between steep wooded mountain slopes, 24 mm lens equivalent, slight downward tilt`
+**Camera.** Aerial, about 60–90 m up, placed **east / south-east of the core and looking west-north-west up the valley**. Two things fix the orientation:
 
-Check the left/right arrangement against your photo and the NMS map before using it.
+- **St Kevin's Church:** the belfry is at its far (upper-left) end, and the belfry stands on the *west* gable. The low surviving sacristy is at the near right, which is the north-east corner.
+- **The Cathedral:** the lower, nearer walls (bottom centre-right) are the late chancel and sacristy at the *east* end. The larger nave, with its west gable, lies beyond.
 
-### 4.3 Negative prompt (SDXL/Flux; for Midjourney, fold the key terms into `--no`)
+It is a moderately wide lens (about 24–28 mm equivalent), with the horizon near the top and a steep downward tilt. The frame is 1460 × 840 (Midjourney `--ar 7:4`).
 
-> `modern headstones, gravestones in rows, tarmac, paved paths, car park, cars, visitor centre, hotel, fences, signage, tourists, conifer plantation, spruce forest, Gothic pointed arches, spires, stained glass, flying buttresses, castle battlements, red roof tiles, terracotta, slate roofs with regular modern slates, glass windows, chimneys with smoke, fantasy, elves, overgrown ruins, roofless walls, broken walls, ivy-covered ruins, oversaturated, HDR, cartoon`
+**Frame map.** Positions describe the image; "action" is what the reconstruction does there.
 
-### 4.4 Prompt A: the hero view, "this view restored", c. 1180, summer morning
+| Frame position | What it is today | Action for c. 1180 |
+|---|---|---|
+| Bottom-left, low grey rectangle at the end of the path | Probably **St Kieran's Church** foundations *(verify)* | Raise a small nave-and-chancel church, rubble walls, shingled roof [S] |
+| Lower-left | **St Kevin's Church**: stone roof, west belfry, sacristy only | Keep. **Add back the stone-roofed chancel** on the east (near) side, between the nave and the sacristy |
+| Lower-left to bottom-right | Tarmac paths, footbridge approach | Remove. Replace with trodden earth and, near the churches, stone paving |
+| Bottom centre-right | **Cathedral**, roofless: chancel near, nave beyond | Re-roof. A steep shingled nave roof, and a lower, narrower shingled chancel roof; sacristy on the south side (the left side here) |
+| Dark cypress/yew trees around the cathedral and cemetery | Modern planting | Remove. Open grassed burial ground with mounds, small cross-slabs and St Kevin's Cross |
+| Centre | Dense 18th–20th-c. headstones in rows | **Remove all of them** (see §2.8) |
+| Not clearly visible | **Priest's House** and **St Kevin's Cross**, probably hidden behind the trees between St Kevin's Church and the cathedral | Place them from the OPW plan / Historic Environment Viewer, not by eye |
+| Right-centre | **Round Tower**, on the far (north-west) edge of the graveyard | Keep as is. Add a timber door and ladder at the raised doorway on its near face, if the doorway faces the camera *(check its orientation)* |
+| Centre, middle distance, inside a stone-walled plot | **St Mary's Church** | Re-roof with shingles. The walled plot is later, so remove the wall |
+| Right, behind the tower | Golden cereal field, modern field walls, farm buildings, houses | Replace with small irregular medieval fields and a few thatched rectangular houses [S] |
+| Centre-left, middle distance | Open pasture and hedgerows toward the Lower Lake | Keep as grazing with wattle fences. Remove modern fences, gates and the track |
+| Mid-left | **Lower Lake** | Keep |
+| Top-left edge | **Upper Lake** under steep slopes | Keep |
+| Top and background slopes | Mixed woodland including dark conifer plantation (modern) | Swap the conifers for oak, birch, holly and hazel, with open heath and grazing on the upper slopes [S; see §5 #13] |
+| Top-right, pale scar on the far slope | Probably 19th-c. mine spoil *(verify)* | Remove |
+| Off-frame right / behind the camera | **Gateway** and **Trinity Church** | Not in this view. Use Prompt D for the gateway |
 
-> [CAMERA BLOCK]. Historically accurate reconstruction of the early medieval Irish monastic settlement of Glendalough, County Wicklow, around 1180 AD, fully intact and in use. A slender 30-metre Irish round tower of grey mica-schist rubble with pale granite dressings and a steep conical stone cap, with a small raised doorway three metres above the ground reached by a wooden ladder. Next to it, a large rectangular stone cathedral church with antae (projecting wall-ends at the corners), a steep 55-degree timber roof covered in weathered silver-grey split-oak shingles, and a narrower lower chancel at the east end, also shingled. A small stone church with a steep corbelled stone-slab roof and a miniature round belfry tower rising from its west gable, a small stone-roofed chancel and side chamber stepping down at its east end. A tiny Romanesque stone chapel with a carved round-headed doorway. A two-storey stone gatehouse with two round granite arches and a shingled timber roof, and a paved stone causeway running from it into the settlement. Between the churches, a grassed burial ground with low mounds, small cross-inscribed stone slabs and a plain granite high cross with a solid ring. Outside the core, clusters of rectangular timber and wattle houses with thatched roofs, wattle fences, small cultivated plots, a watermill by the river, smoke from a grain-drying kiln. Small figures: clerics in undyed wool robes, pilgrims with staffs on the causeway, a cart. Steep valley sides of mixed oak and birch woodland with grazed clearings, heather on the upper slopes, two dark glacial lakes. Soft morning light after rain, low mist lifting off the lakes, overcast Atlantic sky with breaks of sun, muted natural colours. Documentary archaeological reconstruction, photorealistic, restrained, sharp architectural detail.
+### 4.3 Camera block (matched to the reference photo)
 
-Midjourney suffix: `--ar 16:9 --style raw --stylize 50 --no headstones, gothic, ruins, modern`
+> `aerial drone photograph from about 70 m altitude, positioned east-south-east of the monastic site and looking west-north-west up a glacial valley, steep downward tilt, 26 mm lens equivalent; in the lower left foreground a small stone-roofed church with a miniature round belfry at its far end; in the lower centre-right foreground a large rectangular stone cathedral seen from its east end, chancel nearest the camera; a tall slender round tower standing at the right-centre, at the far edge of the burial ground; in the middle distance, centre, a small single-cell stone church in open pasture; a small dark lake in the middle distance on the left and a second lake glimpsed at the far upper left under steep slopes; a forested mountain spur filling the top of the frame; horizon near the top edge`
 
-### 4.5 Prompt B: pilgrimage feast day (3 June, St Kevin's day)
+### 4.4 Negative prompt (SDXL/Flux; for Midjourney, fold the key terms into `--no`)
 
-> [CAMERA BLOCK], same restored buildings as the hero view. The feast of St Kevin, early June, around 1180 AD. Crowds of pilgrims in brown, grey and madder-red wool cloaks walking in a procession along the paved causeway through the two-arched granite gatehouse into the monastic enclosure, led by clerics carrying a processional cross and a metal-bound reliquary. People gathered around the granite high cross and the small Romanesque shrine chapel. Temporary booths and tethered horses outside the gate. Midday summer light, high white clouds, deep green valley. Documentary reconstruction, photorealistic, human figures small in frame, accurate 12th-century Irish clothing (léine tunics and brat cloaks, no armour, no plate mail).
+> `modern headstones, gravestones in rows, cypress trees, yew trees in rows, tarmac, paved paths, footbridge, car park, cars, visitor centre, houses with slate roofs, farm sheds, golden wheat field, stone field walls, wire fences, signage, tourists, conifer plantation, spruce forest, mine spoil, Gothic pointed arches, spires, stained glass, flying buttresses, castle battlements, red roof tiles, terracotta, glass windows, chimneys, fantasy, overgrown ruins, roofless walls, broken walls, ivy-covered ruins, oversaturated, HDR, cartoon`
 
-### 4.6 Prompt C: winter dusk, the hour of prayer
+### 4.5 Prompt A: the hero view, "this view restored", c. 1180, summer evening
 
-> [CAMERA BLOCK], same restored buildings. A winter evening around 1180 AD. Light snow on the steep oak-shingled roofs and the stone roofs of the small churches. Faint warm candlelight in the small round-headed windows of the cathedral and in the raised doorway of the round tower. A figure at the top window of the round tower ringing a hand-bell. Thin smoke from thatched houses outside the enclosure. Blue-grey dusk, the lakes dark and still, bare oak woods on the valley slopes. Quiet, atmospheric, photorealistic documentary reconstruction.
+The reference is lit by low, warm summer sun. Keeping similar light makes ControlNet results cleaner. Prompts B and C change it.
 
-### 4.7 Prompt D: ground-level (for AR anchoring and close-up checks)
+> [CAMERA BLOCK]. Historically accurate reconstruction of the early medieval Irish monastic settlement of Glendalough, County Wicklow, around 1180 AD, every building complete, roofed and in use. Lower left: a small church of grey mica-schist with a steep corbelled stone-slab roof, a miniature round belfry with a conical stone cap rising from its far (west) gable, and on its near (east) side a lower stone-roofed chancel with a small stone-roofed side chamber beside it; beyond it, closer to the camera, a smaller plain church with rubble walls and a steep split-oak shingle roof. Lower centre-right: a large rectangular stone cathedral with antae at its corners, a very steep 55-degree timber roof covered in weathered silver-grey oak shingles over the tall nave, and a lower, narrower shingled chancel with a small side chamber at the near end. Right-centre: a slender 30-metre round tower of grey mica-schist rubble with pale granite dressings and a conical stone cap, a raised doorway with a timber door and a wooden ladder. Between them, an open grassed burial ground with low turf mounds, small cross-incised stone slabs, a plain granite high cross with a solid ring, and paths of trodden earth and stone flags; no headstones, no ornamental trees. Middle distance, centre: a small single-cell stone church with a shingled roof standing in open pasture. Around the core, a few rectangular timber and wattle houses with reed-thatched roofs, wattle fences, small irregular fields and grazing cattle, a thin line of smoke from a grain-drying kiln. A small dark lake on the left and a second lake far up the valley under steep slopes; the valley sides clothed in native oak, birch and hazel woodland with open grazed clearings and heather on the upper slopes. Warm low summer evening sunlight, long soft shadows, clear sky with light haze. Documentary archaeological reconstruction, photorealistic, restrained natural colour, sharp architectural detail.
+
+Midjourney suffix: `--ar 7:4 --style raw --stylize 50 --iw 1.75 --no headstones, gothic, ruins, modern, cypress` (with the reference photo as an image prompt, rights permitting).
+
+### 4.6 Prompt B: feast day (3 June, St Kevin's day)
+
+> [CAMERA BLOCK], the same restored buildings as the hero view. The feast of St Kevin, early June, around 1180 AD. A procession of pilgrims in brown, grey and madder-red wool cloaks winds along a paved path from the right-hand edge of the frame through the burial ground toward the cathedral's west door, led by clerics carrying a processional cross and a metal-bound house-shaped reliquary. Groups gather at the granite high cross and by the small stone-roofed church in the lower left. Tethered horses and temporary booths at the edge of the settlement. Midday summer light, high white clouds, deep green valley. Documentary reconstruction, photorealistic, figures small in frame, accurate 12th-century Irish clothing (léine tunics and brat cloaks, no armour).
+
+### 4.7 Prompt C: winter dusk, the hour of prayer
+
+> [CAMERA BLOCK], the same restored buildings. A winter evening around 1180 AD. Light snow on the steep oak-shingled roofs of the cathedral and the small churches, and on the stone roof of the belfried church. Faint warm candlelight in the small round-headed windows of the cathedral and in the raised doorway of the round tower. A figure at the top window of the round tower ringing a hand-bell. Thin smoke from thatched houses around the core. Blue-grey dusk, both lakes dark and still, bare oak woods on the valley slopes. Quiet, atmospheric, photorealistic documentary reconstruction.
+
+### 4.8 Prompt D: ground-level (for AR anchoring and close-up checks)
 
 > Eye-level view from inside the two-arched granite gatehouse of Glendalough, looking west along a paved stone causeway toward a 30-metre grey round tower with a conical stone cap and a large stone cathedral with a steep silver-grey oak-shingle roof, around 1180 AD. In the gatehouse wall, a stone slab incised with a simple cross, marking sanctuary. Wet flagstones, moss, a heavy oak door hung back against the arch. Soft overcast light. Photorealistic, architecturally precise, no modern elements.
 
-### 4.8 Controlled A/B variants (to show the uncertainty honestly)
+### 4.9 Controlled A/B variants (to show the uncertainty honestly)
 
 Generate matched pairs that differ only in the uncertain element, then either let the user toggle them in AR or pick one and label it:
 
