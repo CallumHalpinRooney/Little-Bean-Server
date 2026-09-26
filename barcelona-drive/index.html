@@ -686,15 +686,16 @@ function surfaceMu(x, z) {
   return 1;
 }
 const pac = a => Math.sin(1.6 * Math.atan(8 * a));
+const pacR = a => Math.sin(1.3 * Math.atan(8 * a));
 
 function stepCar(c, dt, inp) {
   const s = c.spec, g = 9.81, m = s.mass, L = s.wb, a = L * .5, b = L - a, hcg = .45, Iz = m * a * b * 1.05;
   const mu = s.grip * surfaceMu(c.x, c.z);
   // steering: slower and smaller at speed
   const spd = Math.abs(c.u);
-  const lim = .6 / (1 + spd / 16);
+  const lim = .6 / (1 + spd / 11);
   const target = (inp.left - inp.right) * lim;
-  c.steer += clamp(target - c.steer, -dt * 2.6, dt * 2.6);
+  c.steer += clamp(target - c.steer, -dt * (target === 0 ? 3.5 : 2.2), dt * (target === 0 ? 3.5 : 2.2));
   const d = c.steer;
   // throttle / brake / reverse logic
   let thr = 0, brk = 0;
@@ -733,9 +734,15 @@ function stepCar(c, dt, inp) {
   const sgnF = Math.sign(uf) || 1, sgnR = Math.sign(ur) || 1;
   const bScale = Math.min(1, Math.abs(c.u) / .5);
   const Fbrake = brk * mu * m * g * bScale;
-  let Fxf = Fdrive * fShare - Fbrake * .62 * sgnF;
-  let Fxr = Fdrive * (1 - fShare) - Fbrake * .38 * sgnR;
-  let muR = mu;
+  let muR = mu * 1.12;
+  if (inp.hand) c.handT = .5; else c.handT = Math.max(0, (c.handT || 0) - dt);
+  const aids = c.handT <= 0;
+  let dF = Fdrive * fShare, dR = Fdrive * (1 - fShare);
+  if (aids) { // traction control: keep drive force well under what the tyres can hold
+    dF = clamp(dF, -mu * Nf * .75, mu * Nf * .75); dR = clamp(dR, -muR * Nr * .75, muR * Nr * .75);
+  }
+  let Fxf = dF - Fbrake * .62 * sgnF;
+  let Fxr = dR - Fbrake * .38 * sgnR;
   if (inp.hand) { Fxr -= .7 * mu * Nr * sgnR * bScale; muR = mu * .42; }
   if (brk && Math.abs(c.u) < .6) { Fxf = Fxr = 0; c.u *= .8; }
   const maxF = mu * Nf, maxR = muR * Nr;
@@ -744,12 +751,21 @@ function stepCar(c, dt, inp) {
   const af = Math.atan(vf / Math.max(Math.abs(uf), 2.2)), ar = Math.atan(vr / Math.max(Math.abs(ur), 2.2));
   c.slipF = af; c.slipR = ar;
   const Fyf = -Math.sqrt(Math.max(0, maxF * maxF - Fxf * Fxf)) * pac(af);
-  const Fyr = -Math.sqrt(Math.max(0, maxR * maxR - Fxr * Fxr)) * pac(ar);
+  const Fyr = -Math.sqrt(Math.max(0, maxR * maxR - Fxr * Fxr)) * pacR(ar);
   const FxB = Fxf * cd - Fyf * sd + Fxr, FyB = Fxf * sd + Fyf * cd + Fyr;
   const drag = .5 * 1.2 * s.cda * c.u * Math.abs(c.u) + .015 * m * g * Math.sign(c.u) * Math.min(1, Math.abs(c.u)) + (mu < .7 && surfaceMu(c.x, c.z) < .7 ? .08 * m * g * Math.sign(c.u) * Math.min(1, Math.abs(c.u)) : 0);
   const du = (FxB - drag) / m + c.v * c.r;
   const dv = FyB / m - c.u * c.r;
-  const dr = (a * (Fxf * sd + Fyf * cd) - b * Fyr) / Iz;
+  let dr = (a * (Fxf * sd + Fyf * cd) - b * Fyr) / Iz;
+  if (aids && spd > 3) {
+    const beta = Math.atan2(c.v, Math.abs(c.u));
+    const yawMax = mu * g * .95 / Math.max(3, Math.abs(c.u));
+    const yawTarget = clamp(c.u * Math.tan(d) / L, -yawMax, yawMax);
+    const over = Math.max(0, Math.abs(beta) - .05);
+    dr -= (c.r - yawTarget) * (3 + over * 40);
+    c.v -= c.v * Math.min(1, over * 6) * dt * 4;
+    if (over > .03) c.throttle *= .85;
+  }
   c.u += du * dt; c.v += dv * dt; c.r += dr * dt;
   if (spd < 1.5 && !thr) { c.v *= .9; c.r *= .9; }
   if (Math.hypot(c.u, c.v) < .05 && !thr) { c.u = c.v = 0; c.r = 0; }
@@ -797,7 +813,7 @@ function impulse(c, nx, nz, k, e, mass) {
   vx *= .92; vz *= .92;
   c.u = vx * fx + vz * fz; c.v = vx * lx + vz * lz;
   const nv = nx * lx + nz * lz;
-  c.r += k * j * nv * .08;
+  c.r += k * j * nv * .03;
   return j;
 }
 function collideCar(c, rad) {
