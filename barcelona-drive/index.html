@@ -50,6 +50,35 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 #mapWrap{top:calc(env(safe-area-inset-top,0px) + 14px);right:16px;width:180px;height:180px;border-radius:50%;overflow:hidden;border:3px solid var(--taxi);box-shadow:0 4px 18px rgba(0,0,0,.45);background:#23262c}
 #map{width:180px;height:180px;display:block}
 
+
+/* full map + search */
+#mapWrap{pointer-events:auto;cursor:pointer}
+#mapWrap:hover{border-color:#fff}
+#mapWrap::after{content:"MAP";position:absolute;left:50%;bottom:8px;transform:translateX(-50%);font:700 10px/1 var(--body);letter-spacing:.14em;color:#111;background:var(--taxi);padding:3px 6px;border-radius:3px;pointer-events:none}
+#bigmap{position:fixed;inset:0;z-index:22;background:#1f5870}
+#fm{position:absolute;inset:0;width:100%;height:100%;display:block;touch-action:none;cursor:grab}
+#fm.drag{cursor:grabbing}
+#fmTop{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;display:flex;gap:10px;align-items:flex-start;pointer-events:none}
+#fmTop>*{pointer-events:auto}
+#searchBox{flex:1;max-width:520px;background:#15171b;border:1px solid var(--line);border-radius:8px;box-shadow:0 6px 24px rgba(0,0,0,.45);overflow:hidden}
+#q{width:100%;box-sizing:border-box;border:0;color:var(--text);font:500 17px var(--body);padding:13px 14px 13px 40px;outline:none;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' fill='none' stroke='%23f9c80e' stroke-width='2.4'%3E%3Ccircle cx='7.5' cy='7.5' r='5.5'/%3E%3Cpath d='M12 12l4.5 4.5'/%3E%3C/svg%3E") no-repeat 13px center}
+#results{max-height:min(420px,55vh);overflow:auto;border-top:1px solid var(--line)}
+#results:empty,#searchBox:not(:focus-within) #results{display:none}
+.res{display:flex;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid rgba(255,255,255,.05);color:var(--text);padding:9px 14px;box-sizing:border-box}
+.res:hover,.res.sel{background:#262a31}
+.res i{font-style:normal;font-size:10px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:#111;background:var(--taxi);border-radius:3px;padding:3px 5px;min-width:44px;text-align:center;flex:none}
+.res i.st{background:#f4f1ea}.res i.sh{background:#7fc4ff}.res i.di{background:#9fe07f}
+.res b{font-weight:600;display:block}
+.res small{color:var(--muted);font-size:12px}
+.res .none{color:var(--muted)}
+#fmClose{flex:none}
+#fmSide{position:absolute;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);display:flex;flex-direction:column;gap:8px}
+#fmSide button{width:46px;height:46px;border-radius:8px;border:1px solid var(--line);background:#15171b;color:var(--text);font-size:22px;font-weight:700}
+#fmHint{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);background:rgba(21,23,27,.85);border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:12px;color:var(--muted);max-width:calc(100% - 100px)}
+#fmPin{position:absolute;transform:translate(-50%,calc(-100% - 18px));background:#15171b;border:1px solid var(--taxi);border-radius:8px;padding:8px 10px;display:flex;flex-direction:column;gap:6px;align-items:center;white-space:nowrap;box-shadow:0 6px 24px rgba(0,0,0,.5)}
+#fmPinT{font-size:13px;font-weight:600}
+#fmGo{background:var(--taxi);color:#111;border:0;border-radius:5px;padding:7px 14px;font-weight:700}
+
 /* speedo */
 #speedo{right:16px;bottom:calc(env(safe-area-inset-bottom,0px) + 18px);text-align:right;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 14px 12px;min-width:150px}
 #spd{font-family:var(--display);font-weight:900;font-size:64px;line-height:.9;font-variant-numeric:tabular-nums}
@@ -203,6 +232,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
 <div class="hud" id="drift" hidden></div>
 <button class="hud" id="prompt" hidden></button>
 <div class="hud" id="bar">
+  <button class="btn" id="bMap"><kbd>/</kbd>Map &amp; search</button>
   <button class="btn" id="bFoot"><kbd>F</kbd><span id="footT">Get out</span></button>
   <button class="btn" id="bGarage"><kbd>G</kbd>Garage</button>
   <button class="btn" id="bPaint"><kbd>P</kbd>Paint shop</button>
@@ -211,6 +241,17 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
   <button class="btn" id="bCam"><kbd>C</kbd>Camera</button>
   <button class="btn" id="bReset"><kbd>R</kbd>Reset</button>
   <button class="btn" id="bSound"><kbd>N</kbd><span id="sndT">Sound on</span></button>
+</div>
+
+<div id="bigmap" hidden>
+  <canvas id="fm"></canvas>
+  <div id="fmTop">
+    <div id="searchBox"><input id="q" type="search" placeholder="Search Barcelona: a street, landmark, shop or area…" autocomplete="off" spellcheck="false" aria-label="Search places"><div id="results"></div></div>
+    <button class="btn" id="fmClose"><kbd>Esc</kbd>Close</button>
+  </div>
+  <div id="fmPin" hidden><span id="fmPinT"></span><button id="fmGo">Go here</button></div>
+  <div id="fmHint">Drag to move the map · scroll or pinch to zoom · tap a spot, then <b>Go here</b></div>
+  <div id="fmSide"><button id="fmIn" aria-label="Zoom in">+</button><button id="fmOut" aria-label="Zoom out">−</button><button id="fmMe" aria-label="Centre on me">◎</button></div>
 </div>
 
 <div id="touch" hidden>
@@ -232,6 +273,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
       <kbd>G · M · C</kbd><span>Garage · Missions · Camera</span>
       <kbd>P</kbd><span>Paint shop: design your own car</span>
       <kbd>O</kbd><span>Police chases on or off</span>
+      <kbd>/</kbd><span>Map &amp; search: jump to any street, landmark or shop (or click the minimap)</span>
       <kbd>F</kbd><span>Get out of the car and walk (Shift runs, Space jumps)</span>
       <kbd>E</kbd><span>Go into shops and bars · fish at the pier railing · dive from the end of the pier</span>
       <kbd>Shift · Space</kbd><span>In the sea: dive down · swim up</span>
@@ -3305,7 +3347,7 @@ function openDesign() {
 let paused = true, camMode = 0;
 let msgT = 0;
 function show(big, sub, t) { $('msg').textContent = big; $('msg').hidden = !big; $('sub').textContent = sub; $('sub').hidden = !sub; msgT = t; }
-function closeAll() { for (const id of ['garage', 'missions', 'result', 'design']) $(id).hidden = true; paused = false; camera.clearViewOffset(); document.body.classList.remove('designing'); }
+function closeAll() { for (const id of ['garage', 'missions', 'result', 'design', 'bigmap']) $(id).hidden = true; paused = false; camera.clearViewOffset(); document.body.classList.remove('designing'); }
 function openPanel(id) { closeAll(); $(id).hidden = false; paused = true; if (id === 'garage') renderGarage(); if (id === 'missions') renderMissions(); }
 function renderGarage() {
   const mx = { hp: 1000, grip: 1.35, mass: 2200 };
@@ -3380,6 +3422,7 @@ addEventListener('keydown', e => {
   if (KEYMAP[e.code]) { input[KEYMAP[e.code]] = 1; e.preventDefault(); }
   if (e.repeat) return;
   if (!$('start').hidden) { if (e.code === 'Enter') $('bStart').click(); return; }
+  if (e.code === 'Slash' || e.code === 'Tab') { e.preventDefault(); $('bigmap').hidden ? openMap(true) : closeAll(); return; }
   if (e.code === 'KeyP') $('design').hidden ? openDesign() : closeAll();
   if (e.code === 'KeyG') $('garage').hidden ? openPanel('garage') : closeAll();
   if (e.code === 'KeyM') $('missions').hidden ? openPanel('missions') : closeAll();
@@ -3487,6 +3530,262 @@ function streetName(x, z) {
   return null;
 }
 
+/* ================= FULL MAP & SEARCH ================= */
+// click the minimap (or press /) for the whole map; type a place and you're taken straight there
+const DIST_NAMES = { 1: 'Ciutat Vella', 2: 'Eixample', 3: 'Sants-Montjuïc', 4: 'Les Corts', 6: 'Gràcia', 10: 'Sant Martí' };
+const LLK = Math.cos(41.386 * Math.PI / 180) * 111320, ll = (lon, lat) => [(lon - 2.165) * LLK, -(lat - 41.386) * 110540];
+const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const LMS = MIS.landmarks;
+function carTo(x, z, h) { player.x = x; player.z = z; player.h = h; }
+function footTo(x, z, h) { // hop out and stand here (the car waits on the nearest street)
+  if (!foot.p) buildWalker();
+  foot.x = x; foot.z = z; foot.h = h; foot.v = 0; foot.jv = 0; foot.y = walkY(x, z); foot.on = true;
+  scene.add(foot.p.root); $('footT').textContent = 'Get in';
+}
+const atStreet = (p, toward) => () => { const st = onStreet(p, toward); carTo(st.x, st.z, st.h); };
+const PLACES = [
+  ['Sagrada Família', 'Gaudí\'s basilica', LM.sagrada, atStreet(LMS.sagrada, LM.sagrada), 'church gaudi basilica temple'],
+  ['Casa Batlló', 'Gaudí house on Passeig de Gràcia', LM.batllo, atStreet(LMS.batllo, LM.batllo), 'gaudi dragon house'],
+  ['La Pedrera (Casa Milà)', 'Gaudí house on Passeig de Gràcia', LM.pedrera, atStreet(LMS.pedrera, LM.pedrera), 'casa mila gaudi'],
+  ['Plaça de Catalunya', 'The centre of the city', LM.plcat, atStreet(LMS.plcat, LM.batllo), 'placa catalunya centre center square'],
+  ['Arc de Triomf', 'Red-brick triumphal arch', LM.arc, atStreet(LMS.arc, LM.arc), 'arch'],
+  ['Torre Glòries', 'The glowing bullet-shaped tower', LM.glories, atStreet(LMS.glories, LM.glories), 'agbar tower skyscraper'],
+  ['Mirador de Colom', 'Columbus column at the port', LM.colom, atStreet(LMS.colom, LM.colom), 'columbus statue column port'],
+  ['W Barcelona', 'The sail-shaped hotel on the beach', LM.wvela, atStreet(LMS.wvela, LM.wvela), 'hotel vela sail'],
+  ['Camp Nou', 'FC Barcelona stadium', LM.campnou, atStreet(LMS.campnou, LM.campnou), 'barca stadium football soccer fc barcelona messi'],
+  ["Plaça d'Espanya", 'Big roundabout below Montjuïc', MIS.espanya, atStreet(MIS.espanya, [MJ.x, MJ.z]), 'espanya spain square fountain'],
+  ['Montjuïc', 'The castle hill by the port', [MJ.x, MJ.z], atStreet([MJ.x - 300, MJ.z - 200], [MJ.x, MJ.z]), 'castle hill montjuic'],
+  ['La Rambla', 'The famous walking street', ll(2.1728, 41.3815), atStreet(ll(2.1728, 41.3815)), 'ramblas las ramblas boqueria'],
+  ['Mercat de la Boqueria', 'Food market on La Rambla', ll(2.1719, 41.3817), atStreet(ll(2.1719, 41.3817)), 'boqueria market food'],
+  ['Catedral de Barcelona', 'Gothic cathedral', ll(2.1762, 41.3840), atStreet(ll(2.1762, 41.3840)), 'cathedral church gothic'],
+  ['Parc de la Ciutadella', 'Park with the zoo and the big fountain', ll(2.1875, 41.3880), atStreet(ll(2.1860, 41.3895)), 'park ciutadella zoo fountain'],
+  ['Port Vell', 'The old harbour', ll(2.1830, 41.3760), atStreet(ll(2.1810, 41.3775)), 'harbour harbor port boats marina'],
+  ['Estació de Sants', 'The main train station', ll(2.1405, 41.3790), atStreet(ll(2.1405, 41.3790)), 'train station railway sants'],
+  ['Barceloneta beach', 'Sand, sea and sunbathers', ll(2.1925, 41.3785), atStreet(ll(2.1905, 41.3800), ll(2.1925, 41.3785)), 'beach platja sand sea swim'],
+  ['Fishing pier', 'Walk out and fish off the railings', [PIERW.x + PIERW.dx * 60, PIERW.z + PIERW.dz * 60], () => {
+    const st = onStreet([PIERW.x, PIERW.z]); carTo(st.x, st.z, st.h);
+    const r = RAILS[2], mx = (r.ax + r.bx) / 2, mz = (r.az + r.bz) / 2;
+    footTo(mx - r.nx * .9, mz - r.nz * .9, Math.atan2(r.nx, r.nz));
+    return 'Walk up to the railing and press E to fish.';
+  }, 'fish fishing pier espigo'],
+  ['Coral reef (scuba diving)', 'Jump off the end of the pier', [PIERW.x + PIERW.dx * 400, PIERW.z + PIERW.dz * 400], () => {
+    const st = onStreet([PIERW.x, PIERW.z]); carTo(st.x, st.z, st.h);
+    const r = RAILS[6], mx = (r.ax + r.bx) / 2, mz = (r.az + r.bz) / 2;
+    footTo(mx - r.nx * .9, mz - r.nz * .9, Math.atan2(r.nx, r.nz));
+    return 'Press E at the railing to jump in and dive to the reef.';
+  }, 'scuba dive diving reef coral fish sea underwater swim'],
+  ['Tibidabo', 'Mountain top with the ferris wheel', [PLAZA.x, PLAZA.z], () => {
+    const n = MR.length, a = MR[n - 4], b = MR[n - 1]; carTo(b.x, b.z, Math.atan2(b.x - a.x, b.z - a.z));
+  }, 'mountain top summit ferris wheel theme park collserola'],
+  ['Carretera de la Rabassada', 'Mountain road with five hairpins', [MR[0].x, MR[0].z], () => carTo(MR[0].x, MR[0].z, Math.atan2(MR[3].x - MR[0].x, MR[3].z - MR[0].z)), 'mountain road hairpins hill climb'],
+  ['Race circuit', 'A race track out in the Vallès', [CIRC.x, CIRC.z], () => carTo(CIRC.x - 230, CIRC.z + 200, Math.PI / 2), 'race track circuit f1 formula racing'],
+].map(([n, sub, p, go, alias]) => ({ n, sub, x: p[0], z: p[1], go, kind: 0, key: norm(n), short: norm(n).replace(/^(la|el|les|els|l) /, ''), alias: norm(alias || '') }));
+const AREAS = [
+  ['Barri Gòtic', 'Gothic Quarter, Ciutat Vella', ll(2.1765, 41.3830), 'gothic quarter'],
+  ['El Raval', 'Ciutat Vella', ll(2.1685, 41.3800), ''],
+  ['El Born', 'Ciutat Vella', ll(2.1820, 41.3850), ''],
+  ['La Barceloneta', 'The fishermen\'s quarter by the beach', ll(2.1890, 41.3800), 'barceloneta'],
+  ['Eixample', 'The grid of chamfered blocks', ll(2.1650, 41.3910), 'grid'],
+  ['Gràcia', 'Village streets and little squares', ll(2.1560, 41.4020), 'gracia'],
+  ['Poblenou', 'Old factories and the Rambla del Poblenou', ll(2.1990, 41.4000), 'poble nou'],
+  ['Sant Antoni', 'Eixample, by the big market', ll(2.1610, 41.3790), ''],
+  ['Poble-sec', 'Below Montjuïc', ll(2.1600, 41.3730), 'poble sec'],
+  ['Sants', 'Sants-Montjuïc', ll(2.1330, 41.3750), ''],
+  ['Les Corts', 'Near Camp Nou', ll(2.1300, 41.3850), ''],
+  ['Vila Olímpica', 'The 1992 Olympic village and marina', ll(2.1980, 41.3890), 'olympic village port olimpic'],
+].map(([n, sub, p, alias]) => ({ n, sub, x: p[0], z: p[1], go: atStreet(p), kind: 1, key: norm(n), alias: norm(alias) }));
+const STREETS = (() => {
+  const by = new Map(); // every stretch of each named street
+  for (const e of EDGES) { if (!e.name) continue; const o = by.get(e.name); if (o) o.push(e); else by.set(e.name, [e]); }
+  return [...by].map(([n, es]) => { // take the stretch nearest the middle of the whole street
+    const mid = e => { const m = (e.p.length / 4 | 0) * 2; return [e.p[m], e.p[m + 1]]; };
+    let cx = 0, cz = 0; for (const e2 of es) { const [x, z] = mid(e2); cx += x / es.length; cz += z / es.length; }
+    let e = es[0], bd = 1e18; for (const e2 of es) { const [x, z] = mid(e2), d = (x - cx) ** 2 + (z - cz) ** 2; if (d < bd) { bd = d; e = e2; } }
+    const m = (e.p.length / 4 | 0) * 2, x = e.p[m], z = e.p[m + 1];
+    const key = norm(n), short = key.replace(/^(carrer|avinguda|passeig|placa|plaça|rambla|ronda|travessera|via|gran via|passatge|baixada|pujada|moll|cami|carretera)( (de|del|dels|de la|de les|d))? /, '');
+    return { n, sub: 'Street · ' + (DIST_NAMES[district(x, z)] || 'Barcelona'), x, z, go: atStreet([x, z], [e.p[e.p.length - 2], e.p[e.p.length - 1]]), kind: 2, key, short, alias: '' };
+  });
+})();
+const SHOPS = (() => {
+  const by = new Map();
+  DOORS.forEach(d => { if (!d.name || d.type === 'lobby') return; const k = norm(d.name); if (!k) return; const o = by.get(k); if (o) o.list.push(d); else by.set(k, { n: d.name, list: [d] }); });
+  return [...by].map(([key, { n, list }]) => ({ n, list, kind: 3, key, alias: '', x: list[0].x, z: list[0].z,
+    sub: (TYPE_INFO[list[0].type] || TYPE_INFO.shop).label + (list.length > 1 ? ` · ${list.length} places (takes you to the nearest)` : ''),
+    go() {
+      let d = list[0], bd = 1e18; for (const o of list) { const dd = (o.x - player.x) ** 2 + (o.z - player.z) ** 2; if (dd < bd) { bd = dd; d = o; } }
+      this.x = d.x; this.z = d.z;
+      const st = onStreet([d.x + d.nx * 6, d.z + d.nz * 6], [d.x, d.z]); carTo(st.x, st.z, st.h);
+      footTo(d.x + d.nx * 2.2, d.z + d.nz * 2.2, Math.atan2(-d.nx, -d.nz));
+      return 'The door is right in front of you: walk in.';
+    } }));
+})();
+const INDEX = [...PLACES, ...AREAS, ...STREETS, ...SHOPS];
+function search(q) {
+  q = norm(q); if (!q) return PLACES.slice(0, 12);
+  const words = q.split(' '), out = [];
+  for (const it of INDEX) {
+    const k = it.key; let sc;
+    if (k.startsWith(q) || (it.short && it.short.startsWith(q))) sc = 0;
+    else if ((' ' + k).includes(' ' + q)) sc = 1;
+    else if (it.alias && (' ' + it.alias).includes(' ' + q)) sc = 1.5;
+    else if (k.includes(q)) sc = 2;
+    else if (words.length > 1 && words.every(w => (' ' + k + ' ' + it.alias).includes(' ' + w))) sc = 2.5;
+    else continue;
+    out.push([sc * 10 + [0, 1, 3, 8][it.kind] + (k === q || it.short === q ? -1 : 0) + Math.min(k.length, 60) / 60, it]);
+  }
+  out.sort((a, b) => a[0] - b[0]);
+  return out.slice(0, 12).map(o => o[1]);
+}
+
+function teleport(go, label, sub) {
+  let note = '';
+  if (M) { finishMission(false, 'Mission abandoned.'); note = 'Mission cancelled. '; }
+  if (police.state !== 'off' || police.arrest) endChase();
+  if (foot.inside) exitDoor();
+  if (foot.fish) stopFishing();
+  if (foot.swim) endSwim();
+  if (foot.on) { foot.on = false; scene.remove(foot.p.root); $('footT').textContent = 'Get out'; }
+  closeAll();
+  const tip = go();
+  if (label == null) { const s = streetName(player.x, player.z); label = s ? s[0] : 'Barcelona'; }
+  player.u = player.v = player.r = 0; player.throttle = 0; player.steer = 0; lastSkid[0] = lastSkid[1] = null;
+  const f = foot.on ? foot : player;
+  cam.h = f.h; cam.x = player.x - Math.sin(player.h) * 7.2; cam.z = player.z - Math.cos(player.h) * 7.2; cam.y = 2.5;
+  cam.fh = cam.fx = cam.fz = cam.fy = undefined;
+  camera.position.set(f.x - Math.sin(f.h) * 6, groundH(f.x, f.z) + 3, f.z - Math.cos(f.h) * 6);
+  updateTiles();
+  for (const a of agents) if (!a.police && Math.abs(a.x - player.x) + Math.abs(a.z - player.z) > 250) { spawnNear(a, player.x, player.z, 40, 600); a.speed = 0; }
+  updatePeds(0, true);
+  show(label, note + (tip || sub || ''), 3.5); audio.ding();
+}
+
+/* --- the big map --- */
+const fm = $('fm'), fg = fm.getContext('2d'), FV = { x: 0, z: 0, k: .12 };
+let fmPin = null, fmRaf = 0, results = [], resSel = -1;
+const FK0 = .025, FK1 = 2.2;
+function openMap(focus) {
+  closeAll(); $('bigmap').hidden = false; paused = true; for (const k in input) input[k] = 0;
+  const me = foot.inside ? foot.inside : foot.on ? foot : player;
+  FV.x = me.x; FV.z = me.z; FV.k = inBox(me.x, me.z) ? .16 : .05; fmPin = null; $('fmPin').hidden = true;
+  $('q').value = ''; renderResults();
+  if (focus) setTimeout(() => $('q').focus(), 0);
+  cancelAnimationFrame(fmRaf); const tick = () => { if ($('bigmap').hidden) return; drawBig(); fmRaf = requestAnimationFrame(tick); }; tick();
+}
+const fmW = () => fm.clientWidth, fmH = () => fm.clientHeight;
+const toScr = (x, z) => [fmW() / 2 + (x - FV.x) * FV.k, fmH() / 2 + (z - FV.z) * FV.k];
+const toWorld = (sx, sy) => [FV.x + (sx - fmW() / 2) / FV.k, FV.z + (sy - fmH() / 2) / FV.k];
+function drawBig() {
+  const dpr = Math.min(devicePixelRatio || 1, 2), W = fmW(), H = fmH();
+  if (fm.width !== Math.round(W * dpr) || fm.height !== Math.round(H * dpr)) { fm.width = Math.round(W * dpr); fm.height = Math.round(H * dpr); }
+  const g = fg, k = FV.k;
+  g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#1f5870'; g.fillRect(0, 0, W, H);
+  g.save(); g.translate(W / 2, H / 2); g.scale(k, k); g.translate(-FV.x, -FV.z);
+  g.imageSmoothingEnabled = true;
+  g.drawImage(mapWorld, MAPW.x0, MAPW.z0, MAPW.x1 - MAPW.x0, MAPW.z1 - MAPW.z0);
+  g.drawImage(mapCity, BX0, BZ0, BX1 - BX0, BZ1 - BZ0);
+  g.restore();
+  g.textAlign = 'center'; g.lineJoin = 'round';
+  const label = (x, z, text, font, col, dy = 0) => { const [a, b] = toScr(x, z); g.font = font; g.lineWidth = 3.5; g.strokeStyle = 'rgba(10,12,15,.85)'; g.strokeText(text, a, b + dy); g.fillStyle = col; g.fillText(text, a, b + dy); };
+  if (k < .35) for (const a of AREAS) label(a.x, a.z, a.n.toUpperCase(), `700 ${k < .08 ? 10 : 12}px Barlow, sans-serif`, 'rgba(255,255,255,.75)');
+  if (k > .5) { // street names when zoomed in
+    g.font = '600 11px Barlow, sans-serif';
+    for (const s of STREETS) { const [a, b] = toScr(s.x, s.z); if (a > -80 && a < W + 80 && b > -20 && b < H + 20) label(s.x, s.z, s.n, '600 11px Barlow, sans-serif', '#f4f1ea'); }
+  }
+  for (const p of PLACES) {
+    const [a, b] = toScr(p.x, p.z); if (a < -60 || a > W + 60 || b < -30 || b > H + 30) continue;
+    g.fillStyle = '#c8102e'; g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(a, b, 5, 0, 7); g.fill(); g.stroke();
+    if (k > .045 || p.x < BX0 || p.x > BX1) label(p.x, p.z, p.n, '700 12px Barlow, sans-serif', '#ffe27a', -10);
+  }
+  const dot = (x, z, col, r) => { const [a, b] = toScr(x, z); g.fillStyle = col; g.strokeStyle = '#111'; g.lineWidth = 2.5; g.beginPath(); g.arc(a, b, r, 0, 7); g.fill(); g.stroke(); };
+  if (!M) MISSIONS.forEach(m => dot(m.start.x, m.start.z, '#f9c80e', 6));
+  for (const a of agents) if (a.police) dot(a.x, a.z, '#2a5bff', 5);
+  if (foot.on && !foot.inside) dot(player.x, player.z, '#c8102e', 5);
+  const me = foot.inside ? { x: foot.inside.x, z: foot.inside.z, h: foot.h } : foot.on ? foot : player;
+  { const [a, b] = toScr(me.x, me.z); const pl = 1 + Math.sin(performance.now() / 300) * .12;
+    g.fillStyle = 'rgba(255,255,255,.18)'; g.beginPath(); g.arc(a, b, 18 * pl, 0, 7); g.fill();
+    g.save(); g.translate(a, b); g.rotate(Math.PI - me.h); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(0, -12); g.lineTo(8, 9); g.lineTo(0, 4); g.lineTo(-8, 9); g.closePath(); g.fill(); g.stroke(); g.restore(); }
+  if (fmPin) {
+    const [a, b] = toScr(fmPin.x, fmPin.z);
+    g.fillStyle = '#f9c80e'; g.strokeStyle = '#111'; g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(a, b); g.bezierCurveTo(a - 12, b - 14, a - 10, b - 26, a, b - 26); g.bezierCurveTo(a + 10, b - 26, a + 12, b - 14, a, b); g.fill(); g.stroke();
+    const el = $('fmPin'); el.style.left = a + 'px'; el.style.top = (b - 20) + 'px';
+  }
+  // scale bar
+  const nice = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000], m = nice.find(v => v * k >= 50) || 10000, bw = m * k, sy = H - 210;
+  g.fillStyle = 'rgba(21,23,27,.85)'; g.fillRect(W - 76 - bw, sy, bw + 64, 24);
+  g.fillStyle = '#fff'; g.fillRect(W - 68 - bw, sy + 14, bw, 3); g.fillRect(W - 68 - bw, sy + 9, 2, 8); g.fillRect(W - 70, sy + 9, 2, 8);
+  g.font = '600 11px Barlow, sans-serif'; g.textAlign = 'right'; g.fillText(m >= 1000 ? m / 1000 + ' km' : m + ' m', W - 70, sy + 10);
+}
+function placeName(x, z) {
+  const s = streetName(x, z); if (s) return s[0];
+  if (isSea(x, z)) return 'The sea (you\'ll go to the nearest road)';
+  if (!inBox(x, z)) return inMtn(x, z) ? 'Collserola hills' : 'Countryside';
+  let best = null, bd = 1e18; for (const s2 of STREETS) { const d = (s2.x - x) ** 2 + (s2.z - z) ** 2; if (d < bd) { bd = d; best = s2; } }
+  return best ? 'Near ' + best.n : 'Barcelona';
+}
+function setPin(x, z, name, go) {
+  fmPin = { x, z, name: name || placeName(x, z), go }; $('fmPinT').textContent = fmPin.name; $('fmPin').hidden = false;
+}
+$('fmGo').onclick = () => {
+  const p = fmPin; if (!p) return;
+  if (p.go) return pickResult(p.go);
+  teleport(() => { player.x = p.x; player.z = p.z; resetCar(); }, null, '');
+};
+function pickResult(it) { teleport(() => it.go(), it.n.replace(/\s*\(.*\)/, ''), it.sub); }
+function renderResults() {
+  results = search($('q').value); resSel = $('q').value ? 0 : -1;
+  const tag = ['<i>Place</i>', '<i class="di">Area</i>', '<i class="st">Street</i>', '<i class="sh">Shop</i>'];
+  const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  $('results').innerHTML = results.length ? results.map((it, i) => `<button class="res${i === resSel ? ' sel' : ''}" data-i="${i}">${tag[it.kind]}<span><b>${esc(it.n)}</b><small>${esc(it.sub)}</small></span></button>`).join('')
+    : `<div class="res"><span class="none">Nothing called that here. Try a street like “Diagonal”, or “beach”.</span></div>`;
+}
+function highlight(i) {
+  resSel = clamp(i, 0, results.length - 1);
+  document.querySelectorAll('#results .res').forEach((b, j) => b.classList.toggle('sel', j === resSel));
+  const it = results[resSel]; if (!it) return;
+  document.querySelectorAll('#results .res')[resSel]?.scrollIntoView({ block: 'nearest' });
+  FV.x = it.x; FV.z = it.z; FV.k = Math.max(FV.k, it.x < BX0 || it.x > BX1 || it.z < BZ0 ? .12 : .35); setPin(it.x, it.z, it.n, it);
+}
+$('q').addEventListener('input', renderResults);
+$('q').addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown') { e.preventDefault(); highlight(resSel + 1); }
+  else if (e.key === 'ArrowUp') { e.preventDefault(); highlight(resSel - 1); }
+  else if (e.key === 'Enter') { e.preventDefault(); const it = results[Math.max(resSel, 0)]; if (it) pickResult(it); }
+  else if (e.key === 'Escape') { e.preventDefault(); if ($('q').value) { $('q').value = ''; renderResults(); } else closeAll(); }
+  e.stopPropagation();
+});
+$('results').addEventListener('mousedown', e => e.preventDefault()); // keep the box focused so the click lands
+$('results').addEventListener('click', e => { const b = e.target.closest('[data-i]'); if (b) pickResult(results[+b.dataset.i]); });
+$('mapWrap').addEventListener('click', () => openMap(false));
+$('bMap').onclick = () => openMap(!IS_TOUCH);
+$('fmClose').onclick = closeAll;
+const fmZoom = (f, sx = fmW() / 2, sy = fmH() / 2) => {
+  const [wx, wz] = toWorld(sx, sy); FV.k = clamp(FV.k * f, FK0, FK1);
+  FV.x = wx - (sx - fmW() / 2) / FV.k; FV.z = wz - (sy - fmH() / 2) / FV.k;
+};
+$('fmIn').onclick = () => fmZoom(1.6); $('fmOut').onclick = () => fmZoom(1 / 1.6);
+$('fmMe').onclick = () => { const me = foot.inside ? foot.inside : foot.on ? foot : player; FV.x = me.x; FV.z = me.z; };
+fm.addEventListener('wheel', e => { e.preventDefault(); fmZoom(Math.exp(-e.deltaY * .0015), e.offsetX, e.offsetY); }, { passive: false });
+{
+  const ptrs = new Map(); let moved = 0, pinch = 0;
+  fm.addEventListener('pointerdown', e => { fm.setPointerCapture(e.pointerId); ptrs.set(e.pointerId, [e.offsetX, e.offsetY]); moved = 0; if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = Math.hypot(a[0] - b[0], a[1] - b[1]); } $('q').blur(); });
+  fm.addEventListener('pointermove', e => {
+    const p = ptrs.get(e.pointerId); if (!p) return;
+    const dx = e.offsetX - p[0], dy = e.offsetY - p[1];
+    if (ptrs.size === 1) { FV.x -= dx / FV.k; FV.z -= dy / FV.k; moved += Math.abs(dx) + Math.abs(dy); if (moved > 6) fm.classList.add('drag'); }
+    p[0] = e.offsetX; p[1] = e.offsetY;
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()], d = Math.hypot(a[0] - b[0], a[1] - b[1]); if (pinch) fmZoom(d / pinch, (a[0] + b[0]) / 2, (a[1] + b[1]) / 2); pinch = d; moved = 99; }
+  });
+  const up = e => {
+    if (!ptrs.has(e.pointerId)) return;
+    ptrs.delete(e.pointerId); fm.classList.remove('drag');
+    if (!ptrs.size && moved < 6 && e.type === 'pointerup') { const [x, z] = toWorld(e.offsetX, e.offsetY); setPin(x, z); }
+    if (ptrs.size < 2) pinch = 0;
+  };
+  fm.addEventListener('pointerup', up); fm.addEventListener('pointercancel', up);
+}
+
 /* ================= CAMERA & LOOP ================= */
 const cam = { x: 0, y: 5, z: 0, h: Math.PI, shake: 0 };
 function resize() {
@@ -3509,6 +3808,7 @@ function loop() {
   requestAnimationFrame(loop);
   const dt = Math.min(clock.getDelta(), 1 / 30);
   frame++;
+  if (!$('bigmap').hidden) return; // the full map covers the screen: skip the 3D frame
   const c = player, vis = c.vis;
   if (!paused) {
     const frozen = (M && M.count > 0) || !!police.arrest;
