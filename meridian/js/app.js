@@ -50,6 +50,13 @@ const applyProfile = () => {
 
 // ——— Boot ———
 async function boot() {
+  // Copies installed when the app opened straight to the coach still launch at #coach;
+  // a fresh launch of the installed app starts on Today instead.
+  try {
+    const standalone = matchMedia('(display-mode: standalone)').matches;
+    if (standalone && location.hash === '#coach' && !sessionStorage.getItem('meridian.session')) location.replace('#today');
+    sessionStorage.setItem('meridian.session', '1');
+  } catch { /* storage unavailable */ }
   [STATUS] = await Promise.all([serverStatus()]);
   const data = await loadData();
   A = analyse(data, { experiments: getExperiments() });
@@ -61,7 +68,16 @@ async function boot() {
   render();
   // Inside claude.ai the coach uses your Claude account; it lights up after first paint.
   if (!STATUS.coach) getSampler().then((s) => { SAMPLE = s; if (s && document.body.dataset.route === 'coach') render({ keepScroll: true }); });
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') {
+    // When a new version takes over, reload once so the whole app is the new code.
+    // The very first install taking control is not an update; every change after that is.
+    let controlled = Boolean(navigator.serviceWorker.controller), reloading = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!controlled) { controlled = true; return; }
+      if (!reloading) { reloading = true; location.reload(); }
+    });
+    navigator.serviceWorker.register('sw.js').then((reg) => reg.update()).catch(() => {});
+  }
 }
 
 async function reload() {
