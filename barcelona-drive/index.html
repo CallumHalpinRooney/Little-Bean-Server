@@ -343,6 +343,9 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
     <h2>Departures ✈</h2>
     <p class="lead">Aeroport del Prat. Pick where to fly: you take off from the runway there and can fly all around it. <span class="wallet">Wallet: <b id="apWallet">€0</b></span></p>
     <div class="grid" id="apDest"></div>
+    <h3 class="shopH">Sell tickets 🎫</h3>
+    <p class="lead" id="tkLead"></p>
+    <div class="grid" id="apTickets"></div>
     <h3 class="shopH">Your plane</h3>
     <p class="note" id="apNote" hidden></p>
     <div class="grid" id="apPlanes"></div>
@@ -1916,21 +1919,45 @@ const SHIRTS = ['#c8102e', '#1f4fd0', '#f4f4f4', '#2fbf4a', '#f9c80e', '#222222'
 const PANTS = ['#1d2a44', '#2b2d31', '#5a6470', '#6b3e26', '#c9b48a', '#3a3a3a'];
 const pick = a => a[(Math.random() * a.length) | 0];
 // shared body parts; limbs pivot at the hip and shoulder so they swing like real legs and arms
+// people: rounded bodies, faces, hair, hands and shoes (the pivots stay at hips, shoulders and neck)
+const ico = (r, x, y, z, sx = 1, sy = 1, sz = 1) => new THREE.IcosahedronGeometry(r, 0).scale(sx, sy, sz).translate(x, y, z);
 const PG = {
-  torso: new THREE.BoxGeometry(.42, .6, .24).translate(0, .3, 0),
-  head: new THREE.SphereGeometry(.12, 10, 8),
-  leg: new THREE.BoxGeometry(.15, .9, .17).translate(0, -.45, 0),
-  arm: new THREE.BoxGeometry(.1, .62, .11).translate(0, -.31, 0),
+  torso: (() => { // chest, waist and hips turned on a lathe, flattened front to back, with rounded shoulders
+    const prof = [[0, 0], [.16, 0], [.175, .07], [.15, .22], [.172, .38], [.19, .5], [.16, .58], [.06, .62], [0, .63]].map(([r, y]) => new THREE.Vector2(r, y));
+    return mergeGeos([new THREE.LatheGeometry(prof, 9).scale(1, 1, .62), ico(.07, -.19, .52, 0), ico(.07, .19, .52, 0)]);
+  })(),
+  skirt: new THREE.CylinderGeometry(.17, .27, .42, 10, 1, true).translate(0, -.12, 0),
+  head: mergeGeos([
+    new THREE.SphereGeometry(.105, 10, 8).scale(.92, 1.1, 1), ico(.075, 0, -.055, .025, 1, .8, 1), // skull and jaw
+    new THREE.ConeGeometry(.018, .05, 5).rotateX(Math.PI / 2).translate(0, -.01, .11), // nose
+    ico(.025, -.1, -.005, 0, .5, 1, .8), ico(.025, .1, -.005, 0, .5, 1, .8), // ears
+    new THREE.CylinderGeometry(.045, .05, .14, 7, 1, true).translate(0, -.17, 0), // neck
+  ]),
+  hair: new THREE.SphereGeometry(.115, 10, 5, 0, Math.PI * 2, 0, Math.PI * .55).rotateX(-.4).translate(0, .012, -.012),
+  hairLong: new THREE.CylinderGeometry(.108, .13, .26, 10, 1, true, Math.PI * .55, Math.PI * .9).translate(0, -.1, -.01),
+  eyes: mergeGeos([ico(.015, -.037, .018, .093), ico(.015, .037, .018, .093)]),
+  thigh: new THREE.CylinderGeometry(.07, .092, .47, 7, 1, true).translate(0, -.235, 0),
+  shin: mergeGeos([ico(.07, 0, -.47, 0), new THREE.CylinderGeometry(.05, .068, .42, 7, 1, true).translate(0, -.68, 0)]),
+  shoe: mergeGeos([new THREE.BoxGeometry(.1, .07, .25).translate(0, -.895, .045), ico(.05, 0, -.9, .15, 1, .7, 1)]),
+  uarm: mergeGeos([ico(.062, 0, 0, 0), new THREE.CylinderGeometry(.052, .06, .3, 7, 1, true).translate(0, -.15, 0)]),
+  farm: new THREE.CylinderGeometry(.038, .05, .27, 7, 1, true).translate(0, -.435, 0),
+  hand: ico(.05, 0, -.61, 0, .75, 1.3, .55),
 };
+const HAIR = ['#1b1410', '#2e1f14', '#4a3020', '#7a5230', '#b58a4c', '#d9c08c', '#8a8a8a', '#3a2a1e'], SHOES = ['#1b1b1b', '#f4f4f4', '#6b3e26', '#2b3a55', '#c8102e', '#8a8f96'];
 const matCache = {};
 const flat = hex => matCache[hex] || (matCache[hex] = new THREE.MeshStandardMaterial({ color: C(hex), roughness: .85 }));
 function makePerson(shirt, pants, skin, opts = {}) {
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-  const mk = (geo, hex, x, y, z) => { const m = new THREE.Mesh(geo, flat(hex)); m.position.set(x, y, z); m.castShadow = true; body.add(m); return m; };
-  const torso = mk(PG.torso, shirt, 0, .92, 0), head = mk(PG.head, skin, 0, 1.66, 0);
-  const legs = [mk(PG.leg, pants, -.1, .93, 0), mk(PG.leg, pants, .1, .93, 0)];
-  const arms = [mk(PG.arm, shirt, -.27, 1.47, 0), mk(PG.arm, shirt, .27, 1.47, 0)];
-  if (opts.cap) { const cap = mk(new THREE.CylinderGeometry(.13, .13, .08, 10), opts.cap, 0, 1.77, 0); const peak = mk(new THREE.BoxGeometry(.22, .02, .12), opts.cap, 0, 1.74, .12); }
+  const mk = (geo, hex, x, y, z, parent = body) => { const m = new THREE.Mesh(geo, flat(hex)); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
+  const hairCol = opts.hair || pick(HAIR), shoe = opts.shoes || pick(SHOES), shortSleeves = opts.short ?? Math.random() < .5;
+  const torso = mk(PG.torso, shirt, 0, .92, 0);
+  const head = new THREE.Group(); head.position.set(0, 1.66, 0); body.add(head);
+  mk(PG.head, skin, 0, 0, 0, head); mk(PG.eyes, '#1a1512', 0, 0, 0, head);
+  if (!opts.cap) mk(PG.hair, hairCol, 0, 0, 0, head);
+  if (opts.longHair) mk(PG.hairLong, hairCol, 0, 0, 0, head);
+  const legs = [-.1, .1].map(x => { const g = new THREE.Group(); g.position.set(x, .93, 0); body.add(g); mk(PG.thigh, pants, 0, 0, 0, g); mk(PG.shin, pants, 0, 0, 0, g); mk(PG.shoe, shoe, 0, 0, 0, g); return g; });
+  const arms = [-.27, .27].map(x => { const g = new THREE.Group(); g.position.set(x, 1.47, 0); body.add(g); mk(PG.uarm, shirt, 0, 0, 0, g); mk(PG.farm, shortSleeves ? skin : shirt, 0, 0, 0, g); mk(PG.hand, skin, 0, 0, 0, g); return g; });
+  if (opts.cap) { mk(new THREE.SphereGeometry(.118, 10, 5, 0, Math.PI * 2, 0, Math.PI * .5), opts.cap, 0, .02, 0, head); mk(new THREE.BoxGeometry(.2, .015, .11), opts.cap, 0, .03, .12, head); }
   return { root, body, torso, head, legs, arms };
 }
 // walk cycle: legs and arms swing in opposition, the body bobs twice per stride
@@ -1969,22 +1996,33 @@ function placePed(q, cx, cz, rMin, rMax) { // put a walker on a footpath somewhe
 for (let n = 0; n < PN; n++) peds.push({ kind: 'walk', v: rnd(1.0, 1.7), w: -1, s: 0, dir: 1, side: 0 });
 for (let n = 0; n < PIER_PEDS; n++) peds.push({ kind: 'pier', p: rnd(PIER.z0 + 30, PIER.hz - 5), xl: rnd(-6, 6), dir: Math.random() < .5 ? 1 : -1, v: rnd(.8, 1.3) });
 const PALL = peds.length;
-const pedIM = {
-  torso: new THREE.InstancedMesh(PG.torso, new THREE.MeshStandardMaterial({ roughness: .85 }), PALL),
-  head: new THREE.InstancedMesh(PG.head, new THREE.MeshStandardMaterial({ roughness: .7 }), PALL),
-  leg: new THREE.InstancedMesh(PG.leg, new THREE.MeshStandardMaterial({ roughness: .85 }), PALL * 2),
-  arm: new THREE.InstancedMesh(PG.arm, new THREE.MeshStandardMaterial({ roughness: .85 }), PALL * 2),
+const PM = () => new THREE.MeshStandardMaterial({ roughness: .8 });
+const pedIM = { // one instanced mesh per body part: body parts once per person, limbs twice
+  torso: new THREE.InstancedMesh(PG.torso, PM(), PALL), skirt: new THREE.InstancedMesh(PG.skirt, new THREE.MeshStandardMaterial({ roughness: .85, side: THREE.DoubleSide }), PALL),
+  head: new THREE.InstancedMesh(PG.head, PM(), PALL), hair: new THREE.InstancedMesh(PG.hair, PM(), PALL),
+  hairLong: new THREE.InstancedMesh(PG.hairLong, new THREE.MeshStandardMaterial({ roughness: .8, side: THREE.DoubleSide }), PALL), eyes: new THREE.InstancedMesh(PG.eyes, flat('#1a1512'), PALL),
+  thigh: new THREE.InstancedMesh(PG.thigh, PM(), PALL * 2), shin: new THREE.InstancedMesh(PG.shin, PM(), PALL * 2), shoe: new THREE.InstancedMesh(PG.shoe, PM(), PALL * 2),
+  uarm: new THREE.InstancedMesh(PG.uarm, PM(), PALL * 2), farm: new THREE.InstancedMesh(PG.farm, PM(), PALL * 2), hand: new THREE.InstancedMesh(PG.hand, PM(), PALL * 2),
 };
+const PED_BODY = ['torso', 'skirt', 'head', 'hair', 'hairLong', 'eyes'], PED_LEG = ['thigh', 'shin', 'shoe'], PED_ARM = ['uarm', 'farm', 'hand'];
+const PED_Y = { torso: .92, skirt: .92, head: 1.66, hair: 1.66, hairLong: 1.66, eyes: 1.66 };
 {
-  const col = new THREE.Color();
+  const col = new THREE.Color(), set = (m, i, hex) => pedIM[m].setColorAt(i, col.set(hex).convertSRGBToLinear());
   peds.forEach((q, k) => {
     q.ph = rnd(0, 6); q.dodge = 0; q.x = 0; q.z = 0; q.h = 0; q.dx = 0; q.dz = 0;
-    const sh = pick(SHIRTS), pa = pick(PANTS);
-    pedIM.torso.setColorAt(k, col.set(sh).convertSRGBToLinear()); pedIM.head.setColorAt(k, col.set(pick(SKIN)).convertSRGBToLinear());
-    for (const i of [0, 1]) { pedIM.leg.setColorAt(k * 2 + i, col.set(pa).convertSRGBToLinear()); pedIM.arm.setColorAt(k * 2 + i, col.set(sh).convertSRGBToLinear()); }
+    const sh = pick(SHIRTS), pa = pick(PANTS), sk = pick(SKIN), hr = Math.random() < .08 ? sk : pick(HAIR), shoe = pick(SHOES);
+    q.skirt = Math.random() < .16; q.longHair = Math.random() < .35; q.scale = rnd(.9, 1.08);
+    const shorts = !q.skirt && Math.random() < .3, shortSleeves = Math.random() < .55;
+    set('torso', k, sh); set('skirt', k, pick(['#1d2a44', '#c8102e', '#2b2d31', '#e8c4d8', '#f4f4f4', '#6b8f3a'])); set('head', k, sk); set('hair', k, hr); set('hairLong', k, hr);
+    for (const i of [0, 1]) {
+      const j = k * 2 + i;
+      set('thigh', j, q.skirt ? sk : pa); set('shin', j, q.skirt || shorts ? sk : pa); set('shoe', j, shoe);
+      set('uarm', j, sh); set('farm', j, shortSleeves ? sk : sh); set('hand', j, sk);
+    }
   });
   for (const m of Object.values(pedIM)) { m.castShadow = true; m.frustumCulled = false; scene.add(m); }
 }
+const _ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _SC = new THREE.Matrix4();
 const _M = new THREE.Matrix4(), _L = new THREE.Matrix4(), _O = new THREE.Matrix4(), _W = { x: 0, z: 0, dx: 0, dz: 0 };
 function updatePeds(dt, full) {
   const pvx = player.u * Math.sin(player.h) + player.v * Math.cos(player.h), pvz = player.u * Math.cos(player.h) - player.v * Math.sin(player.h);
@@ -2019,13 +2057,16 @@ function updatePeds(dt, full) {
     q.x = x + q.dx * off; q.z = z + q.dz * off; q.h = Math.atan2(tx, tz);
     const hop = q.dodge > .05 && q.dodge < .95 && threat ? Math.sin(q.dodge * Math.PI) * .25 : 0;
     const sn = Math.sin(q.ph), amp = .5 + q.dodge * .35, armsUp = q.dodge * 2.2;
-    _M.makeRotationY(q.h); _M.setPosition(q.x, y + Math.abs(Math.cos(q.ph)) * .035 + hop, q.z);
-    _L.makeTranslation(0, .92, 0); pedIM.torso.setMatrixAt(k, _O.multiplyMatrices(_M, _L));
-    _L.makeTranslation(0, 1.66, 0); pedIM.head.setMatrixAt(k, _O.multiplyMatrices(_M, _L));
+    _M.makeRotationY(q.h); _M.setPosition(q.x, y + Math.abs(Math.cos(q.ph)) * .035 * q.scale + hop, q.z); _M.multiply(_SC.makeScale(q.scale, q.scale, q.scale));
+    for (const part of PED_BODY) {
+      if ((part === 'skirt' && !q.skirt) || (part === 'hairLong' && !q.longHair)) { pedIM[part].setMatrixAt(k, _ZERO); continue; }
+      _L.makeTranslation(0, PED_Y[part], 0); if (part === 'head' || part === 'hair' || part === 'hairLong' || part === 'eyes') _L.multiply(_SC.makeRotationY(Math.sin(q.ph * .21 + k) * .25));
+      pedIM[part].setMatrixAt(k, _O.multiplyMatrices(_M, _L));
+    }
     for (const i of [0, 1]) {
       const sg = i ? -1 : 1;
-      _L.makeRotationX(sn * amp * sg); _L.setPosition(i ? .1 : -.1, .93, 0); pedIM.leg.setMatrixAt(k * 2 + i, _O.multiplyMatrices(_M, _L));
-      _L.makeRotationX(-sn * amp * .8 * sg - armsUp); _L.setPosition(i ? .27 : -.27, 1.47, 0); pedIM.arm.setMatrixAt(k * 2 + i, _O.multiplyMatrices(_M, _L));
+      _L.makeRotationX(sn * amp * sg); _L.setPosition(i ? .1 : -.1, .93, 0); _O.multiplyMatrices(_M, _L); for (const part of PED_LEG) pedIM[part].setMatrixAt(k * 2 + i, _O);
+      _L.makeRotationX(-sn * amp * .8 * sg - armsUp); _L.setPosition(i ? .27 : -.27, 1.47, 0); _O.multiplyMatrices(_M, _L); for (const part of PED_ARM) pedIM[part].setMatrixAt(k * 2 + i, _O);
     }
   });
   for (const m of Object.values(pedIM)) m.instanceMatrix.needsUpdate = true;
@@ -4285,9 +4326,10 @@ function itemPic(cat, k) {
    El Prat sits on the flat land south-west of the city. Fly your plane around Barcelona,
    or take off for Mallorca, the Pyrenees, Egypt or Paris. */
 const PLANES = [
-  { maxP: .6, name: 'Avioneta', desc: 'A little propeller plane. Easy to fly and gentle to land.', price: 0, kind: 'light', vmax: 62, thrust: 7, stall: 21, vr: 25, pr: .75, bank: .85, rr: 2.2, span: 11, cam: 17, col: '#f4f4f4', acc: '#c8102e' },
-  { maxP: 1.45, name: 'Stunt plane', desc: 'Zippy aerobatic plane: loops and super-fast rolls.', price: 1500, kind: 'stunt', vmax: 95, thrust: 12, stall: 25, vr: 29, pr: 1.35, bank: 1.4, rr: 4.8, span: 7.6, cam: 13, col: '#c8102e', acc: '#f9c80e' },
-  { maxP: 1.2, name: 'Jet fighter', desc: 'Very fast jet with an afterburner. Hold Shift for full power!', price: 6000, kind: 'jet', vmax: 250, thrust: 30, stall: 55, vr: 62, pr: 1.0, bank: 1.3, rr: 3.6, span: 10, cam: 21, col: '#8a949e', acc: '#3b4552' },
+  { seats: 3, maxP: .6, name: 'Avioneta', desc: 'A little propeller plane. Easy to fly and gentle to land.', price: 0, kind: 'light', vmax: 62, thrust: 7, stall: 21, vr: 25, pr: .75, bank: .85, rr: 2.2, span: 11, cam: 17, col: '#f4f4f4', acc: '#c8102e' },
+  { seats: 1, maxP: 1.45, name: 'Stunt plane', desc: 'Zippy aerobatic plane: loops and super-fast rolls.', price: 1500, kind: 'stunt', vmax: 95, thrust: 12, stall: 25, vr: 29, pr: 1.35, bank: 1.4, rr: 4.8, span: 7.6, cam: 13, col: '#c8102e', acc: '#f9c80e' },
+  { seats: 1, maxP: 1.2, name: 'Jet fighter', desc: 'Very fast jet with an afterburner. Hold Shift for full power!', price: 6000, kind: 'jet', vmax: 250, thrust: 30, stall: 55, vr: 62, pr: 1.0, bank: 1.3, rr: 3.6, span: 10, cam: 21, col: '#8a949e', acc: '#3b4552' },
+  { seats: 500, maxP: .4, name: 'Airbus A380', desc: 'The biggest passenger plane in the world: two decks, four engines and 500 seats, in white with a red, green and black tail. Sell tickets and fly passengers!', price: 50000, kind: 'a380', vmax: 150, thrust: 7, stall: 58, vr: 72, pr: .32, bank: .6, rr: 1.0, span: 80, cam: 115, col: '#f7f7f7', acc: '#c8102e' },
 ];
 {
   let f = null; try { f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); } catch (e) { }
@@ -4332,6 +4374,37 @@ function makePlane(s) {
     prop = new THREE.Group(); prop.position.set(0, 1.2, 3); g.add(prop);
     prop.add(new THREE.Mesh(new THREE.ConeGeometry(.2, .45, 10).rotateX(Math.PI / 2), acc));
     for (let k = 0; k < 3; k++) { const b = new THREE.Mesh(new THREE.BoxGeometry(.14, 1, .04), dark); b.position.y = .5; const p = new THREE.Group(); p.rotation.z = k * 2.09; p.add(b); prop.add(p); }
+  } else if (s.kind === 'a380') {
+    const Y = 6.2, EY = 1.28;
+    add(new THREE.CylinderGeometry(3.5, 3.5, 58, 24, 1, true).rotateX(Math.PI / 2), body, 0, Y, 0).scale.y = EY;
+    add(new THREE.SphereGeometry(3.5, 24, 12, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2), body, 0, Y, 29).scale.set(1, EY, 1.8);
+    add(new THREE.ConeGeometry(3.5, 17, 24, 1, true).rotateX(-Math.PI / 2), body, 0, Y + .9, -37.5).scale.set(1, EY * .9, 1);
+    const winTex = canvasTex(512, 16, (c, w, h) => { c.clearRect(0, 0, w, h); c.fillStyle = '#1b2430'; for (let x = 4; x < w; x += 9) { c.beginPath(); c.ellipse(x, h / 2, 2.4, 5, 0, 0, 7); c.fill(); } }, 1, 1);
+    const winMat = new THREE.MeshBasicMaterial({ map: winTex, transparent: true, side: THREE.DoubleSide });
+    for (const sd of [-1, 1]) for (const [dy, xr] of [[-.7, 3.47], [2.3, 3.0]]) { const w = add(new THREE.PlaneGeometry(52, .7).rotateY(Math.PI / 2), winMat, sd * (xr + .04), Y + dy, -1); w.castShadow = false; }
+    add(new THREE.BoxGeometry(2.8, .55, 1), glass, 0, Y + 2.1, 31.2).rotation.x = .45;
+    add(new THREE.BoxGeometry(.25, .25, 44), new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: .7, roughness: .3 }), 3.5, Y - 1.6, -2).visible = true;
+    add(new THREE.BoxGeometry(.25, .25, 44), new THREE.MeshStandardMaterial({ color: 0xc9a227, metalness: .7, roughness: .3 }), -3.5, Y - 1.6, -2);
+    for (const sd of [-1, 1]) {
+      const w = add(wingGeo(15, 4, 36, 16, .8), body, 0, Y - 2.4, 3); w.scale.x = sd; w.rotation.z = sd * .07;
+      add(new THREE.BoxGeometry(.3, 3.4, 3), body, sd * 36, Y - 2.4 + 36 * .07 + 1.5, -7.2);
+      for (const x of [11, 21]) {
+        const le = 3 + 7.5 - 16 * x / 36;
+        add(new THREE.CylinderGeometry(1.6, 1.35, 6.5, 18).rotateX(Math.PI / 2), body, sd * x, Y - 4 + x * .07, le + 1.2);
+        add(new THREE.CylinderGeometry(1.35, 1.35, .15, 18).rotateX(Math.PI / 2), flat('#2a2e33'), sd * x, Y - 4 + x * .07, le + 4.46);
+        add(new THREE.BoxGeometry(.4, 1.2, 4), body, sd * x, Y - 2.8 + x * .07, le - 1);
+      }
+      const st = add(wingGeo(9, 3.5, 14, 7, .4), body, 0, Y + 1.4, -31); st.scale.x = sd;
+    }
+    const finShape = new THREE.Shape(); [[2, 0], [-8.5, 14.5], [-13, 14.5], [-12.5, 0]].forEach(([a, b], k) => k ? finShape.lineTo(a, b) : finShape.moveTo(a, b));
+    add(new THREE.ExtrudeGeometry(finShape, { depth: .5, bevelEnabled: false }).rotateY(-Math.PI / 2).translate(.25, 0, 0), body, 0, Y + 3.4, -27);
+    const flagTex = canvasTex(256, 224, (c, w, h) => { c.fillStyle = '#c8102e'; c.fillRect(0, 0, w * .28, h); c.fillStyle = '#00732f'; c.fillRect(w * .28, 0, w, h / 3); c.fillStyle = '#ffffff'; c.fillRect(w * .28, h / 3, w, h / 3); c.fillStyle = '#111111'; c.fillRect(w * .28, h * 2 / 3, w, h / 3); }, 1, 1);
+    for (const sd of [-1, 1]) add(new THREE.PlaneGeometry(8, 7).rotateY(Math.PI / 2), new THREE.MeshStandardMaterial({ map: flagTex, side: THREE.DoubleSide, roughness: .4 }), sd * .3, Y + 3.4 + 4.6, -34).castShadow = false;
+    const tyre = flat('#1d1d1d');
+    for (const [x, z, n] of [[0, 24, 1], [-3.2, -1, 2], [3.2, -1, 2], [-6.5, 1.5, 2], [6.5, 1.5, 2]]) {
+      add(new THREE.CylinderGeometry(.15, .15, 2.2, 6), steel, x, 1.8, z);
+      for (let i = 0; i < n; i++) for (const sx of [-.5, .5]) add(new THREE.CylinderGeometry(.65, .65, .45, 14).rotateZ(Math.PI / 2), tyre, x + sx, .65, z + (n > 1 ? (i - .5) * 1.5 : 0));
+    }
   } else {
     add(new THREE.CylinderGeometry(.75, .6, 11, 16).rotateX(Math.PI / 2), body, 0, 1.6, -.5);
     add(new THREE.ConeGeometry(.75, 4, 16).rotateX(Math.PI / 2), body, 0, 1.6, 6.9);
@@ -4384,6 +4457,8 @@ let RUNWAY_TEX = null;
   taxi.position.set(STAND.x, H0, (TERM.z + 210 + A.z) / 2); scene.add(taxi);
   const yl = new THREE.Mesh(new THREE.PlaneGeometry(.5, A.z - TERM.z - 200).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xf2c230 })); yl.position.set(STAND.x, H0 + .01, (TERM.z + 210 + A.z) / 2); scene.add(yl);
   const park = new THREE.Mesh(new THREE.PlaneGeometry(160, 60).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: C('#4a4c50'), roughness: .9 })); park.position.set(PARK.x, H0, PARK.z); scene.add(park);
+  for (const m of [rw, apron, taxi, yl, park]) Object.assign(m.material, { polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 }); // no flicker against the fields
+  Object.assign(white, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 });
   // terminal: a long glass hall under a floating white roof
   const glassTex = canvasTex(256, 64, (c, w, h) => { const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#5f86a8'); gr.addColorStop(1, '#2d4a66'); c.fillStyle = gr; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(230,236,240,.8)'; for (let x = 0; x < w; x += 16) c.fillRect(x, 0, 2, h); c.fillRect(0, h / 2, w, 2); }, 24, 1);
   const glassMat = new THREE.MeshStandardMaterial({ map: glassTex, roughness: .35, metalness: .1 });
@@ -4603,9 +4678,9 @@ function buildWorld(id) {
   for (let k = 0; k < pos.count; k++) { c.copy(C(W.col(pos.getX(k), pos.getZ(k), pos.getY(k), 1 - nor.getY(k)))); c.offsetHSL(0, 0, (Math.random() - .5) * .04); cols.set([c.r, c.g, c.b], k * 3); }
   geo.setAttribute('color', new THREE.BufferAttribute(cols, 3));
   sc.add(new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })));
-  if (W.waterY > -900) { const wm = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: C(W.water), roughness: .12, metalness: .25, transparent: true, opacity: .93 })); wm.position.y = W.waterY; sc.add(wm); }
+  if (W.waterY > -900) { const wm = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: C(W.water), roughness: .12, metalness: .25, transparent: true, opacity: .93 })); wm.position.y = W.waterY; wm.material.polygonOffset = true; wm.material.polygonOffsetFactor = 1; wm.material.polygonOffsetUnits = 2; sc.add(wm); }
   const rw = W.rw, rt = new THREE.Mesh(new THREE.PlaneGeometry(rw.len, 45).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: RUNWAY_TEX, color: 0xffffff, roughness: .85 }));
-  rt.position.set(rw.x, rw.alt + .08, rw.z); sc.add(rt);
+  Object.assign(rt.material, { polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 }); rt.position.set(rw.x, rw.alt + .3, rw.z); sc.add(rt);
   const tw = new THREE.Mesh(new THREE.BoxGeometry(60, 10, 25).translate(0, 5, 0), flat('#e8e6e0')); tw.position.set(rw.x + 200, rw.alt, rw.z - 110); sc.add(tw);
   const wsock = new THREE.Mesh(new THREE.ConeGeometry(.7, 4, 12, 1, true).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xff6a2a, side: THREE.DoubleSide })); wsock.position.set(rw.x + 300, rw.alt + 7, rw.z - 70); sc.add(wsock);
   W.props(sc, W);
@@ -4643,7 +4718,11 @@ function planeStart(onRunway) { // line up at the end of the runway, or at your 
 }
 function flyMode(on) {
   plane.on = on;
-  tileView = on ? (TILEVIEW0 < 1000 ? 1100 : 1800) : TILEVIEW0; // see further from the sky (less on phones) scene.fog.density = on ? .0006 : ABOVE.fogD; 
+  tileView = on ? (TILEVIEW0 < 1000 ? 900 : 1400) : TILEVIEW0; // a bit further from the sky (less on phones)
+  scene.fog.density = on ? .0008 : ABOVE.fogD;
+  camera.near = on ? 2.5 : .3; camera.updateProjectionMatrix(); // the chase camera is never this close to anything: keeps far-off ground from flickering
+  for (const m of Object.values(pedIM)) m.visible = !on; // the crowds are specks from up there
+  if (on) { plane.cx = null; planeCam(1 / 30); } // put the camera behind the plane before choosing which city tiles to draw
   $('flight').hidden = !on; updateTiles();
 }
 function clearForFlight() { // you can't fly mid-mission, mid-chase, swimming or fishing
@@ -4668,6 +4747,7 @@ function exitPlane(force) {
   const P = plane;
   if (!force) {
     if (AWAY) return openAirport();
+    if (trip) return show('', 'Fly your passengers first! (Or press J to cancel their tickets.)', 2.5);
     if (!P.ground || P.v > 3) return show('', P.ground ? 'Slow down first (hold Space).' : 'Land first! Line up with a runway or a flat field and come down gently.', 2.5);
   }
   flyMode(false);
@@ -4683,7 +4763,7 @@ function crashPlane(why) {
   const P = plane; P.crash = 1.8; P.g.visible = false; audio.crash(14); cam.shake = 1;
   const fb = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 12), new THREE.MeshBasicMaterial({ color: 0xff8a2a, transparent: true, opacity: .9, depthWrite: false })); fb.position.set(P.x, P.y, P.z);
   (AWAY ? AWAY.scene : scene).add(fb); P.fb = fb;
-  show(why === 'water' ? 'Splash!' : 'Crash!', 'Ouch! Your plane is back at the start of the runway.', 2.6);
+  show(why === 'water' ? 'Splash!' : 'Crash!', trip ? 'Your passengers got their money back. Back to the start of the runway.' : 'Ouch! Your plane is back at the start of the runway.', 2.6); trip = null;
 }
 function updatePlane(dt) {
   const P = plane, S = P.spec;
@@ -4692,7 +4772,7 @@ function updatePlane(dt) {
     if (P.crash <= 0) { if (P.fb) { P.fb.parent.remove(P.fb); P.fb = null; } planeStart(true); }
     return;
   }
-  const thr = P.thr = input.hand ? .05 : input.run ? 1.35 : 1;
+  const thr = P.thr = input.hand ? .05 : input.run ? 1.35 : trip && trip.stage === 'approach' ? .55 : 1; // eases off for the landing approach
   const k = S.thrust / (S.vmax * S.vmax);
   let acc = thr * S.thrust - k * P.v * P.v * (P.ground ? 1.4 : 1) - 9.8 * Math.sin(P.p);
   if (P.ground) {
@@ -4721,12 +4801,14 @@ function updatePlane(dt) {
   const gh = worldH(P.x, P.z);
   if (P.ground) { P.y = gh + .06; if (worldWater(P.x, P.z)) return crashPlane('water'); if (worldHit(P.x, P.y + 1, P.z)) return crashPlane(); }
   else if (P.y < gh + .06) {
-    const soft = vy > -8 && P.p > -.25 && P.p < .5 && Math.abs(P.r) < .45;
+    const soft = vy > (S.kind === 'a380' ? -10 : -8) && P.p > -.25 && P.p < .5 && Math.abs(P.r) < .45;
+    if (trip) trip.touchVy = vy;
     if (worldWater(P.x, P.z)) return crashPlane('water');
     if (!soft) return crashPlane();
     P.ground = true; P.y = gh + .06; P.p = 0; P.r = 0; show('Touchdown!', AWAY ? 'Nice landing! Hold Space to stop. Press J to fly somewhere else.' : 'Nice landing! Hold Space to stop, then F to get out.', 3); audio.plop();
   } else if (worldHit(P.x, P.y, P.z)) return crashPlane();
   placePlaneMesh();
+  if (trip) tripTick(P.y - gh);
   const U = P.g.userData; if (U.prop) U.prop.rotation.z += dt * (8 + P.v * 1.4 + thr * 30);
   if (U.flame) { U.flame.visible = thr > .5; U.flame.scale.set(1, 1, thr > 1.2 ? 1.4 + Math.random() * .4 : .6 + Math.random() * .2); }
 }
@@ -4749,6 +4831,7 @@ function planeHud() {
   $('flAlt').textContent = Math.round(alt) + ' m'; $('flSpd').textContent = Math.round(P.v * 3.6) + ' km/h';
   const stall = !P.ground && P.v < S.stall * 1.1;
   $('flNote').textContent = P.crash > 0 ? 'Crashed!' : stall ? 'STALL! Dive (S) to speed up!' : P.ground ? (P.v < 3 ? (AWAY ? 'Parked. J for departures' : 'Parked. F to get out · J for departures') : P.v > S.vr ? 'Fast enough: hold W to take off!' : 'Rolling… ' + Math.round(P.v / S.vr * 100) + '% of take-off speed') : alt < 40 ? 'Low! Pull up (W)' : 'Flying';
+  if (trip && P.crash <= 0 && !stall) { const tn = tripNote(alt); if (tn) $('flNote').textContent = tn; }
   $('flNote').style.color = stall || (alt < 40 && !P.ground) ? 'var(--bad)' : '';
 }
 function awayFrame(dt) {
@@ -4760,6 +4843,59 @@ function awayFrame(dt) {
   updateWallet(dt);
   audio.update(planeAudio(), 1e9, 1e9);
   renderer.render(AWAY.scene, camera);
+}
+
+
+/* ---------- selling tickets: fly passengers between the places and get paid when you land ---------- */
+const TICKET = { bcn: 50, mallorca: 40, pyrenees: 35, paris: 70, egypt: 150 };
+const cityName = id => id === 'bcn' ? 'Barcelona' : WORLDS[id].name;
+let trip = null;
+function enterWorld(id) {
+  if (id === 'bcn') return goHome();
+  const W = buildWorld(id); W.id = id; AWAY = W; W.scene.add(plane.g); $('mapWrap').hidden = true; camera.far = 16000; camera.updateProjectionMatrix();
+}
+const curRunway = () => AWAY ? AWAY.rw : { x: AIRPORT.x, z: AIRPORT.z, len: AIRPORT.len, alt: 0 };
+function sellTickets(to) {
+  const S = plane.spec, from = AWAY ? AWAY.id : 'bcn';
+  const pax = Math.max(1, Math.round(S.seats * rnd(.75, 1)));
+  clearForFlight(); if (from === 'bcn') goHome();
+  planeStart(true); flyMode(true); updateTiles();
+  trip = { from, to, pax, price: TICKET[to], stage: 'climb', touchVy: -99 };
+  audio.ding();
+  show('Tickets sold!', `${pax} passenger${pax > 1 ? 's' : ''} booked to ${cityName(to)} at €${TICKET[to]} each. Take off and climb to 300 m.`, 4.5);
+}
+function planeApproach() { // arrive lined up with the runway, a few kilometres out
+  const P = plane, S = P.spec, rw = curRunway(), dir = rw.x > 0 ? 1 : -1;
+  P.x = rw.x - dir * (rw.len / 2 + 3800); P.z = rw.z; P.h = dir * Math.PI / 2;
+  P.y = Math.max(rw.alt + 380, worldH(P.x, P.z) + 250); P.p = -.05; P.r = 0; P.v = S.stall * 1.3; P.ground = false; P.crash = 0; P.cx = null; P.g.visible = true; placePlaneMesh();
+}
+function startLeg() {
+  trip.stage = 'transit'; paused = true;
+  $('transitT').textContent = `Flying ${trip.pax} passenger${trip.pax > 1 ? 's' : ''} to ${cityName(trip.to)}…`; $('transit').hidden = false;
+  setTimeout(() => {
+    enterWorld(trip.to); planeApproach(); flyMode(true); updateTiles(); trip.stage = 'approach';
+    setTimeout(() => { $('transit').hidden = true; paused = false; show(`Welcome to ${cityName(trip.to)}`, 'The runway is straight ahead. Come down gently (S), slow down (Space) and land to get paid!', 5); }, 1300);
+  }, 700);
+}
+function finishTrip() {
+  const P = plane, rw = curRunway(), onRw = Math.abs(P.z - rw.z) < 45 && Math.abs(P.x - rw.x) < rw.len / 2 + 100, smooth = trip.touchVy > -3;
+  let total = trip.pax * trip.price; if (!onRw) total = Math.round(total / 2); else if (smooth) total = Math.round(total * 1.1);
+  earn(total, true);
+  show(`+€${total}`, `${trip.pax} passenger${trip.pax > 1 ? 's' : ''} × €${trip.price}${!onRw ? ': half price, you landed off the runway!' : smooth ? ' + 10% for a super-smooth landing' : ''}. Press J to sell more tickets.`, 5.5);
+  trip = null;
+}
+function tripTick(alt) {
+  const P = plane;
+  if (trip.stage === 'climb' && !P.ground && alt > 300) startLeg();
+  else if (trip.stage === 'approach' && P.ground && P.v < 3) finishTrip();
+}
+function tripNote(alt) {
+  const P = plane, nm = cityName(trip.to);
+  if (trip.stage === 'climb') return P.ground ? `🎫 ${trip.pax} passengers to ${nm}: take off!` : `🎫 Climb to 300 m for ${nm} (${Math.round(alt)} m)`;
+  if (trip.stage !== 'approach') return '';
+  if (P.ground) return P.v < 3 ? '' : '🎫 Hold Space to stop and get paid';
+  const rw = curRunway(), dir = rw.x > 0 ? 1 : -1, tx = rw.x - dir * rw.len / 2, dist = Math.hypot(tx - P.x, rw.z - P.z), da = angDiff(P.h, Math.atan2(rw.x - P.x, rw.z - P.z));
+  return `🎫 Runway ${dist > 1000 ? (dist / 1000).toFixed(1) + ' km' : Math.round(dist) + ' m'} · ${Math.abs(da) > .1 ? (da > 0 ? '◀ turn left' : 'turn right ▶') : 'lined up ✓'}`;
 }
 
 /* ---------- departures board ---------- */
@@ -4802,26 +4938,30 @@ function openAirport() {
   const dest = [['bcn', 'Fly around Barcelona', 'Take off from El Prat and fly over the whole city, the mountain and the sea.'], ...Object.entries(WORLDS).map(([id, W]) => [id, W.name, W.sub])];
   $('apDest').innerHTML = dest.map(([id, n, sub]) => `<div class="card${(AWAY ? AWAY.id : (plane.on ? 'bcn' : '')) === id ? ' sel' : ''}"><img class="pic" src="${postcard(id)}" alt=""><h3>${n}</h3><div class="tag">${sub}</div><button class="go" data-fly="${id}">${AWAY && AWAY.id === id ? 'Back to the runway' : 'Fly there'} ✈</button></div>`).join('')
     + (AWAY || plane.on ? `<div class="card"><h3>Walk into El Prat</h3><div class="tag">Land back at Barcelona airport and walk out of the terminal to your car.</div><button class="go" data-fly="home">Go home</button></div>` : '');
+  { const from = AWAY ? AWAY.id : 'bcn', S = PLANES[fishLog.plane], avg = Math.max(1, Math.round(S.seats * .87));
+    $('tkLead').textContent = S.seats > 3 ? `Your ${S.name} has ${S.seats} seats. Sell tickets, take off, fly them there and land on the runway to get paid.` : `Your ${S.name} only has ${S.seats} seat${S.seats > 1 ? 's' : ''}. Buy the Airbus A380 to carry 500 passengers at once!`;
+    $('apTickets').innerHTML = ['bcn', ...Object.keys(WORLDS)].filter(id => id !== from).map(id => `<div class="card"><img class="pic" src="${postcard(id)}" alt=""><h3>${cityName(from)} → ${cityName(id)}</h3><div class="tag">€${TICKET[id]} a ticket · about ${avg} passenger${avg > 1 ? 's' : ''} · about €${(avg * TICKET[id]).toLocaleString()}</div><button class="go" data-ticket="${id}">Sell tickets 🎫</button></div>`).join(''); }
   $('apPlanes').innerHTML = PLANES.map((p, k) => {
     const own = fishLog.own.plane.includes(k), using = fishLog.plane === k;
     const btn = using ? `<button class="go" disabled>✓ Flying this</button>` : own ? `<button class="go" data-plane="${k}">Fly this one</button>` : `<button class="go${money < p.price ? ' poor' : ''}" data-plane="${k}">Buy · €${p.price}</button>`;
-    return `<div class="card${using ? ' sel' : ''}"><img class="pic" src="${itemPic('plane', k)}" alt=""><h3>${p.name}</h3><div class="tag">${p.desc}</div><div class="stat">Top speed<i style="--w:${p.vmax / 250 * 100}%"></i><b>${Math.round(p.vmax * 3.6)} km/h</b></div><div class="stat">Agility<i style="--w:${p.rr / 4.8 * 100}%"></i><b>${Math.round(p.rr * 20)}</b></div>${btn}</div>`;
+    return `<div class="card${using ? ' sel' : ''}"><img class="pic" src="${itemPic('plane', k)}" alt=""><h3>${p.name}</h3><div class="tag">${p.desc}</div><div class="stat">Top speed<i style="--w:${p.vmax / 250 * 100}%"></i><b>${Math.round(p.vmax * 3.6)} km/h</b></div><div class="stat">Agility<i style="--w:${p.rr / 4.8 * 100}%"></i><b>${Math.round(p.rr * 20)}</b></div><div class="stat">Seats<i style="--w:${Math.min(100, p.seats / 5)}%"></i><b>${p.seats}</b></div>${btn}</div>`;
   }).join('');
   $('apNote').hidden = true;
 }
 function flyTo(id) {
-  closeAll();
+  closeAll(); trip = null;
   if (id === 'home') { goHome(); clearForFlight(); flyMode(false); plane.on = false; planeStart(false); if (!foot.p) buildWalker(); foot.x = DESK.x; foot.z = DESK.z - 3; foot.h = Math.PI; foot.y = walkY(foot.x, foot.z); foot.on = true; scene.add(foot.p.root); $('footT').textContent = 'Get in'; cam.fh = cam.fx = cam.fz = cam.fy = undefined; show('Welcome home!', 'Your car is in the car park next to the terminal.', 3); return; }
   const name = id === 'bcn' ? 'Barcelona' : WORLDS[id].name;
   $('transitT').textContent = `Flying to ${name}…`; $('transit').hidden = false; paused = true;
   setTimeout(() => {
     clearForFlight();
-    if (id === 'bcn') goHome(); else { const W = buildWorld(id); W.id = id; AWAY = W; W.scene.add(plane.g); $('mapWrap').hidden = true; camera.far = 16000; camera.updateProjectionMatrix(); }
+    enterWorld(id);
     planeStart(true); flyMode(true); updateTiles();
     setTimeout(() => { $('transit').hidden = true; paused = false; show(name, IS_TOUCH ? 'GAS to climb when you are fast enough. Arrows turn.' : 'Your plane speeds up by itself. Hold W to take off, A/D to turn, J for departures.', 4); }, 1300);
   }, 700);
 }
 function goHome() { if (!AWAY) return; AWAY = null; camera.far = 7000; camera.updateProjectionMatrix(); scene.add(plane.g); $('mapWrap').hidden = false; $('plaque').hidden = true; }
+$('apTickets').addEventListener('click', e => { const b = e.target.closest('[data-ticket]'); if (b) sellTickets(b.dataset.ticket); });
 $('apDest').addEventListener('click', e => { const b = e.target.closest('[data-fly]'); if (b) flyTo(b.dataset.fly); });
 $('apPlanes').addEventListener('click', e => {
   const b = e.target.closest('[data-plane]'); if (!b) return; const k = +b.dataset.plane, p = PLANES[k];
@@ -4957,6 +5097,7 @@ function teleport(go, label, sub) {
   let note = '';
   if (AWAY) goHome();
   if (plane.on) { flyMode(false); planeStart(false); }
+  trip = null;
   if (M) { finishMission(false, 'Mission abandoned.'); note = 'Mission cancelled. '; }
   if (police.state !== 'off' || police.arrest) endChase();
   if (foot.inside) exitDoor();
@@ -5209,7 +5350,7 @@ function loop() {
     syncVis(a.vis, a.x, a.z, a.h, a.spin, 0, a.police ? groundH(a.x, a.z) : 0);
     if (a.vis.lightbar) { const on = Math.floor(performance.now() / 160) % 2; a.vis.lightbar[0].emissiveIntensity = on ? 3 : .1; a.vis.lightbar[1].emissiveIntensity = on ? .1 : 3; }
   }
-  if (!paused) updatePeds(dt, false);
+  if (!paused && !plane.on) updatePeds(dt, false);
   if (room) updateRoom(dt);
   { const under = camera.position.y < -.15 && !foot.inside; setUnderwater(under); UW.visible = !!foot.swim || under;
     if (UW.visible) { updateSea(dt, foot.swim ? foot : null); updateUnderwaterFx(dt, foot.swim ? foot : null); } }
@@ -5333,7 +5474,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
