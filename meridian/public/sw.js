@@ -1,6 +1,6 @@
 // Paths are relative so the app works at a domain root or in a sub-folder (GitHub Pages).
 // Offline shell: static assets are cached, API calls always go to the network.
-const CACHE = 'meridian-v10';
+const CACHE = 'meridian-v11';
 const SHELL = [
   './', './index.html', './css/app.css', './icon.svg', './manifest.webmanifest',
   './js/app.js', './js/data/store.js', './js/data/demo.js', './js/data/demo-runs.js', './js/analysis/runs.js', './js/analysis/body.js', './js/analysis/plan.js', './js/data/schema.js',

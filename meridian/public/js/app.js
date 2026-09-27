@@ -19,6 +19,9 @@ const dateLong = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB'
 const dateShort = (iso) => new Date(iso).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 const timeOf = (iso) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 
+// Shown in the profile sheet so you can check which version your phone is running.
+const APP_VERSION = '1.11 · Strava';
+
 let A = null;        // current analysis
 let STATUS = {};     // server capabilities
 
@@ -1066,7 +1069,8 @@ const SHEETS = {
       <div style="margin-top:12px">
         <button class="btn secondary" data-action="redo">Redo coach setup</button>
         <button class="btn secondary" data-action="clear">Clear coach conversation</button>
-      </div>`;
+      </div>
+      <p class="foot">Meridian ${APP_VERSION}</p>`;
   },
 };
 
