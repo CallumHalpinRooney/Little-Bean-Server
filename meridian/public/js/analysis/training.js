@@ -8,6 +8,7 @@ export const TYPE_LABEL = {
 
 // Banister TRIMP: minutes × HR reserve fraction × sex-specific exponential weighting.
 export function trimp(w, { restHr, maxHeart, sex }) {
+  if (!Number.isFinite(w.avgHr)) return 0; // no heart rate recorded, no load estimate
   const hrr = clamp((w.avgHr - restHr) / (maxHeart - restHr), 0, 1);
   const [a, b] = sex === 'female' ? [0.86, 1.67] : [0.64, 1.92];
   return (w.durationS / 60) * hrr * a * Math.exp(b * hrr);
@@ -15,9 +16,22 @@ export function trimp(w, { restHr, maxHeart, sex }) {
 
 // Health Kit doesn't expose time-in-zone for every workout. When it's missing, place the
 // session in the zone its average heart rate falls in, which is coarse but unbiased.
+const zoneOf = (hr, restHr, maxHeart) => {
+  const hrr = (hr - restHr) / (maxHeart - restHr);
+  return hrr < 0.5 ? 0 : hrr < 0.7 ? 1 : hrr < 0.8 ? 2 : hrr < 0.9 ? 3 : 4;
+};
+
 export function zonesOf(w, { restHr, maxHeart }) {
   const total = (w.zones ?? []).reduce((a, b) => a + b, 0);
   if (total > 0) return w.zones;
+  // A heart-rate series (e.g. from Strava) gives real time-in-zone.
+  const pts = (w.series ?? []).filter((p) => Number.isFinite(p.hr));
+  if (pts.length >= 3) {
+    const z = [0, 0, 0, 0, 0], dt = w.durationS / w.series.length;
+    for (const p of pts) z[zoneOf(p.hr, restHr, maxHeart)] += dt;
+    return z.map(Math.round);
+  }
+  if (!Number.isFinite(w.avgHr)) return [0, 0, 0, 0, 0];
   const hrr = (w.avgHr - restHr) / (maxHeart - restHr);
   const z = hrr < 0.5 ? 0 : hrr < 0.7 ? 1 : hrr < 0.8 ? 2 : hrr < 0.9 ? 3 : 4;
   return [0, 1, 2, 3, 4].map((i) => (i === z ? w.durationS : 0));

@@ -4,7 +4,7 @@ import { EXPERIMENTS } from './analysis/discover.js';
 import { trimp, TYPE_LABEL, RUN_TYPES, paceStr, durStr } from './analysis/training.js';
 import { mean, last } from './analysis/stats.js';
 import { sparkline, hypnogram, bandLine, bars, intraday, runProfile } from './ui/charts.js';
-import { runsOf, compareRun, thirds, recovery, context, formTrend, RUN_TAGS, FORM_GUIDE, fmtPace } from './analysis/runs.js';
+import { runsOf, compareRun, thirds, recovery, context, formTrend, formNeedsWork, RUN_TAGS, FORM_GUIDE, fmtPace } from './analysis/runs.js';
 import { AREAS, parseSymptoms, explainSymptom, activeSymptoms } from './analysis/body.js';
 import { currentVdot, paces, assessGoal, weekPlan, predictSeconds, fmtTime, DISTANCES } from './analysis/plan.js';
 import { icons, workoutIcon } from './ui/icons.js';
@@ -65,6 +65,12 @@ async function boot() {
     if (pendingAsk && document.body.dataset.route === 'coach' && onboarded()) { const q = pendingAsk; pendingAsk = null; send(q); }
   });
   document.addEventListener('click', onClick);
+  // Back from Strava's sign-in page: say how it went, then tidy the address bar.
+  const stravaResult = new URLSearchParams(location.search).get('strava');
+  if (stravaResult) {
+    history.replaceState(null, '', location.pathname + location.hash);
+    setTimeout(() => note(stravaResult === 'connected' ? 'Strava connected. Your runs are in.' : stravaResult === 'cancelled' ? 'Strava connection cancelled.' : stravaResult), 400);
+  }
   // Hide the bottom bars while the on-screen keyboard is up (any text field focused).
   const typing = (on) => document.body.classList.toggle('typing', on);
   document.addEventListener('focusin', (e) => typing(e.target.matches('input:not([type=file]), textarea, select')));
@@ -134,7 +140,7 @@ const delta = (v, base, unit, { lowerBetter = false, digits = 0 } = {}) => {
 function sourceLine() {
   const d = A.data;
   const src = d.source === 'huawei' ? 'Live from Huawei Health' : d.source === 'import' ? 'Imported file' : 'Demo data';
-  return `${esc(d.device?.model ?? 'Watch')} · synced ${d.device?.lastSync ? timeOf(d.device.lastSync) : '—'} · ${src}`;
+  return `${esc(d.device?.model ?? 'Watch')} · synced ${d.device?.lastSync ? timeOf(d.device.lastSync) : '—'} · ${src}${d.workoutSource === 'strava' ? ' · workouts from Strava' : ''}`;
 }
 
 // ——— Today ———
@@ -398,6 +404,27 @@ const workoutRow = (w) => {
       </div></${Tag}>`;
 };
 
+// ——— Strava ———
+function stravaCard({ compact = false } = {}) {
+  const st = STATUS.strava;
+  if (st?.connected) {
+    const when = st.lastSync ? `synced ${timeOf(st.lastSync)}` : 'syncing…';
+    return `<div class="card strava-on"><div style="display:flex;align-items:center;gap:12px">
+      <span class="strava-mark" aria-hidden="true">S</span>
+      <div style="flex:1;min-width:0"><h3>Strava connected</h3><div class="sub">${st.athlete ? `${esc(st.athlete)} · ` : ''}${st.workouts} workouts · ${when}</div></div>
+      <button class="chip" data-action="strava-sync">Sync</button></div>
+      ${compact ? '' : '<button class="done" data-action="strava-disconnect" style="font-size:13px;margin-top:12px">Disconnect Strava</button>'}</div>`;
+  }
+  const why = 'Huawei Health can send every workout to Strava (Huawei Health → Me → Data sharing and authorisation → Strava). Connect it here and your real runs replace the demo ones.';
+  if (st?.configured) {
+    return `<div class="card"><h3>Bring in your real runs</h3><p class="sub" style="margin:6px 0 14px;line-height:1.5">${why}</p>
+      <a class="btn strava" href="api/strava/login">Connect with Strava</a></div>`;
+  }
+  return `<div class="card"><h3>Bring in your real runs</h3><p class="sub" style="margin:6px 0 0;line-height:1.5">${why} ${STATUS.server
+    ? 'To switch this on, add your Strava API app’s STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET to the server.'
+    : 'Strava needs the Meridian server, so open the app from your server’s address rather than this copy.'}</p></div>`;
+}
+
 // ——— Runs: body check-in, form trend, every run ———
 function trainRuns() {
   const runs = runsOf(A.data);
@@ -413,7 +440,8 @@ function trainRuns() {
       <div class="right">${sparkline(r.series, { color: worse ? 'var(--bad)' : 'var(--mint)' })}</div></div>`;
   };
   return `
-  <form class="card" id="checkin" style="margin-bottom:12px">
+  ${stravaCard({ compact: true })}
+  <form class="card" id="checkin" style="margin:12px 0">
     <div class="card-title" style="margin:0 0 10px">How’s your body?</div>
     <div class="ask" style="background:var(--bg-elev)"><input name="t" placeholder="e.g. I have a sore lower back" autocomplete="off" aria-label="Describe how you feel"><button type="submit" aria-label="Check">${icons.send.replace('<svg', '<svg width="18" height="18"')}</button></div>
     <div class="chip-row" style="margin-top:12px">${Object.entries(AREAS).map(([k, a]) => `<button type="button" class="chip" data-action="symptom" data-area="${k}">${a.label}</button>`).join('')}</div>
@@ -436,7 +464,8 @@ function trainRuns() {
   <p class="foot">Balance within 49–51% is even. Oscillation under ~10 cm and cadence around 165–185 are typical of efficient runners.</p>` : ''}
 
   <h2>All runs <span class="more">${runs.length}</span></h2>
-  <div class="list">${[...runs].reverse().slice(0, 30).map(workoutRow).join('')}</div>`;
+  <div class="list">${[...runs].reverse().slice(0, 30).map(workoutRow).join('')}</div>
+  ${A.data.workoutSource === 'strava' ? '<p class="foot">Workouts powered by Strava</p>' : ''}`;
 }
 
 // ——— A single run ———
@@ -475,14 +504,13 @@ function viewRun(id) {
   </div>
   <p class="foot">Mint is better than your usual, coral is worse. Pace is effort-adjusted: each metre climbed counts as 7 m on the flat.</p>
 
-  ${th ? `<h2>Form through the run</h2>
+  ${th && formRows(th).length ? `<h2>Form through the run</h2>
   <div class="card" style="padding:16px 18px">
     <div class="stats" style="grid-template-columns:1.3fr repeat(3,1fr);border:0;padding:0;margin:0;row-gap:12px">
       <div class="stat"><div class="l"> </div></div><div class="stat"><div class="l">Start</div></div><div class="stat"><div class="l">Middle</div></div><div class="stat"><div class="l">End</div></div>
-      ${[['Cadence', 'cadence', (v) => Math.round(v), 'spm'], ['Bounce', 'vo', (v) => v.toFixed(1), 'cm'], ['Balance', 'bal', (v) => v.toFixed(1), '%L'], ['Contact', 'gct', (v) => Math.round(v), 'ms']]
-        .map(([l, k, f, u]) => `<div class="stat"><div class="l">${l}</div></div>${th[k].map((v) => `<div class="stat"><div class="n num" style="font-size:15px">${f(v)}<small>${u}</small></div></div>`).join('')}`).join('')}
+      ${formRows(th).map(([l, k, f, u]) => `<div class="stat"><div class="l">${l}</div></div>${th[k].map((v) => `<div class="stat"><div class="n num" style="font-size:15px">${Number.isFinite(v) ? `${f(v)}<small>${u}</small>` : '–'}</div></div>`).join('')}`).join('')}
     </div>
-    <p class="sub" style="margin:14px 0 0">${th.voFade >= 0.6 || th.cadFade <= -3
+    <p class="sub" style="margin:14px 0 0">${!Number.isFinite(th.voFade) ? (run.source === 'strava' ? 'Bounce, contact time and balance aren’t available from Strava.' : '') : th.voFade >= 0.6 || th.cadFade <= -3
       ? `Your form faded as you tired: bounce up ${th.voFade.toFixed(1)} cm and cadence ${th.cadFade <= -1 ? `down ${Math.round(-th.cadFade)} spm` : 'held'} in the final third. Core and glute endurance is the fix, not more running.`
       : 'Your form held up well to the end.'}</p>
   </div>` : ''}
@@ -514,6 +542,10 @@ function viewRun(id) {
   </div>
   ${askBox(`Why did this ${TYPE_LABEL[run.type]?.toLowerCase() ?? 'run'} on ${shortDate(run.start.slice(0, 10))} go the way it did?`, { run: run.id })}`;
 }
+
+// Rows of the form table that this run actually measured.
+const formRows = (th) => [['Cadence', 'cadence', (v) => Math.round(v), 'spm'], ['Bounce', 'vo', (v) => v.toFixed(1), 'cm'], ['Balance', 'bal', (v) => v.toFixed(1), '%L'], ['Contact', 'gct', (v) => Math.round(v), 'ms'], ['Heart rate', 'hr', (v) => Math.round(v), '']]
+  .filter(([, k]) => th[k].some(Number.isFinite));
 
 const ordinal = (n) => `${n}${[, 'st', 'nd', 'rd'][n % 100 >> 3 ^ 1 && n % 10] || 'th'}`;
 
@@ -555,16 +587,16 @@ function trainPlan() {
   const g = assessGoal(goal, v.vdot, A.data.today);
   const symptoms = activeSymptoms(getSymptoms().filter((x) => !x.resolved), A.data.today);
   const ft = formTrend(runsOf(A.data));
-  const formIssue = ft && (Math.abs(ft.balanceL.now - 50) > 1.2 || ft.voCm.now > 9.5 || ft.cadence.now < 165);
+  const formIssue = formNeedsWork(ft);
   const plan = weekPlan({ data: A.data, training: A.training, readiness: A.readiness, goal, vdot: v.vdot, symptoms, form: formIssue });
   const P = paces(v.vdot, A.training.maxHeart, A.training.restHr);
   const totalWeeks = plan.phases.reduce((a, p) => a + p.weeks, 0);
   const tone = { 'Already in reach': 'good', Realistic: 'good', Ambitious: 'warn', Stretch: 'bad' }[g.label];
 
   const strength = [];
-  if (symptoms.some((x) => x.areas.includes('back')) || (ft && ft.voCm.now > 9.5)) strength.push(['Core: curl-up, side plank, bird-dog', '3 rounds, daily while your back is sore']);
-  if (ft && Math.abs(ft.balanceL.now - 50) > 1.2) strength.push([`Single-leg work, ${ft.balanceL.now > 50 ? 'right' : 'left'} side first`, 'Split squats, single-leg RDLs, step-ups · 3 × 8, extra set on the weaker side']);
-  if (ft && ft.cadence.now < 165) strength.push(['Cadence drills', `Easy runs with a metronome at ${Math.round(ft.cadence.now * 1.05)} spm for 4 × 1 min`]);
+  if (symptoms.some((x) => x.areas.includes('back')) || ft?.voCm?.now > 9.5) strength.push(['Core: curl-up, side plank, bird-dog', '3 rounds, daily while your back is sore']);
+  if (ft?.balanceL && Math.abs(ft.balanceL.now - 50) > 1.2) strength.push([`Single-leg work, ${ft.balanceL.now > 50 ? 'right' : 'left'} side first`, 'Split squats, single-leg RDLs, step-ups · 3 × 8, extra set on the weaker side']);
+  if (ft?.cadence?.now < 165) strength.push(['Cadence drills', `Easy runs with a metronome at ${Math.round(ft.cadence.now * 1.05)} spm for 4 × 1 min`]);
   strength.push(['Calves and feet', 'Slow heel raises, straight and bent knee · 3 × 15']);
   strength.push(['Hips', 'Glute bridges and banded side steps · 3 × 12']);
 
@@ -897,6 +929,17 @@ function maybeBrief() {
   send({ kind: 'briefing' });
 }
 
+// A short message at the top of the screen.
+function note(text) {
+  const n = document.createElement('div');
+  n.className = 'toast';
+  n.setAttribute('role', 'status');
+  n.textContent = text;
+  document.body.append(n);
+  setTimeout(() => n.classList.add('out'), 3800);
+  setTimeout(() => n.remove(), 4300);
+}
+
 // ——— Sheets ———
 function openSheet(html) {
   closeSheet(true);
@@ -1009,6 +1052,7 @@ const SHEETS = {
             ? `<button class="btn secondary" data-action="sync">Sync now</button><button class="btn secondary" data-action="disconnect">Disconnect Huawei Health</button>`
             : `<a class="btn" href="api/huawei/login" style="text-decoration:none">Connect Huawei Health</a>`
           : `<div class="card"><h3>Connect Huawei Health</h3><p class="sub" style="margin:6px 0 0;line-height:1.45">${STATUS.server === false ? 'Run the Meridian server to connect your watch.' : 'Add your Huawei Health Kit app credentials to the server (HUAWEI_CLIENT_ID and HUAWEI_CLIENT_SECRET).'} See the README for the 10-minute setup.</p></div>`}
+        <div style="margin-top:10px">${stravaCard()}</div>
         <label class="btn secondary" style="cursor:pointer;margin-top:10px">Import data file<input type="file" accept="application/json,.json" data-action="import" hidden></label>
         <button class="btn secondary" data-action="use-demo">Use demo data</button>
       </div>
@@ -1073,6 +1117,15 @@ async function onClick(e) {
   }
   const a = el.dataset.action;
   if (a === 'close') closeSheet();
+  if (a === 'strava-sync' || a === 'strava-disconnect') {
+    el.disabled = true;
+    el.textContent = a === 'strava-sync' ? 'Syncing…' : 'Disconnecting…';
+    const r = await fetch(a === 'strava-sync' ? 'api/strava/sync' : 'api/strava/logout', { method: 'POST' }).catch(() => null);
+    if (!r?.ok) note((await r?.json().catch(() => null))?.error ?? 'Couldn’t reach Strava. Try again shortly.');
+    STATUS = await serverStatus();
+    closeSheet();
+    return reload();
+  }
   if (a === 'brief') send({ kind: 'briefing' });
   if (a === 'forget') { athlete.facts.splice(+el.dataset.i, 1); write(K.athlete, athlete); closeSheet(); }
   if (a === 'redo') { setup = {}; athlete = null; write(K.setup, {}); forget(K.athlete); closeSheet(); location.hash = '#coach'; render(); }

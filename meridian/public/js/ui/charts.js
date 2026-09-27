@@ -119,7 +119,9 @@ export function runProfile(series, { w = 340, h = 150 } = {}) {
   const n = series.length;
   if (n < 3) return '';
   const x = (i) => esc((i / (n - 1)) * w);
-  const el = series.map((p) => p.elev), hr = series.map((p) => p.hr);
+  // Carry the last known value across gaps (pauses, a sensor dropping out).
+  const fill = (key) => { let prev = series.find((p) => Number.isFinite(p[key]))?.[key] ?? 0; return series.map((p) => (Number.isFinite(p[key]) ? (prev = p[key]) : prev)); };
+  const el = fill('elev'), hr = fill('hr');
   const eLo = Math.min(...el), eHi = Math.max(...el), eSpan = Math.max(20, eHi - eLo);
   const ey = (e) => esc(h - 4 - ((e - eLo) / eSpan) * h * 0.38);
   const hLo = Math.min(...hr) - 4, hHi = Math.max(...hr) + 4;

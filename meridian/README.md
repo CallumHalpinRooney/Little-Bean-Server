@@ -80,6 +80,17 @@ The passcode stops anyone who finds the URL from spending your API credits. Ther
 
 The coach uses `claude-opus-5`. A typical question runs 2–3 tool rounds, costing roughly **$0.10–0.30**. A daily briefing plus a few questions a day comes to about **$10–25 a month**. The prompt and tools are cached between rounds to keep this down. For lower cost, change `MODEL` in `server/coach.js` to `claude-sonnet-5`, at some loss of reasoning quality.
 
+## Connecting Strava (quickest way to get your real runs in)
+
+Huawei Health can send every workout to Strava automatically, and Strava's API is free for personal apps with no approval wait.
+
+1. **In Huawei Health on your phone:** Me → Data sharing and authorisation → Strava → connect. Your watch workouts now appear in Strava.
+2. **Create a Strava API app** at [strava.com/settings/api](https://www.strava.com/settings/api). Use any name, set **Authorization Callback Domain** to your server's domain (e.g. `meridian.onrender.com`, or `localhost` for testing), and copy the **Client ID** and **Client Secret**.
+3. **Put them on the server** as `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` (Render asks for them; `render.yaml` lists them).
+4. **In Meridian:** Training → Runs → **Connect with Strava**, then approve.
+
+The first sync brings in 120 days of activities and second-by-second heart rate, pace, altitude and cadence for up to 60 recent runs and walks. These are cached, so later syncs only fetch what's new. The app re-syncs in the background when data is over an hour old, and there's a **Sync** button. Strava's workouts replace the demo ones in Training, the run pages, recovery, the plan and the coach. Strava has no sleep, HRV or running-form data (oscillation, contact time, balance), so those keep coming from the demo data until Huawei Health Kit is connected.
+
 ## Connecting your GT 6 Pro
 
 ```

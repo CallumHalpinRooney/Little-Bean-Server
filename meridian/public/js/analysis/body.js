@@ -41,31 +41,31 @@ function evidence(data, training, sleep) {
     fadeNow: fade(recent), fadeBefore: fade(before),
     climbNow: climbPerKm(recent), climbBefore: climbPerKm(before),
     km2, kmPrev, acwr: training.acwr, hardShare: training.distribution.hard,
-    debt: sleep.debtMin, since: ft ? new Date(`${ft.balanceL.since}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '',
+    debt: sleep.debtMin, since: ft ? new Date(`${Object.values(ft)[0].since}T12:00:00`).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : '',
   };
 }
 
 // Reusable findings. Each returns null when the data doesn't support it.
 const F = {
-  balance: (e) => e.ft && Math.abs(e.ft.balanceL.now - 50) - Math.abs(e.ft.balanceL.before - 50) >= 1 && {
+  balance: (e) => e.ft?.balanceL && Math.abs(e.ft.balanceL.now - 50) - Math.abs(e.ft.balanceL.before - 50) >= 1 && {
     metric: 'Left / right balance', from: `${f1(e.ft.balanceL.before)}% L`, to: `${f1(e.ft.balanceL.now)}% L`,
     title: `You’re favouring your ${e.ft.balanceL.now > 50 ? 'left' : 'right'} side`,
     why: `Since ${e.since}, ${f1(e.ft.balanceL.now)}% of your ground contact is on the ${e.ft.balanceL.now > 50 ? 'left' : 'right'} foot, up from ${f1(e.ft.balanceL.before)}%. A shift this size is a classic sign of protecting one side, often the opposite side of the lower back or pelvis.`,
     strength: Math.abs(e.ft.balanceL.delta) * 1.5,
   },
-  bounce: (e) => e.ft && e.ft.voCm.delta >= 0.5 && {
+  bounce: (e) => e.ft?.voCm && e.ft.voCm.delta >= 0.5 && {
     metric: 'Vertical oscillation', from: `${f1(e.ft.voCm.before)} cm`, to: `${f1(e.ft.voCm.now)} cm`,
     title: 'You’re bouncing more',
     why: `Each stride now lifts you ${f1(e.ft.voCm.delta)} cm more. More vertical travel means a harder landing, and that impact goes through your spine about 160 times a minute.`,
     strength: e.ft.voCm.delta,
   },
-  cadence: (e) => e.ft && e.ft.cadence.delta <= -3 && {
+  cadence: (e) => e.ft?.cadence && e.ft.cadence.delta <= -3 && {
     metric: 'Cadence', from: `${Math.round(e.ft.cadence.before)} spm`, to: `${Math.round(e.ft.cadence.now)} spm`,
     title: 'Fewer, longer steps',
     why: `Cadence dropped ${Math.round(-e.ft.cadence.delta)} steps/min. Lower cadence usually means reaching out in front (overstriding), which brakes each step and loads the joints and lower back.`,
     strength: -e.ft.cadence.delta / 3,
   },
-  contact: (e) => e.ft && e.ft.gctMs.delta >= 10 && {
+  contact: (e) => e.ft?.gctMs && e.ft.gctMs.delta >= 10 && {
     metric: 'Ground contact', from: `${Math.round(e.ft.gctMs.before)} ms`, to: `${Math.round(e.ft.gctMs.now)} ms`,
     title: 'Slower, stiffer steps',
     why: `Your feet stay on the ground ${Math.round(e.ft.gctMs.delta)} ms longer each step. That usually shows stiffness or pain: the stride has lost its spring.`,

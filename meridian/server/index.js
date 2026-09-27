@@ -6,6 +6,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHuawei } from './huawei.js';
+import { createStrava } from './strava.js';
 import { timingSafeEqual } from 'node:crypto';
 import { coach } from './coach.js';
 import { buildDemo } from '../public/js/data/demo.js';
@@ -33,6 +34,24 @@ const PUBLIC = path.join(here, '..', 'public');
 const PORT = Number(process.env.PORT) || 5173;
 // Render sets RENDER_EXTERNAL_URL; BASE_URL overrides it anywhere else.
 const BASE_URL = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+
+const strava = createStrava({
+  dataDir: path.join(here, '..', '.data'),
+  clientId: process.env.STRAVA_CLIENT_ID,
+  clientSecret: process.env.STRAVA_CLIENT_SECRET,
+  redirectUri: `${BASE_URL}/api/strava/callback`,
+});
+
+// The coach sees the same data as the screens: Huawei (or demo) days, with Strava's
+// workouts in place of the demo ones once Strava is connected.
+async function loadCoachData() {
+  const data = (await huawei.connected()) ? structuredClone(await huawei.cached()) : buildDemo();
+  if ((await strava.status()).connected) {
+    const s = await strava.workouts().catch(() => null);
+    if (s?.workouts?.length) { data.workouts = s.workouts; data.workoutSource = 'strava'; }
+  }
+  return data;
+}
 
 const huawei = createHuawei({
   dataDir: path.join(here, '..', '.data'),
@@ -85,8 +104,25 @@ const server = http.createServer(async (req, res) => {
         coach: coachEnabled(),
         locked: Boolean(PASSCODE),
         huawei: { configured: huawei.configured, connected: await huawei.connected() },
+        strava: await strava.status(),
       });
     }
+    if (p === '/api/strava/login') {
+      if (!strava.configured) return json(res, 400, { error: 'Set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET on the server first.' });
+      return res.writeHead(302, { location: strava.loginUrl() }).end();
+    }
+    if (p === '/api/strava/callback') {
+      const back = (msg) => res.writeHead(302, { location: `/?strava=${encodeURIComponent(msg || 'connected')}#fitness/runs` }).end();
+      if (url.searchParams.get('error')) return back('cancelled');
+      try {
+        await strava.callback({ code: url.searchParams.get('code'), state: url.searchParams.get('state'), scope: url.searchParams.get('scope') });
+        await strava.sync();
+        return back();
+      } catch (err) { return back(err.message); }
+    }
+    if (p === '/api/strava/workouts' && req.method === 'GET') return json(res, 200, await strava.workouts());
+    if (p === '/api/strava/sync' && req.method === 'POST') { const r = await strava.sync(); return json(res, 200, { ok: true, workouts: r.workouts.length, lastSync: r.lastSync }); }
+    if (p === '/api/strava/logout' && req.method === 'POST') { await strava.logout(); return json(res, 200, { ok: true }); }
     if (p === '/api/huawei/login') {
       if (!huawei.configured) return json(res, 400, { error: 'Set HUAWEI_CLIENT_ID and HUAWEI_CLIENT_SECRET first.' });
       return res.writeHead(302, { location: huawei.loginUrl() }).end();
@@ -107,8 +143,7 @@ const server = http.createServer(async (req, res) => {
       if (!coachEnabled()) return json(res, 503, { error: 'Set ANTHROPIC_API_KEY on the server to turn the coach on.' });
       if (!passOk(req.headers['x-meridian-passcode'])) return json(res, 401, { error: 'Wrong passcode. Check it under You → Coach access.' });
       if (!rateOk(req.socket.remoteAddress)) return json(res, 429, { error: 'That’s a lot of questions. Try again in a few minutes.' });
-      const loadData = async () => ((await huawei.connected()) ? structuredClone(await huawei.cached()) : buildDemo());
-      return coach(req, res, await readBody(req), loadData);
+      return coach(req, res, await readBody(req), loadCoachData);
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Unknown endpoint' });
     return serveStatic(req, res, decodeURIComponent(p));
@@ -122,5 +157,6 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Meridian running at ${BASE_URL}`);
   console.log(`  Huawei Health Kit: ${huawei.configured ? 'configured' : 'not configured (demo data)'}`);
+  console.log(`  Strava: ${strava.configured ? 'configured' : 'not configured (set STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET)'}`);
   console.log(`  Coach: ${coachEnabled() ? `on${PASSCODE ? ' (passcode required)' : ''}` : 'off (set ANTHROPIC_API_KEY)'}`);
 });

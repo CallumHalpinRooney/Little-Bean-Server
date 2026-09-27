@@ -422,3 +422,15 @@ nav.tabs { width: min(448px, calc(100% - 32px - env(safe-area-inset-left) - env(
    button and let the message box sit right above the keyboard. */
 body.typing nav.tabs, body.typing .fab { display: none; }
 body.typing .composer { bottom: 0; padding-bottom: 10px; }
+
+/* ——— Strava ——— (brand orange only on the connect button, as Strava's guidelines ask) */
+.btn.strava { background: #fc5200; color: #fff; }
+.strava-mark { width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: #fc5200; color: #fff; font-weight: 700; flex: none; }
+.strava-on { border-color: rgba(252, 82, 0, .25); }
+.toast {
+  position: fixed; z-index: 40; left: 50%; top: calc(14px + env(safe-area-inset-top)); transform: translateX(-50%);
+  max-width: min(420px, calc(100% - 32px)); padding: 12px 16px; border-radius: 16px; font-size: 14px;
+  background: var(--bg-elev2); color: var(--label); border: 1px solid var(--border-strong); box-shadow: 0 12px 30px rgba(0, 0, 0, .5);
+  animation: rise .3s ease both; transition: opacity .4s;
+}
+.toast.out { opacity: 0; }
