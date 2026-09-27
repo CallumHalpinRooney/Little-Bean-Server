@@ -370,3 +370,55 @@ textarea#run-note { width: 100%; margin-top: 12px; background: var(--bg-elev); b
 .fab svg { width: 18px; height: 18px; }
 body:not([data-route="coach"]) .app { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
 .coach-card { background: linear-gradient(170deg, rgba(143, 229, 170, .08), var(--bg-card) 55%); border-color: rgba(143, 229, 170, .2); }
+
+/* ——— Fit every phone ———
+   Tested from a 240px-wide view (a 360px phone with the largest system text) up to tablets. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; background: var(--bg); }
+body { min-height: 100vh; min-height: 100dvh; overflow-x: hidden; }
+.app {
+  padding-left: max(16px, env(safe-area-inset-left));
+  padding-right: max(16px, env(safe-area-inset-right));
+}
+/* Grid tracks may shrink below their content's natural width; content wraps instead. */
+.tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.glance { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.stats.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.tile, .gl, .stat, .row > div, .card, .list, .insight > div { min-width: 0; }
+.tile .head { gap: 8px; }
+.tile .spark { flex: 0 1 64px; min-width: 0; }
+.hero-top { gap: 10px; flex-wrap: wrap; }
+.row .k, .tile .lab, .stat .l, .gl .l { overflow-wrap: anywhere; }
+.pill { white-space: normal; }
+/* iOS zooms into inputs with text under 16px; keep them at 16px. */
+input, select, textarea, .ask input, .field input, .field select, textarea#run-note { font-size: 16px; }
+
+@media (max-width: 340px) {
+  h1 { font-size: 24px; }
+  .big { font-size: 34px; }
+  .hero-num { font-size: 44px; }
+  .tiles { grid-template-columns: minmax(0, 1fr); }
+  .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); row-gap: 14px; }
+  .glance { gap: 6px; }
+  .gl { padding: 10px 8px; }
+  .gl .v { font-size: 18px; }
+  nav.tabs a { font-size: 9px; }
+  nav.tabs a svg { width: 20px; height: 20px; }
+  .fab span { display: none; }
+  .fab { padding: 14px; }
+}
+/* Very narrow run tables: the label column gives way. */
+@media (max-width: 300px) {
+  .card .stats[style*="1.3fr"] { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; }
+  .card .stats[style*="1.3fr"] > .stat:nth-child(4n + 1) { grid-column: 1 / -1; margin-top: 6px; }
+}
+
+/* Keep bars clear of the side notches in landscape. */
+nav.tabs { width: min(448px, calc(100% - 32px - env(safe-area-inset-left) - env(safe-area-inset-right))); }
+.composer { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+.sheet { padding-left: max(16px, env(safe-area-inset-left)); padding-right: max(16px, env(safe-area-inset-right)); }
+
+/* While typing, the keyboard owns the bottom of the screen: hide the tab bar and Coach
+   button and let the message box sit right above the keyboard. */
+body.typing nav.tabs, body.typing .fab { display: none; }
+body.typing .composer { bottom: 0; padding-bottom: 10px; }

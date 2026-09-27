@@ -65,6 +65,10 @@ async function boot() {
     if (pendingAsk && document.body.dataset.route === 'coach' && onboarded()) { const q = pendingAsk; pendingAsk = null; send(q); }
   });
   document.addEventListener('click', onClick);
+  // Hide the bottom bars while the on-screen keyboard is up (any text field focused).
+  const typing = (on) => document.body.classList.toggle('typing', on);
+  document.addEventListener('focusin', (e) => typing(e.target.matches('input:not([type=file]), textarea, select')));
+  document.addEventListener('focusout', () => setTimeout(() => typing(document.activeElement?.matches?.('input, textarea, select') ?? false), 50));
   render();
   // Inside claude.ai the coach uses your Claude account; it lights up after first paint.
   if (!STATUS.coach) getSampler().then((s) => { SAMPLE = s; if (s && document.body.dataset.route === 'coach') render({ keepScroll: true }); });
