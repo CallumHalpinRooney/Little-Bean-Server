@@ -26,8 +26,9 @@ export async function loadData() {
   const pref = read(K.source, 'auto');
   let data = null;
 
+  let status = null;
   if (pref !== 'demo') {
-    const status = await serverStatus();
+    status = await serverStatus();
     if (status.huawei?.connected) {
       try {
         const r = await fetch('api/huawei/data?days=120', { cache: 'no-store' });
@@ -37,6 +38,15 @@ export async function loadData() {
     if (!data) data = read(K.data);
   }
   if (!data) data = buildDemo();
+
+  // Strava replaces the demo's workouts with your real ones (daily metrics stay as they are).
+  if (pref !== 'demo' && status?.strava?.connected) {
+    try {
+      const r = await fetch('api/strava/workouts', { cache: 'no-store' });
+      const s = r.ok ? await r.json() : null;
+      if (s?.workouts?.length) { data.workouts = s.workouts; data.workoutSource = 'strava'; data.stravaSync = s.lastSync; }
+    } catch { /* keep what we have */ }
+  }
 
   const problems = validate(data);
   if (problems.length) {

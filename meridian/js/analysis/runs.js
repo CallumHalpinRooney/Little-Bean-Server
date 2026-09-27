@@ -218,15 +218,20 @@ export function context(run, data, notes = {}) {
 export const RUN_TAGS = ['Sore back', 'Tired legs', 'New shoes', 'Hot', 'Windy', 'After alcohol', 'Felt ill', 'Ate late', 'Felt great', 'Race'];
 
 // Form over time: latest three runs vs the six before, per metric.
+// Each metric is judged only on runs that measured it: Strava, for example, gives cadence
+// but not oscillation, contact time or balance. Metrics with too few runs are left out.
 export function formTrend(runs) {
-  const withDyn = runs.filter((r) => r.dynamics);
-  if (withDyn.length < 5) return null;
-  const recent = withDyn.slice(-3), before = withDyn.slice(-9, -3);
   const rows = ['balanceL', 'voCm', 'cadence', 'gctMs', 'vertRatio'].map((key) => {
+    const has = runs.filter((r) => Number.isFinite(r.dynamics?.[key]));
+    if (has.length < 5) return null;
+    const recent = has.slice(-3), before = has.slice(-9, -3);
     const a = mean(before.map((r) => r.dynamics[key])), b = mean(recent.map((r) => r.dynamics[key]));
-    return { key, before: a, now: b, delta: b - a, series: withDyn.slice(-12).map((r) => r.dynamics[key]), since: recent[0].start.slice(0, 10) };
-  });
-  return Object.fromEntries(rows.map((r) => [r.key, r]));
+    return { key, before: a, now: b, delta: b - a, series: has.slice(-12).map((r) => r.dynamics[key]), since: recent[0].start.slice(0, 10) };
+  }).filter(Boolean);
+  return rows.length ? Object.fromEntries(rows.map((r) => [r.key, r])) : null;
 }
+
+// Whether recent form suggests adding drills and strength work to the plan.
+export const formNeedsWork = (ft) => Boolean(ft && ((ft.balanceL && Math.abs(ft.balanceL.now - 50) > 1.2) || ft.voCm?.now > 9.5 || ft.cadence?.now < 165));
 
 export const clampPct = (v) => clamp(v, 0, 100);

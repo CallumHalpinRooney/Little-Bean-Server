@@ -5,7 +5,7 @@
 // Pure module: no network, no model. createToolbox(data, state) → { definitions, run }.
 
 import { analyse, hhmm, hm } from '../analysis/engine.js';
-import { runsOf, compareRun, thirds, recovery, context, formTrend, FORM_GUIDE, summary, fmtPace } from '../analysis/runs.js';
+import { runsOf, compareRun, thirds, recovery, context, formTrend, formNeedsWork, FORM_GUIDE, summary, fmtPace } from '../analysis/runs.js';
 import { AREAS, explainSymptom, activeSymptoms } from '../analysis/body.js';
 import { currentVdot, paces, assessGoal, weekPlan, predictSeconds, fmtTime, DISTANCES } from '../analysis/plan.js';
 import { last } from '../analysis/stats.js';
@@ -164,7 +164,7 @@ export function createToolbox(data, state = {}) {
     const v = currentVdot(data, A.training);
     const g = goal ? assessGoal(goal, v.vdot, data.today) : null;
     const ft = formTrend(runs);
-    const formIssue = !!ft && (Math.abs(ft.balanceL.now - 50) > 1.2 || ft.voCm.now > 9.5 || ft.cadence.now < 165);
+    const formIssue = formNeedsWork(ft);
     const plan = goal ? weekPlan({ data, training: A.training, readiness: A.readiness, goal, vdot: v.vdot, symptoms: symptoms(), form: formIssue }) : null;
     return {
       fitness: { vdot: v.vdot, watch_vo2max: v.watch, vo2max_from_recent_runs: v.runEst },
