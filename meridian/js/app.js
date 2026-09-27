@@ -12,6 +12,7 @@ import { bars, runProfile } from './ui/charts.js';
 import { icons, workoutIcon } from './ui/icons.js';
 import { STEPS, nextStep, questionText, toAthlete } from './ui/onboarding.js';
 import { renderMarkdown } from './ui/markdown.js';
+import { getSampler, askLocal, errorMessage } from './coach/local.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -30,6 +31,10 @@ let chat = read(K.chat, []);
 let athlete = read(K.athlete, null);
 let setup = read(K.setup, {});
 let busy = false;
+let pendingAsk = null; // a question asked from another tab, sent once the Coach tab is showing
+let SAMPLE = null;     // Claude via your own claude.ai account, when running as an Artifact
+// The coach is available through the Meridian server (API key) or your Claude account.
+const coachOn = () => Boolean(STATUS.coach || SAMPLE);
 
 const saveChat = () => { chat = chat.slice(-80); write(K.chat, chat); };
 const onboarded = () => Boolean(athlete);
@@ -47,9 +52,15 @@ async function boot() {
   STATUS = await serverStatus();
   A = analyse(await loadData());
   applyProfile();
-  window.addEventListener('hashchange', () => render());
+  window.addEventListener('hashchange', () => {
+    render();
+    if (pendingAsk && document.body.dataset.route === 'coach') { const q = pendingAsk; pendingAsk = null; send(q); }
+  });
   document.addEventListener('click', onClick);
   render();
+  // As a claude.ai Artifact, the coach uses your Claude account. It lights up once the
+  // viewer answers, which is always after first paint.
+  if (!STATUS.coach) getSampler().then((s) => { SAMPLE = s; if (s) render({ keepScroll: true }); });
   if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
@@ -125,16 +136,16 @@ function bubble(m) {
 
 function viewCoach() {
   const step = onboarded() ? null : nextStep(setup);
-  const right = onboarded() && STATUS.coach ? `<button class="icon-btn" data-action="brief" aria-label="New briefing">${icons.today}</button>` : '';
+  const right = onboarded() && coachOn() ? `<button class="icon-btn" data-action="brief" aria-label="New briefing">${icons.today}</button>` : '';
   const chips = step ? (step.chips ?? []) : suggestions();
-  const offline = onboarded() && !STATUS.coach;
+  const offline = onboarded() && !coachOn();
   return `
   ${header(shortDate(A.data.today), 'Coach', { right })}
   ${onboarded() ? glance() : ''}
   <div class="thread">
     ${chat.map(bubble).join('')}
     ${step ? `<div class="msg coach q">${esc(questionText(step, setup))}</div>` : ''}
-    ${offline ? `<div class="msg coach"><div class="md"><p><b>Your coach needs the Meridian server.</b> This copy of the app can show your data but can’t think. Deploy the server with your Anthropic API key (one click with <b>render.yaml</b> in the repo) and install the app from there.</p></div></div>` : ''}
+    ${offline ? `<div class="msg coach"><div class="md"><p><b>Your coach isn’t connected here.</b> Open the Meridian Artifact in claude.ai to use your own Claude account, or run the Meridian server with an API key.</p></div></div>` : ''}
     <div id="live"></div>
   </div>
   <!--dock--><div class="composer">
@@ -172,15 +183,15 @@ function answer(text) {
   saveChat();
   write(K.brief, `${A.data.today}|${A.data.device?.lastSync ?? ''}`); // the welcome replaces today's briefing
   render();
-  if (STATUS.coach) send({ kind: 'welcome', show: 'Give me your first assessment.' });
+  if (coachOn()) send({ kind: 'welcome', show: 'Give me your first assessment.' });
 }
 
 // ——— Talking to the coach ———
 async function send({ text, kind = 'chat', runId, show }) {
   if (busy) return;
-  if (!STATUS.coach) {
+  if (!coachOn()) {
     if (text) chat.push({ role: 'user', content: text });
-    chat.push({ role: 'assistant', kind: 'note', error: true, content: 'The coach is offline: the Meridian server isn’t running here.' });
+    chat.push({ role: 'assistant', kind: 'note', error: true, content: 'The coach isn’t connected here. Open Meridian in claude.ai, or run the server.' });
     saveChat();
     return render();
   }
@@ -195,15 +206,30 @@ async function send({ text, kind = 'chat', runId, show }) {
   scrollToEnd();
   const md = live.querySelector('.md'), status = live.querySelector('.status');
   let textSoFar = '', followups = [], error = null;
+  const showStatus = (t) => { status.hidden = false; status.querySelector('span').textContent = t; };
+  const showText = (t) => { md.innerHTML = renderMarkdown(t); status.hidden = !t; scrollToEnd(); };
+  const payload = { kind, message: text, runId, history, athlete, goal: getGoal(A.data.today), symptoms: getSymptoms(), runNotes: getRunNotes() };
+
+  if (!STATUS.coach) {
+    // Your Claude account: the tools run here in the page.
+    try {
+      const r = await askLocal(SAMPLE, { ...payload, data: A.data }, { onStatus: showStatus, onText: (t) => { textSoFar = t; showText(t); } });
+      textSoFar = r.text;
+      followups = r.followups;
+      r.events.forEach(applyEvent);
+    } catch (e) {
+      if (typeof e?.text === 'string') textSoFar = e.text.split('FOLLOWUPS:')[0];
+      if (e?.code === 'refused') textSoFar = '';
+      if (e?.code !== 'cancelled') error = errorMessage(e);
+    }
+    return finish(kind, textSoFar, followups, error);
+  }
 
   try {
     const res = await fetch('api/coach', {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-meridian-passcode': read(K.pass, '') },
-      body: JSON.stringify({
-        kind, message: text, runId, history,
-        athlete, goal: getGoal(A.data.today), symptoms: getSymptoms(), runNotes: getRunNotes(),
-      }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok || !res.body) throw new Error((await res.json().catch(() => ({}))).error ?? `server error ${res.status}`);
     const reader = res.body.getReader(), dec = new TextDecoder();
@@ -218,19 +244,23 @@ async function send({ text, kind = 'chat', runId, show }) {
         buf = buf.slice(nl + 1);
         if (!line.trim()) continue;
         const ev = JSON.parse(line);
-        if (ev.t === 'status') { status.hidden = false; status.querySelector('span').textContent = ev.text; }
-        if (ev.t === 'text') { textSoFar += ev.d; md.innerHTML = renderMarkdown(textSoFar); status.hidden = true; scrollToEnd(); }
+        if (ev.t === 'status') showStatus(ev.text);
+        if (ev.t === 'text') { textSoFar += ev.d; showText(textSoFar); }
         if (ev.t === 'followups') followups = ev.items;
         if (ev.t === 'event') applyEvent(ev);
-        if (ev.t === 'error') error = ev.text;
+        if (ev.t === 'error') error = `Couldn’t reach the coach: ${ev.text}`;
       }
     }
   } catch (err) {
-    error = err.message;
+    error = `Couldn’t reach the coach: ${err.message}`;
   }
+  finish(kind, textSoFar, followups, error);
+}
+
+function finish(kind, textSoFar, followups, error) {
   busy = false;
   if (textSoFar.trim()) chat.push({ role: 'assistant', kind: kind === 'briefing' ? 'briefing' : undefined, content: textSoFar.trim(), followups, date: A.data.today });
-  if (error) chat.push({ role: 'assistant', kind: 'note', error: true, content: `Couldn’t reach the coach: ${error}` });
+  if (error) chat.push({ role: 'assistant', kind: 'note', error: true, content: error });
   saveChat();
   if (document.body.dataset.route === 'coach') render();
 }
@@ -246,7 +276,7 @@ function applyEvent({ name, data }) {
 
 // A fresh briefing the first time you open the coach each day, and again after new data syncs.
 function maybeBrief() {
-  if (!onboarded() || !STATUS.coach || busy) return;
+  if (!onboarded() || !coachOn() || busy) return;
   const key = `${A.data.today}|${A.data.device?.lastSync ?? ''}`;
   if (read(K.brief, '') === key) return;
   write(K.brief, key);
@@ -360,7 +390,7 @@ function viewYou() {
   <h2>Watch & coach</h2>
   <div class="list">
     <div class="row simple"><div class="k">${icons.watch.replace('<svg', '<svg width="18" height="18"')} ${esc(A.data.device?.model ?? 'Watch')}</div><div class="v sub">${A.data.source === 'huawei' ? 'Live' : 'Demo data'}</div></div>
-    <div class="row simple"><div class="k">Coach</div><div class="v sub"><span class="status-dot ${STATUS.coach ? 'on' : ''}"></span> ${STATUS.coach ? 'Online' : STATUS.server ? 'No API key on the server' : 'Server not running'}</div></div>
+    <div class="row simple"><div class="k">Coach</div><div class="v sub"><span class="status-dot ${coachOn() ? 'on' : ''}"></span> ${SAMPLE ? 'Your Claude account' : STATUS.coach ? 'Meridian server' : STATUS.server ? 'No API key on the server' : 'Not connected'}</div></div>
     ${STATUS.locked ? `<label class="field"><span>Coach passcode</span><input data-pass type="password" value="${esc(read(K.pass, ''))}" placeholder="Required"></label>` : ''}
   </div>
   <div style="margin-top:12px">
@@ -370,7 +400,7 @@ function viewYou() {
     <button class="btn secondary" data-action="redo">Redo setup questions</button>
     <button class="btn secondary" data-action="clear">Clear conversation</button>
   </div>
-  <p class="foot">Your chat, profile and notes stay on this phone. Questions go to your Meridian server, which asks Claude.</p>`;
+  <p class="foot">Your chat, profile and notes stay on this device. ${SAMPLE ? 'Questions are answered by Claude using your own Claude plan. The coach’s tools run on this page.' : 'Questions go to your Meridian server, which asks Claude.'}</p>`;
 }
 
 // ——— Events ———
@@ -406,8 +436,9 @@ async function onClick(e) {
   if (el.dataset.answer !== undefined) return answer(el.dataset.answer);
   if (el.dataset.ask !== undefined) {
     if (!onboarded()) { location.hash = '#coach'; return; }
-    if (document.body.dataset.route !== 'coach') { history.pushState(null, '', '#coach'); }
-    return send({ text: el.dataset.ask, runId: el.dataset.run });
+    const q = { text: el.dataset.ask, runId: el.dataset.run };
+    if (document.body.dataset.route !== 'coach') { pendingAsk = q; location.hash = '#coach'; return; }
+    return send(q);
   }
   const a = el.dataset.action;
   if (a === 'brief') send({ kind: 'briefing' });
