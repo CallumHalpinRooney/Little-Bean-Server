@@ -32,8 +32,9 @@ export function paceAt(vdot, fraction) {
 export const DISTANCES = { 5000: '5K', 10000: '10K', 21097: 'Half marathon', 42195: 'Marathon' };
 const PEAK_KM = { 5000: 32, 10000: 38, 21097: 50, 42195: 65 };
 
-export const fmtTime = (s) => {
-  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.round(s % 60);
+export const fmtTime = (secs) => {
+  const s = Math.round(secs); // round first so 59.6 s never prints as ":60"
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
   return h ? `${h}:${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}` : `${m}:${String(sec).padStart(2, '0')}`;
 };
 const fmtPace = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, '0')}`;
