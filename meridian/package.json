@@ -1,0 +1,16 @@
+{
+  "name": "meridian",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A premium companion app for the Huawei Watch GT 6 Pro that turns raw watch data into decisions.",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.128.0"
+  }
+}
