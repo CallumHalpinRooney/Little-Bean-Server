@@ -47,10 +47,10 @@ export function hypnogram(stages, { w = 340, h = 140 } = {}) {
   for (const s of stages) {
     const bw = (s.min / total) * w;
     const y = STAGE_ROW[s.s] * rowH + rowH * 0.18;
-    bars.push(`<rect x="${esc(x)}" y="${esc(y)}" width="${esc(Math.max(bw, 1.2))}" height="${esc(rowH * 0.64)}" rx="3" fill="${STAGE_COLOR[s.s]}"/>`);
+    bars.push(`<rect x="${esc(x)}" y="${esc(y)}" width="${esc(Math.max(bw, 1.2))}" height="${esc(rowH * 0.64)}" rx="4" fill="${STAGE_COLOR[s.s]}"/>`);
     if (prev) {
       const y1 = STAGE_ROW[prev] * rowH + rowH / 2, y2 = STAGE_ROW[s.s] * rowH + rowH / 2;
-      links.push(`<line x1="${esc(x)}" x2="${esc(x)}" y1="${esc(y1)}" y2="${esc(y2)}" stroke="var(--label3)" stroke-width="1"/>`);
+      links.push(`<line x1="${esc(x)}" x2="${esc(x)}" y1="${esc(y1)}" y2="${esc(y2)}" stroke="var(--label3)" stroke-opacity=".5" stroke-width="1"/>`);
     }
     prev = s.s;
     x += bw;
@@ -68,30 +68,47 @@ export function bandLine(values, { lo, hi, w = 340, h = 120, color = 'var(--acce
   const out = values.map((x, i) => (Number.isFinite(x) && (x < lo || x > hi)
     ? `<circle cx="${esc(i * step)}" cy="${y(x)}" r="2.6" fill="var(--bg-card)" stroke="${color}" stroke-width="1.5"/>` : '')).join('');
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="${labels ?? 'Trend'}">
-    <rect x="0" y="${y(hi)}" width="${w}" height="${esc(y(lo) - y(hi))}" fill="${color}" opacity=".1" rx="4"/>
+    <rect x="0" y="${y(hi)}" width="${w}" height="${esc(y(lo) - y(hi))}" fill="${color}" opacity=".07" rx="6"/>
+    <line x1="0" x2="${w}" y1="${y(hi)}" y2="${y(hi)}" stroke="${color}" stroke-opacity=".25" stroke-dasharray="2 5" vector-effect="non-scaling-stroke"/>
+    <line x1="0" x2="${w}" y1="${y(lo)}" y2="${y(lo)}" stroke="${color}" stroke-opacity=".25" stroke-dasharray="2 5" vector-effect="non-scaling-stroke"/>
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke"/>${out}
     <circle cx="${w - 1}" cy="${y(v.at(-1))}" r="4" fill="${color}"/></svg>`;
 }
 
-export function bars(values, { w = 340, h = 110, color = 'var(--accent)', target, highlightLast = true, min = 0 } = {}) {
-  const max = Math.max(target ?? 0, ...values) * 1.08 || 1;
-  const gap = 4, bw = (w - gap * (values.length - 1)) / values.length;
-  const y = (v) => h - ((v - min) / (max - min)) * h;
+let gid = 0;
+
+// Gradient bars (bright top fading to nothing), with an optional value tag on the latest bar.
+export function bars(values, { w = 340, h = 110, color = 'var(--mint)', target, highlightLast = true, min = 0, tag } = {}) {
+  const max = Math.max(target ?? 0, ...values) * (tag ? 1.22 : 1.08) || 1;
+  const gap = values.length > 20 ? 3 : 6, bw = (w - gap * (values.length - 1)) / values.length;
+  const y = (v) => h - ((Math.max(v, min) - min) / (max - min)) * h;
+  const id = `bg${++gid}`;
   const rects = values.map((v, i) => {
     const last = highlightLast && i === values.length - 1;
-    return `<rect x="${esc(i * (bw + gap))}" y="${esc(y(v))}" width="${esc(bw)}" height="${esc(h - y(v))}" rx="${Math.min(4, bw / 2)}" fill="${color}" opacity="${last ? 1 : 0.45}"/>`;
+    return `<rect x="${esc(i * (bw + gap))}" y="${esc(y(v))}" width="${esc(bw)}" height="${esc(h - y(v))}" rx="${esc(Math.min(6, bw / 2))}" fill="url(#${id})" opacity="${last ? 1 : 0.42}"/>`;
   }).join('');
-  const line = target ? `<line x1="0" x2="${w}" y1="${esc(y(target))}" y2="${esc(y(target))}" stroke="var(--label2)" stroke-dasharray="3 4" stroke-width="1" vector-effect="non-scaling-stroke"/>` : '';
-  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${rects}${line}</svg>`;
+  const line = target ? `<line x1="0" x2="${w}" y1="${esc(y(target))}" y2="${esc(y(target))}" stroke="var(--label3)" stroke-dasharray="2 5" stroke-width="1" vector-effect="non-scaling-stroke"/>` : '';
+  let label = '';
+  if (tag && values.length) {
+    const cx = (values.length - 1) * (bw + gap) + bw / 2, ty = y(values.at(-1)) - 10;
+    const tw = Math.max(34, String(tag).length * 7.5 + 14);
+    const tx = Math.min(w - tw, Math.max(0, cx - tw / 2));
+    label = `<rect x="${esc(tx)}" y="${esc(ty - 20)}" width="${esc(tw)}" height="20" rx="10" fill="var(--bg-elev2)" stroke="var(--border-strong)"/>
+      <text x="${esc(tx + tw / 2)}" y="${esc(ty - 6)}" text-anchor="middle" font-size="11" fill="var(--label)" font-family="Inter, system-ui" font-weight="500">${tag}</text>`;
+  }
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}"/><stop offset=".55" stop-color="${color}" stop-opacity=".45"/><stop offset="1" stop-color="${color}" stop-opacity=".04"/></linearGradient></defs>
+    ${rects}${line}${label}</svg>`;
 }
 
-export function intraday(points, { w = 340, h = 110, color = 'var(--heart)' } = {}) {
+export function intraday(points, { w = 340, h = 110, color = 'var(--mint)' } = {}) {
   const v = points.map((p) => p.bpm);
   const y = scale(v, h, 6, { min: Math.min(...v) - 5, max: Math.max(...v) + 5 });
   const x = (t) => esc((t / 1440) * w);
   const pts = points.map((p) => `${x(p.t)},${y(p.bpm)}`).join(' ');
   const grid = [6, 12, 18].map((hh) => `<line x1="${x(hh * 60)}" x2="${x(hh * 60)}" y1="0" y2="${h}" stroke="var(--sep)" stroke-width="1" vector-effect="non-scaling-stroke"/>`).join('');
   return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Heart rate today">${grid}
-    <polygon points="${x(points[0].t)},${h} ${pts} ${x(points.at(-1).t)},${h}" fill="${color}" opacity=".12"/>
+    <defs><linearGradient id="ig${++gid}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${color}" stop-opacity=".35"/><stop offset="1" stop-color="${color}" stop-opacity="0"/></linearGradient></defs>
+    <polygon points="${x(points[0].t)},${h} ${pts} ${x(points.at(-1).t)},${h}" fill="url(#ig${gid})"/>
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }

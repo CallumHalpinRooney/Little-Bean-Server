@@ -3,7 +3,7 @@ import { analyse, hhmm, hm } from './analysis/engine.js';
 import { EXPERIMENTS } from './analysis/discover.js';
 import { trimp, TYPE_LABEL, RUN_TYPES, paceStr, durStr } from './analysis/training.js';
 import { mean, last } from './analysis/stats.js';
-import { sparkline, ring, hypnogram, bandLine, bars, intraday } from './ui/charts.js';
+import { sparkline, hypnogram, bandLine, bars, intraday } from './ui/charts.js';
 import { icons, workoutIcon } from './ui/icons.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -46,11 +46,14 @@ function render() {
 }
 
 // ——— Shared bits ———
-const header = (eyebrow, title, withAvatar = false) => `
-  <header class="large">
-    <div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1></div>
-    ${withAvatar ? `<button class="avatar" data-sheet="settings" aria-label="Profile and data">${esc((A.data.profile.name || 'M')[0].toUpperCase())}</button>` : ''}
+// Centred title between two round buttons: profile on the left, watch & data on the right.
+const header = (sub, title) => `
+  <header class="top">
+    <button class="icon-btn avatar" data-sheet="settings" aria-label="Profile">${A.data.profile.name ? esc(A.data.profile.name[0].toUpperCase()) : icons.person}</button>
+    <div class="title"><div class="t">${esc(title)}</div><div class="s">${esc(sub)}</div></div>
+    <button class="icon-btn" data-sheet="settings" aria-label="Watch and data">${icons.watch}</button>
   </header>`;
+const shortDate = (iso) => new Date(`${iso}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
 
 const delta = (v, base, unit, { lowerBetter = false, digits = 0 } = {}) => {
   const d = v - base;
@@ -74,56 +77,71 @@ function viewToday() {
   const hrvUsual = r.hrvBaseline.typical, rhrUsual = r.rhrBaseline.typical;
   const top = patterns.top[0];
   const focusIcon = { quality: icons.bolt, easy: icons.run, move: icons.walk, rest: icons.leaf }[focus.kind];
+  const hist = last(r.history, 14).map((x) => x ?? 0);
+  hist[hist.length - 1] = r.score;
+  const stepAvg = mean(days14.map((d) => d.steps));
 
   return `
-  ${header(dateLong(A.data.today), hello, true)}
+  ${header(shortDate(A.data.today), 'Today')}
 
-  ${r.strainAlert ? `<div class="banner"><span class="tint-heart" style="width:22px">${icons.alert}</span><div><b>Early strain signal.</b> HRV is suppressed and resting heart rate is elevated together. That often shows up 1–2 days before you feel ill.</div></div>` : ''}
+  <div style="padding:0 4px 18px"><div class="eyebrow">${hello}${A.data.profile.name ? `, ${esc(A.data.profile.name)}` : ''}</div>
+    <h1>You’re <span style="color:var(--mint)">${r.state.label.toLowerCase()}</span> today</h1></div>
 
-  <button class="card hero tap" data-sheet="readiness" style="width:100%">
-    <div class="ring-wrap">${ring(r.score)}<div class="center"><div class="score num">${r.score}</div><div class="of">READINESS</div></div></div>
-    <div class="state">${r.state.label}</div>
+  ${r.strainAlert ? `<div class="banner">${icons.alert}<div><b>Early strain signal.</b> HRV is suppressed and resting heart rate is elevated together. That often shows up 1–2 days before you feel ill.</div></div>` : ''}
+
+  <button class="card hero tap" data-sheet="readiness" style="width:100%;text-align:left">
+    <div class="hero-top">
+      <div><div class="card-title" style="margin:0">Readiness</div>
+        <div class="hero-num num">${r.score}<small>/ 100</small></div></div>
+      <span class="pill ${r.state.tone}">${r.state.label}</span>
+    </div>
     <div class="state-line">${r.state.line}</div>
-    <div class="sub chev" style="margin-top:12px;font-size:13px">What’s driving this</div>
+    ${bars(hist, { h: 120, tag: String(r.score), min: 20 })}
+    <div class="axis"><span>${shortDate(last(A.data.days, 14)[0].date)}</span><span class="chev">What’s driving this</span></div>
   </button>
 
-  <div class="card focus">
-    <div class="ico">${focusIcon}</div>
-    <div><div class="eyebrow" style="font-size:12px">Today’s focus</div><h3>${esc(focus.title)}</h3><p>${esc(focus.body)}</p></div>
+  <div class="tiles">
+    ${Number.isFinite(today.hrv) ? `<a class="tile tap" href="#heart">
+      <div class="head"><span class="circle">${icons.pulse}</span>${sparkline(days14.map((d) => d.hrv), { w: 56, h: 22, color: 'var(--mint)' })}</div>
+      <div class="val num">${today.hrv}<small>ms</small></div><div class="lab">Heart rate variability</div>${delta(today.hrv, hrvUsual, ' ms')}
+    </a>` : ''}
+    <a class="tile tap" href="#heart">
+      <div class="head"><span class="circle">${icons.heart}</span>${sparkline(days14.map((d) => d.rhr), { w: 56, h: 22, color: 'var(--mint)' })}</div>
+      <div class="val num">${today.rhr}<small>bpm</small></div><div class="lab">Resting heart rate</div>${delta(today.rhr, rhrUsual, ' bpm', { lowerBetter: true })}
+    </a>
   </div>
 
-  <h2>Vitals</h2>
+  <div class="card mint focus" style="margin-top:12px">
+    <div class="ico">${focusIcon}</div>
+    <div><div class="eyebrow">Today’s focus</div><h3>${esc(focus.title)}</h3><p>${esc(focus.body)}</p></div>
+  </div>
+
+  <h2>Vitals <a class="more chev" href="#sleep">Sleep</a></h2>
   <div class="list">
-    <a class="row" href="#sleep" style="color:inherit;text-decoration:none">
-      <div><div class="k"><span class="tint-sleep">●</span> Sleep</div>
-        <div class="v num">${hm(sleep.last.asleepMin)}</div>
-        <span class="delta flat">Score ${sleep.score} · ${hhmm(sleep.last.bedIdx + 18 * 60)}–${hhmm(sleep.last.wakeMin)}</span></div>
-      <div class="right">${sparkline(last(sleep.nights, 14).map((n) => n.asleepMin), { color: 'var(--sleep)' })}</div>
+    <a class="row lead" href="#sleep">
+      <span class="circle">${icons.moon}</span>
+      <div><div class="t">Sleep</div><div class="s">${hhmm(sleep.last.bedIdx + 18 * 60)} – ${hhmm(sleep.last.wakeMin)} · score ${sleep.score}</div></div>
+      <div class="n num">${hm(sleep.last.asleepMin)}<small>${sleep.debtMin > 20 ? `${hm(sleep.debtMin)} debt` : 'no debt'}</small></div>
     </a>
-    ${Number.isFinite(today.hrv) ? `<a class="row" href="#heart" style="color:inherit;text-decoration:none">
-      <div><div class="k"><span class="tint-mind">●</span> Heart rate variability</div>
-        <div class="v num">${today.hrv}<small>ms</small></div>${delta(today.hrv, hrvUsual, ' ms')}</div>
-      <div class="right">${sparkline(days14.map((d) => d.hrv), { color: 'var(--mind)' })}</div>
+    <a class="row lead" href="#fitness">
+      <span class="circle">${icons.steps}</span>
+      <div><div class="t">Steps</div><div class="s">${fmtInt(stepAvg)} daily average</div></div>
+      <div class="n num">${fmtInt(today.steps)}<small class="${today.steps >= stepAvg ? 'up' : 'flat'}">${today.steps >= stepAvg ? 'Above' : 'Below'} average</small></div>
+    </a>
+    ${A.data.vo2max.length ? `<a class="row lead" href="#fitness">
+      <span class="circle">${icons.run}</span>
+      <div><div class="t">VO₂ max</div><div class="s">Fitness age ${A.compare.fitnessAge ?? '—'}</div></div>
+      <div class="n num">${A.data.vo2max.at(-1).value.toFixed(1)}<small>ml/kg/min</small></div>
     </a>` : ''}
-    <a class="row" href="#heart" style="color:inherit;text-decoration:none">
-      <div><div class="k"><span class="tint-heart">●</span> Resting heart rate</div>
-        <div class="v num">${today.rhr}<small>bpm</small></div>${delta(today.rhr, rhrUsual, ' bpm', { lowerBetter: true })}</div>
-      <div class="right">${sparkline(days14.map((d) => d.rhr), { color: 'var(--heart)' })}</div>
-    </a>
-    <a class="row" href="#fitness" style="color:inherit;text-decoration:none">
-      <div><div class="k"><span class="tint-fit">●</span> Steps</div>
-        <div class="v num">${fmtInt(today.steps)}</div><span class="delta flat">${fmtInt(mean(days14.map((d) => d.steps)))} daily average</span></div>
-      <div class="right">${sparkline(days14.map((d) => d.steps), { color: 'var(--fit)' })}</div>
-    </a>
   </div>
 
   ${top ? `
-  <h2>Discovered</h2>
-  <a class="card discover-card tap" href="#discover" style="display:block;color:inherit;text-decoration:none">
-    <div class="eyebrow" style="font-size:12px">A pattern in your data</div>
-    <div class="rel num ${top.better ? 'up' : 'down'}" style="margin-top:6px">${top.relText}</div>
-    <h3 style="margin-top:2px">${esc(top.headline)}.</h3>
-    <div class="sub" style="font-size:13px;margin-top:8px">${esc(top.evidence)}</div>
+  <h2>Discovered <a class="more chev" href="#discover">All insights</a></h2>
+  <a class="card discover-card tap" href="#discover">
+    <div class="card-title" style="margin:0">A pattern in your data <span class="pill ${top.better ? 'good' : 'warn'}">${top.better ? 'Helps' : 'Costs you'}</span></div>
+    <div class="rel num ${top.better ? 'up' : 'down'}" style="margin-top:4px">${top.relText}</div>
+    <h3 style="margin-top:4px;font-weight:400;line-height:1.45">${esc(top.headline)}.</h3>
+    <div class="sub" style="font-size:12px;margin-top:10px">${esc(top.evidence)}</div>
   </a>` : ''}
 
   <p class="foot">${sourceLine()}</p>`;
@@ -137,7 +155,7 @@ function viewSleep() {
   const nights14 = last(s.nights, 14);
   const reg = s.regularity;
   return `
-  ${header(dateLong(A.data.today), 'Sleep')}
+  ${header(shortDate(A.data.today), 'Sleep')}
 
   <div class="card">
     <div class="card-title tint-sleep"><span class="dot"></span>Last night</div>
@@ -153,10 +171,10 @@ function viewSleep() {
     </div>
   </div>
 
-  <div class="card">
-    <div class="card-title tint-sleep"><span class="dot"></span>Tonight</div>
+  <div class="card mint">
+    <div class="card-title">Tonight · suggested lights-out</div>
     <div class="big num">${hhmm(s.bedtimeTarget)}</div>
-    <div class="sub" style="margin-top:4px">Suggested lights-out. Based on your usual ${hhmm(s.wakeTarget)} wake-up, a ${hm(need)} sleep need${s.debtMin > 20 ? ` and ${hm(s.debtMin)} of debt to repay` : ''}.</div>
+    <div class="sub" style="margin-top:6px;font-size:13px">Based on your usual ${hhmm(s.wakeTarget)} wake-up, a ${hm(need)} sleep need${s.debtMin > 20 ? ` and ${hm(s.debtMin)} of debt to repay` : ''}.</div>
   </div>
 
   <h2>Quality</h2>
@@ -196,7 +214,7 @@ function viewHeart() {
   const hr = A.data.hrToday ?? [];
 
   return `
-  ${header(dateLong(A.data.today), 'Heart')}
+  ${header(shortDate(A.data.today), 'Heart')}
 
   ${Number.isFinite(t.hrv) ? `<div class="card">
     <div class="card-title tint-mind"><span class="dot"></span>Heart rate variability</div>
@@ -248,7 +266,7 @@ function viewFitness() {
   const recent = T.recent.slice(0, 8);
 
   return `
-  ${header(dateLong(A.data.today), 'Fitness')}
+  ${header(shortDate(A.data.today), 'Fitness')}
 
   ${vo2.length ? `<div class="card">
     <div class="card-title tint-fit"><span class="dot"></span>Cardio fitness</div>
@@ -272,9 +290,9 @@ function viewFitness() {
 
   ${T.runCount28 ? `<div class="card">
     <div class="card-title">Running intensity · 4 weeks</div>
-    <div class="stack"><span style="width:${dist.easy * 100}%;background:var(--fit)"></span><span style="width:${dist.moderate * 100}%;background:var(--load)"></span><span style="width:${dist.hard * 100}%;background:var(--heart)"></span></div>
-    <div class="stack target-stack"><span style="width:80%;background:var(--fit)"></span><span style="width:5%;background:var(--load)"></span><span style="width:15%;background:var(--heart)"></span></div>
-    <div class="legend"><span><i style="background:var(--fit)"></i>Easy ${Math.round(dist.easy * 100)}%</span><span><i style="background:var(--load)"></i>Moderate ${Math.round(dist.moderate * 100)}%</span><span><i style="background:var(--heart)"></i>Hard ${Math.round(dist.hard * 100)}%</span><span style="margin-left:auto">Faint bar = 80/20 target</span></div>
+    <div class="stack"><span style="width:${dist.easy * 100}%;background:var(--mint)"></span><span style="width:${dist.moderate * 100}%;background:var(--warn)"></span><span style="width:${dist.hard * 100}%;background:var(--bad)"></span></div>
+    <div class="stack target-stack"><span style="width:80%;background:var(--mint)"></span><span style="width:5%;background:var(--warn)"></span><span style="width:15%;background:var(--bad)"></span></div>
+    <div class="legend"><span><i style="background:var(--mint)"></i>Easy ${Math.round(dist.easy * 100)}%</span><span><i style="background:var(--warn)"></i>Moderate ${Math.round(dist.moderate * 100)}%</span><span><i style="background:var(--bad)"></i>Hard ${Math.round(dist.hard * 100)}%</span><span style="margin-left:auto">Faint bar = 80/20 target</span></div>
     <p class="sub" style="margin:12px 0 0">${dist.easy < 0.6 ? `Too much of your running is moderate: hard enough to tire you, not hard enough to drive big gains. Run easy days under <b>${T.z2Ceiling} bpm</b>.` : 'Good polarisation. Most running is easy, with focused hard work.'}</p>
   </div>` : ''}
 
@@ -310,8 +328,8 @@ function viewDiscover() {
   <div class="list">
     ${C.rows.map((r) => `<div class="pct">
       <div class="top"><b>${r.label}</b><span class="num">${r.value}${r.unit ? ` ${r.unit}` : ''}</span></div>
-      <div class="track"><div class="med" style="left:50%"></div><div class="me" style="left:${r.pct}%"></div></div>
-      <div class="meta"><span>Better than ${r.pct}% of peers</span><span>Median ${r.median}</span></div>
+      <div class="track"><div class="fill" style="width:${r.pct}%"></div><div class="med" style="left:50%"></div><div class="me" style="left:${r.pct}%"></div></div>
+      <div class="meta"><span>Better than <span class="rank">${r.pct}%</span> of peers</span><span>Median ${r.median}</span></div>
     </div>`).join('')}
   </div>
   <p class="foot">${C.isDefaultProfile ? `<button class="done" data-sheet="settings" style="font-size:13px">Set your age and sex</button> for an accurate comparison. ` : ''}Compared with published population data for your age and sex (FRIEND registry, large wearable cohorts). Wrist estimates are approximate.</p>
@@ -429,7 +447,7 @@ const SHEETS = {
           <div class="dbar"><span style="${p.impact >= 0 ? `left:50%;width:${w}%;background:var(--good)` : `right:50%;width:${w}%;background:var(--warn)`}"></span></div></div>`;
       }).join('')}</div>
       <div class="card" style="margin-top:12px"><div class="card-title">Last 30 days</div>
-        ${bars(last(r.history, 30).map((x) => x ?? 0), { color: 'var(--ring-b)', min: 0 })}
+        ${bars(last(r.history, 30).map((x) => x ?? 0), { min: 20 })}
         <div class="axis"><span>30 days ago</span><span>Today</span></div></div>
       <p class="foot">Readiness compares this morning with your own 60-day baseline. Bars to the right help, bars to the left hold you back. HRV and resting heart rate weigh most because they respond first to fatigue, illness and alcohol.</p>`;
   },
@@ -439,7 +457,7 @@ const SHEETS = {
     const T = A.training;
     const load = trimp(w, { restHr: T.restHr, maxHeart: T.maxHeart, sex: A.data.profile.sex });
     const zt = w.zones.reduce((a, b) => a + b, 0) || 1;
-    const zc = ['var(--label3)', 'var(--mind)', 'var(--fit)', 'var(--load)', 'var(--heart)'];
+    const zc = ['var(--mint-4)', 'var(--mint-3)', 'var(--mint)', 'var(--warn)', 'var(--bad)'];
     const easyShare = (w.zones[0] + w.zones[1]) / zt;
     let verdict = '';
     if (RUN_TYPES.has(w.type)) {
@@ -498,11 +516,6 @@ const SHEETS = {
           : `<div class="card"><h3>Connect Huawei Health</h3><p class="sub" style="margin:6px 0 0;line-height:1.45">${STATUS.server === false ? 'Run the Meridian server to connect your watch.' : 'Add your Huawei Health Kit app credentials to the server (HUAWEI_CLIENT_ID and HUAWEI_CLIENT_SECRET).'} See the README for the 10-minute setup.</p></div>`}
         <label class="btn secondary" style="cursor:pointer;margin-top:10px">Import data file<input type="file" accept="application/json,.json" data-action="import" hidden></label>
         <button class="btn secondary" data-action="use-demo">Use demo data</button>
-      </div>
-
-      <h2>Appearance</h2>
-      <div class="seg" role="group" aria-label="Theme">
-        ${['auto', 'light', 'dark'].map((t) => `<button data-action="theme" data-v="${t}" aria-pressed="${(localStorage.getItem('meridian.theme') || 'auto') === t}">${t[0].toUpperCase() + t.slice(1)}</button>`).join('')}
       </div>`;
   },
 };
@@ -537,12 +550,6 @@ async function onClick(e) {
   }
   const a = el.dataset.action;
   if (a === 'close') closeSheet();
-  if (a === 'theme') {
-    const v = el.dataset.v;
-    try { localStorage.setItem('meridian.theme', v); } catch { /* ignore */ }
-    applyTheme();
-    el.parentElement.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b === el));
-  }
   if (a === 'use-demo') { clearImport(); setSource('demo'); closeSheet(); reload(); }
   if (a === 'sync') { await fetch('api/huawei/sync', { method: 'POST' }); setSource('auto'); closeSheet(); reload(); }
   if (a === 'disconnect') { await fetch('api/huawei/logout', { method: 'POST' }); STATUS = await serverStatus(); closeSheet(); reload(); }
@@ -564,12 +571,4 @@ async function onClick(e) {
 }
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
 
-function applyTheme() {
-  let t = 'auto';
-  try { t = localStorage.getItem('meridian.theme') || 'auto'; } catch { /* ignore */ }
-  if (t === 'auto') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.dataset.theme = t;
-}
-
-applyTheme();
 boot();
