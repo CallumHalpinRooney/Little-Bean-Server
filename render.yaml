@@ -1,0 +1,18 @@
+# One-click deploy of the Meridian coach to Render (render.com → New → Blueprint → pick this repo).
+# You'll be asked for the two secret values below; they stay in Render, never in the repo.
+services:
+  - type: web
+    name: meridian
+    runtime: node
+    rootDir: meridian
+    plan: free
+    buildCommand: npm install --omit=dev
+    startCommand: node server/index.js
+    healthCheckPath: /api/status
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: MERIDIAN_PASSCODE
+        sync: false

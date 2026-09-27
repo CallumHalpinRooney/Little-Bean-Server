@@ -6,12 +6,33 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHuawei } from './huawei.js';
-import { ask, askEnabled } from './ask.js';
+import { timingSafeEqual } from 'node:crypto';
+import { coach } from './coach.js';
+import { buildDemo } from '../public/js/data/demo.js';
+
+const coachEnabled = () => Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AUTH_TOKEN);
+// Optional passcode so a public deployment can't spend your API credits.
+const PASSCODE = process.env.MERIDIAN_PASSCODE || '';
+const passOk = (given = '') => {
+  if (!PASSCODE) return true;
+  const a = Buffer.from(String(given)), b = Buffer.from(PASSCODE);
+  return a.length === b.length && timingSafeEqual(a, b);
+};
+// Small in-memory rate limit per client address: 40 coach requests per 10 minutes.
+const hits = new Map();
+const rateOk = (ip) => {
+  const now = Date.now();
+  const list = (hits.get(ip) ?? []).filter((t) => now - t < 10 * 60_000);
+  list.push(now);
+  hits.set(ip, list);
+  return list.length <= 40;
+};
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC = path.join(here, '..', 'public');
 const PORT = Number(process.env.PORT) || 5173;
-const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
+// Render sets RENDER_EXTERNAL_URL; BASE_URL overrides it anywhere else.
+const BASE_URL = process.env.BASE_URL || process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
 
 const huawei = createHuawei({
   dataDir: path.join(here, '..', '.data'),
@@ -61,7 +82,8 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/status') {
       return json(res, 200, {
         server: true,
-        ask: askEnabled(),
+        coach: coachEnabled(),
+        locked: Boolean(PASSCODE),
         huawei: { configured: huawei.configured, connected: await huawei.connected() },
       });
     }
@@ -81,9 +103,12 @@ const server = http.createServer(async (req, res) => {
     if (p === '/api/huawei/logout' && req.method === 'POST') { await huawei.logout(); return json(res, 200, { ok: true }); }
     // Developer aid: see Huawei's unprocessed response for one data type to verify the mapping.
     if (p === '/api/huawei/raw' && process.env.NODE_ENV !== 'production') return json(res, 200, await huawei.raw(url.searchParams.get('kind') ?? 'steps'));
-    if (p === '/api/ask' && req.method === 'POST') {
-      if (!askEnabled()) return json(res, 503, { error: 'Set ANTHROPIC_API_KEY to enable questions.' });
-      return ask(req, res, await readBody(req));
+    if (p === '/api/coach' && req.method === 'POST') {
+      if (!coachEnabled()) return json(res, 503, { error: 'Set ANTHROPIC_API_KEY on the server to turn the coach on.' });
+      if (!passOk(req.headers['x-meridian-passcode'])) return json(res, 401, { error: 'Wrong passcode. Check it under You → Coach access.' });
+      if (!rateOk(req.socket.remoteAddress)) return json(res, 429, { error: 'That’s a lot of questions. Try again in a few minutes.' });
+      const loadData = async () => ((await huawei.connected()) ? structuredClone(await huawei.cached()) : buildDemo());
+      return coach(req, res, await readBody(req), loadData);
     }
     if (p.startsWith('/api/')) return json(res, 404, { error: 'Unknown endpoint' });
     return serveStatic(req, res, decodeURIComponent(p));
@@ -97,5 +122,5 @@ const server = http.createServer(async (req, res) => {
 server.listen(PORT, () => {
   console.log(`Meridian running at ${BASE_URL}`);
   console.log(`  Huawei Health Kit: ${huawei.configured ? 'configured' : 'not configured (demo data)'}`);
-  console.log(`  Ask about your data: ${askEnabled() ? 'on' : 'off (set ANTHROPIC_API_KEY)'}`);
+  console.log(`  Coach: ${coachEnabled() ? `on${PASSCODE ? ' (passcode required)' : ''}` : 'off (set ANTHROPIC_API_KEY)'}`);
 });

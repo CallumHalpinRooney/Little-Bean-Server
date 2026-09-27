@@ -107,3 +107,24 @@ test('plan: VDOT maths matches Daniels tables and plans adapt to symptoms', () =
   assert.ok(sore.days.some((x) => x.adjusted === 'Sore back'));
   assert.ok(!sore.days.some((x) => /Threshold|Intervals/.test(x.title)));
 });
+
+import { renderMarkdown } from '../public/js/ui/markdown.js';
+import { STEPS, nextStep, toAthlete } from '../public/js/ui/onboarding.js';
+
+test('coach replies are formatted safely', () => {
+  const html = renderMarkdown('Run **5 km** easy\n- <img src=x onerror=alert(1)>\n- second');
+  assert.ok(html.includes('<b>5 km</b>'));
+  assert.ok(html.includes('&lt;img'), 'HTML in a reply is escaped, never executed');
+  assert.equal((html.match(/<li>/g) ?? []).length, 2);
+});
+
+test('setup questions parse answers and skip race questions when not racing', () => {
+  const body = STEPS.find((s) => s.key === 'body');
+  assert.deepEqual(body.parse('182 cm, 89 kg'), { heightCm: 182, weightKg: 89 });
+  assert.deepEqual(body.parse('Skip'), {});
+  assert.equal(STEPS.find((s) => s.key === 'age').parse('abc'), undefined);
+  const a = { name: 'C', age: 35, sex: 'male', body: {}, goal: 'Get fitter' };
+  assert.equal(nextStep(a).key, 'experience', 'no race-goal question for general fitness');
+  assert.equal(nextStep({ ...a, goal: 'Race a 10K' }).key, 'raceGoal');
+  assert.equal(toAthlete({ ...a, raceGoal: 'Not yet' }).raceGoal, null);
+});

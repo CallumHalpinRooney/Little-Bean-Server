@@ -1,9 +1,9 @@
 {
   "name": "Meridian",
   "short_name": "Meridian",
-  "description": "Turns your Huawei Watch GT 6 Pro data into clear daily decisions.",
+  "description": "A personal running coach that knows all your Huawei Watch GT 6 Pro data.",
   "id": "./",
-  "start_url": "./#today",
+  "start_url": "./#coach",
   "scope": "./",
   "display": "standalone",
   "orientation": "portrait",

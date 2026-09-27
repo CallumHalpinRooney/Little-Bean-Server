@@ -1,119 +1,102 @@
 # Meridian
 
-A companion app for the **Huawei Watch GT 6 Pro**. It takes the data the watch already collects and turns it into a few clear decisions a day. It doesn't show you another wall of numbers.
+A personal running coach that knows everything your **Huawei Watch GT 6 Pro** records. You talk to it. It looks up whatever it needs in your data *at that moment*, then decides what you should do.
 
-| Today | Sleep | Insights | Readiness |
+| Setup | First assessment | Asking about a run | A run's data |
 |---|---|---|---|
-| ![](docs/today.png) | ![](docs/sleep.png) | ![](docs/insights.png) | ![](docs/readiness.png) |
+| ![](docs/setup.png) | ![](docs/coach.png) | ![](docs/answer.png) | ![](docs/run.png) |
 
-| Run analysis | Body check-in | Training plan |
-|---|---|---|
-| ![](docs/run.png) | ![](docs/body.png) | ![](docs/plan.png) |
+*Screenshots use scripted coach replies. Live answers are generated from your data.*
 
-## Design principles
+## How it works
 
-- **One answer first.** Each screen leads with a single decision: readiness, tonight's bedtime, or this week's biggest issue. The detail sits one tap away in a sheet.
-- **You vs. you, then you vs. peers.** HRV and resting heart rate are judged against *your* 60-day normal range. Population comparisons live on their own page and are clearly labelled as approximate.
-- **Critical, not cheerleading.** The weekly review ranks problems before praise and explains the fix.
-- **Only claims the data can back.** Personal patterns are shown only when they pass a significance test with enough nights on both sides.
-- **Deep green theme.** Near-black with a green cast, one mint accent, light type weights (Inter, bundled so it works offline), hairline borders, gradient bar charts, circular icon badges and a floating tab bar. Colour only appears where it carries meaning, such as a warning. Reduced-motion is respected.
+```
+You ask ──▶ Coach (Claude) ──decides what to look up──▶ Tools (Meridian's analysis code)
+                ▲                                              │
+                └──────── facts: numbers, dates, comparisons ◀─┘
+```
 
-## What it does that the Huawei Health app doesn't
+- **The coach reasons, the code calculates.** The analysis engine (baselines, run comparisons, recovery, form trends, VDOT paces, periodised plans) is exposed to the coach as tools. Every number in an answer was computed from your data for that question, never remembered or made up.
+- **Nothing is canned.** There are no pre-written insight cards. Opening the app gives you a fresh briefing for the day (once a day, and again after new data syncs). Every answer ends with three suggested follow-ups generated for that conversation.
+- **It learns you.** Setup is a short chat (13 questions): age and sex for heart-rate zones and peer norms, your goal and race, experience, days available, long-run day, injuries, other sports, and how you want to be coached (tone and detail). The coach reads this before every answer. It can also save goals, log symptoms and remember durable facts as you talk.
 
-| Feature | What it is |
+### The coach's tools
+
+| Tool | What it computes |
 |---|---|
-| **Readiness score** | Last night's HRV and resting HR against your own baseline, plus sleep, sleep debt and training load. The drivers are shown so you can see *why*. |
-| **Today's focus** | One concrete instruction, for example "Easy 40 min run under 146 bpm" or "Quality session: 5 × 4 min", chosen from readiness and training state. |
-| **Early strain signal** | Flags HRV suppressed together with RHR elevated for 2+ mornings, which often comes before illness or overreaching. |
-| **Personal patterns** | Tests your habits (late workouts, late bedtimes, active days, stressful days) against your sleep and recovery, for example *"After workouts that finish after 19:00, your deep sleep is 28 min lower (−21%)"*. |
-| **Experiments** | Start a 14-day experiment such as "Lights out by 23:30". Whether you stuck to it is detected automatically from the watch, so there's nothing to log, and the result is compared with your previous 4 weeks. |
-| **Peer comparison** | Percentiles for VO₂ max, RHR, HRV, sleep and steps against people of your age and sex, plus **fitness age**. |
-| **Training load** | Heart-rate-weighted load (Banister TRIMP), a 7-day vs 28-day load ratio with sweet-spot guidance, and aerobic efficiency. |
-| **80/20 intensity check** | Shows how much of your running is really easy. Your demo data is 18% easy, which is the most common amateur mistake. |
-| **Sleep coaching** | 14-night sleep debt, a regularity score, weekend "social jet lag", and a suggested lights-out time for tonight. |
-| **Honest weight trend** | A smoothed trend line instead of daily noise. It also checks the watch's calorie "deficit" against what the scale actually did. |
-| **Plain-English heart checks** | ECG, arrhythmia screening and arterial stiffness results explained, with sensible next steps. |
-| **Run comparison** | Every run against your last 10: effort-adjusted pace, heart rate, aerobic efficiency, cadence, stride, ground contact, vertical oscillation, vertical ratio, left/right balance and 1-minute HR recovery. It also shows how your form holds from start to finish. |
-| **Recovery, explained** | How far your heart rate drops in the first minute, ranked against all your runs and normalised for how hard you finished. It then says *why*: a climb at the end, heart-rate drift, a lopsided stride, a poor night or low HRV. Hill finishes are compared with your other hill finishes, and it shows how your HRV looked the next morning. |
-| **What affected a run** | Automatic context (sleep, morning HRV, stress, days since the last run, time of day, climbing) plus your own tags and notes ("new shoes", "hot", "sore back"). |
-| **Body check-in** | Type "I have a sore back". Meridian finds the changes in your running that fit, for example *"You're favouring your left side: 50.3% → 52.3% L since 11 Sept"*, explains why, gives a short action list and names the warning signs that need a physio or doctor. It's clear that the data can't tell cause from effect. |
-| **Goals & plan** | Set a race goal. You get today's predicted time, what's realistic by race day, your training paces and heart rates, a base → build → peak → taper plan, and this week's sessions. The plan adapts automatically to low readiness or a reported symptom, and suggests strength and form work based on your own form data. Built on Jack Daniels' VDOT model. |
-| **Ask about your data** | Optional. Ask questions in plain language, for example *"why was my deep sleep low on Tuesday?"*, answered by Claude using your last 30 days. |
+| `get_today` | Readiness and its drivers (HRV and resting HR vs your 60-day baseline, sleep, sleep debt, load), last night's sleep, training load, strain alert, latest run |
+| `get_daily_metrics` | Day-by-day sleep, HRV, resting HR, steps, stress, SpO₂, weight |
+| `list_runs` / `analyse_run` | Every run with form data; one run against your last 10, form by thirds, HR drift, 1-min recovery ranked and explained (e.g. a climb at the end), pre-run context, next-morning HRV, per-minute series |
+| `running_form_trend` | Balance, vertical oscillation, cadence, ground contact and vertical ratio: last 3 runs vs the 6 before |
+| `check_symptom` | For "sore back", "tight calves" and so on: the matching changes in your form, load, terrain and sleep, plus red flags. Logs it so plans adapt |
+| `training_plan` / `set_goal` | VDOT from watch VO₂ max and your runs, race predictions, goal feasibility, paces and HR ranges, base → build → peak → taper, and this week's sessions adapted to readiness and symptoms |
+| `compare_to_peers` | Percentiles vs your age and sex, and fitness age |
+| `personal_patterns` | Statistically tested cause-and-effect in your own data |
+| `remember` | Saves durable facts (injury history, schedule, race entries) |
 
-## Run it
+### The app
+
+| Coach | Runs | You |
+|---|---|---|
+| Three live numbers (readiness, sleep, HRV; tap one to ask about it), the daily briefing, and the conversation | Your measured data only: every run, with the HR/elevation profile, comparison with your usual, form through the run and recovery. **Ask the coach about this run** hands it straight to the coach | Your setup answers (editable), goal, what the coach remembers, watch connection |
+
+## Running it
 
 ```bash
 cd meridian
 npm install
-npm start            # → http://localhost:5173
-npm test             # analysis engine tests
+ANTHROPIC_API_KEY=sk-ant-... npm start     # → http://localhost:5173
+npm test                                   # engine, tools and coach-loop tests
 ```
 
-It opens with demo data built around your real readings from 27 September (sleep 23:41→06:47, 6,894 steps, SpO₂ 94–99%, 88.9 kg, your September runs), so everything works before you connect anything.
+Without an API key everything except the coach works, and the Coach tab says so.
 
-**Put it on your phone:** deploy the `meridian/` folder to any Node host (Railway, Render, Fly.io, or a Raspberry Pi at home). Open the URL in Chrome on your phone, then go to **⋮ → Add to Home screen**. It installs like an app, full screen and offline-capable.
+### Put it on your phone
 
-Tap your avatar on the Today screen to set your **age, sex, height and sleep need**. The peer comparisons, heart rate zones and fitness age all depend on them. The demo assumes a 35-year-old man until you change it.
+The coach needs a server, so the GitHub Pages copy can show your data but can't answer questions. To deploy the real thing:
 
-## Running form data
+1. At [render.com](https://render.com), choose **New → Blueprint** and pick this repository. It uses `render.yaml` in the repo root.
+2. When asked, enter `ANTHROPIC_API_KEY` (from console.anthropic.com) and a `MERIDIAN_PASSCODE` of your choice.
+3. Open the Render URL in Chrome on your phone, then go to **⋮ → Add to Home screen**. Enter your passcode under **You**.
 
-The GT 6 Pro measures running form on the wrist: cadence, stride length, ground contact time and vertical oscillation. Left/right balance normally needs a foot pod or chest strap, so Meridian shows it only when it's in your data. Huawei Health Kit's running-form fields haven't been verified against a live account, so check `/api/huawei/raw?kind=activity` once you're connected. Any run that includes `dynamics`, `series` and `recovery` fields (see `public/js/data/schema.js`) gets the full analysis, whichever source it comes from.
+The passcode stops anyone who finds the URL from spending your API credits. There's also a limit of 40 questions per 10 minutes per device.
+
+### Cost
+
+The coach uses `claude-opus-5`. A typical question runs 2–3 tool rounds, costing roughly **$0.10–0.30**. A daily briefing plus a few questions a day comes to about **$10–25 a month**. The prompt and tools are cached between rounds to keep this down. For lower cost, change `MODEL` in `server/coach.js` to `claude-sonnet-5`, at some loss of reasoning quality.
 
 ## Connecting your GT 6 Pro
-
-The watch doesn't offer a public API that other phone apps can read directly. Its data flows like this:
 
 ```
 GT 6 Pro ──Bluetooth──▶ Huawei Health app ──▶ Huawei cloud ──Health Kit REST API──▶ Meridian server
 ```
 
-So the supported route is **Huawei Health Kit**:
+1. Create a developer account at [developer.huawei.com](https://developer.huawei.com). In AppGallery Connect, create a project and web app and enable **Health Kit**.
+2. Apply for the read scopes (steps, heart rate, sleep, stress, SpO₂, weight, activity records). Huawei reviews these, and approval can take days.
+3. Add `https://YOUR-URL/api/huawei/callback` as the redirect URI, and set `HUAWEI_CLIENT_ID` and `HUAWEI_CLIENT_SECRET` on the server.
+4. In the app, go to **You → Connect Huawei Health**.
 
-1. Create a free developer account at [developer.huawei.com](https://developer.huawei.com).
-2. In **AppGallery Connect**, create a project and a web app, then enable **Health Kit**.
-3. Apply for the read permissions: steps, heart rate, sleep, stress, SpO₂, body weight, activity records. Huawei reviews these, and approval can take a few days.
-4. Add `https://YOUR-DOMAIN/api/huawei/callback` as the OAuth redirect URI.
-5. Start the server with your credentials:
-   ```bash
-   HUAWEI_CLIENT_ID=... HUAWEI_CLIENT_SECRET=... BASE_URL=https://YOUR-DOMAIN npm start
-   ```
-6. In the app, go to **avatar → Connect Huawei Health**, sign in with your Huawei ID and approve. In the Huawei Health app on your phone, make sure data sharing / cloud sync is switched on.
+The field mapping is in `server/huawei.js` and hasn't been tested against a live account. Use `/api/huawei/raw?kind=sleep` (or `activity`, `steps`, `hrv`, …) to see Huawei's raw responses and adjust. Running form (cadence, stride, ground contact, vertical oscillation) comes from the watch; left/right balance usually needs a foot pod or chest strap. Anything missing is simply left out of the analysis.
 
-The endpoint paths, scopes and data-type names are all in `server/huawei.js` (the `HK` object). Huawei's field names can differ between API versions, so after connecting, open `/api/huawei/raw?kind=sleep` (also `steps`, `restingHr`, `hrv`, `activity`, …) to see the raw responses and adjust the mapping if anything is off. This connector hasn't been tested against a live account yet.
+Until you connect, the app runs on demo data built around your real readings from 27 Sept.
 
-**Not everything is exposed by Health Kit.** ECG, arterial stiffness and skin temperature are currently app-only. Meridian shows them when they're present and simply hides those cards otherwise.
-
-**Alternative: import a file.** Any JSON matching `public/js/data/schema.js` can be loaded from **avatar → Import data file**. Use this for exports or for data from another watch.
-
-## Enabling "Ask about your data"
-
-```bash
-ANTHROPIC_API_KEY=sk-ant-... npm start
-```
-
-The browser sends a compact 30-day summary (no raw heart-rate streams) to your server, which asks Claude (`claude-opus-5`) and streams the answer back. Without a key the box is shown disabled.
-
-## How it's built
+## Layout
 
 ```
 meridian/
-├── server/            zero-framework Node server
-│   ├── index.js       static files + API routes
-│   ├── huawei.js      Health Kit OAuth, sync and data mapping
-│   └── ask.js         Claude-powered Q&A
-├── public/            installable web app (no build step)
-│   ├── js/analysis/   the engine: pure functions, shared with the tests
-│   │   ├── norms.js       age/sex reference data (FRIEND registry VO₂ max, wearable cohorts)
-│   │   ├── readiness.js   baseline z-scores → readiness + strain alert
-│   │   ├── sleep.js       debt, regularity, social jet lag, score, bedtime
-│   │   ├── training.js    TRIMP, load ratio, 80/20, efficiency
-│   │   ├── discover.js    personal patterns (Welch t-test) + experiments
-│   │   └── engine.js      focus, weekly review, peer comparison
-│   ├── js/data/       demo data, schema, source selection
-│   └── js/ui/         SVG charts + icons
-└── test/
+├── server/
+│   ├── index.js      static files, Huawei OAuth, /api/coach (passcode + rate limit)
+│   ├── coach.js      the coach: system prompt, streaming tool loop, follow-ups
+│   ├── tools.js      the coach's tools, wrapping the analysis engine
+│   └── huawei.js     Health Kit connection and data mapping
+├── public/           installable web app, no build step
+│   ├── js/app.js         Coach / Runs / You
+│   ├── js/ui/            onboarding questions, safe reply formatting, charts, icons
+│   ├── js/analysis/      the engine: readiness, sleep, training, runs, body, plan, norms
+│   └── js/data/          demo data (daily + per-run detail), schema, storage
+└── test/             engine, tools and coach-loop tests (the loop runs against a scripted client)
 ```
 
-Privacy: your data stays on your own server. Huawei tokens are stored in `meridian/.data/` (git-ignored, file mode 600). Profile and experiments live in your browser's local storage.
+Privacy: your chat, profile and notes stay on your phone. Each question sends your profile and a question to your server. The server reads your watch data and sends the relevant facts to Anthropic's API to produce the answer.
 
-*Meridian is not a medical device. Wrist-based VO₂ max, HRV and ECG are estimates. See a doctor about symptoms.*
+*Meridian is not a medical device. It flags warning signs, but it doesn't diagnose. See a doctor or physio about pain that's severe, persistent or comes with the red flags the coach lists.*
