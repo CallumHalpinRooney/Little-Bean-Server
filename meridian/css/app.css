@@ -196,6 +196,8 @@ button.row:active, a.row:active { background: var(--fill); }
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--bg-card); border: 1px solid var(--border); border-radius: 99px; padding: 4px; margin: 0 0 14px; }
 .seg button { padding: 8px 0; font-size: 13px; border-radius: 99px; color: var(--label2); }
 .seg button[aria-pressed="true"] { background: var(--bg-elev2); color: var(--label); }
+.seg a { padding: 8px 0; font-size: 13px; border-radius: 99px; color: var(--label2); text-align: center; }
+.seg a.on { background: var(--bg-elev2); color: var(--label); }
 
 /* ——— Gauge & distribution ——— */
 .gauge { position: relative; height: 6px; border-radius: 99px; background: var(--track); margin: 22px 0 10px; }

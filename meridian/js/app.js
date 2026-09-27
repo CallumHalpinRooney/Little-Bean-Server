@@ -1,9 +1,12 @@
-import { loadData, serverStatus, saveProfile, setSource, importFile, clearImport, getExperiments, saveExperiments } from './data/store.js';
+import { loadData, serverStatus, saveProfile, setSource, importFile, clearImport, getExperiments, saveExperiments, getRunNotes, saveRunNotes, getSymptoms, saveSymptoms, getGoal, saveGoal } from './data/store.js';
 import { analyse, hhmm, hm } from './analysis/engine.js';
 import { EXPERIMENTS } from './analysis/discover.js';
 import { trimp, TYPE_LABEL, RUN_TYPES, paceStr, durStr } from './analysis/training.js';
 import { mean, last } from './analysis/stats.js';
-import { sparkline, hypnogram, bandLine, bars, intraday } from './ui/charts.js';
+import { sparkline, hypnogram, bandLine, bars, intraday, runProfile } from './ui/charts.js';
+import { runsOf, compareRun, thirds, recovery, context, formTrend, RUN_TAGS, FORM_GUIDE, fmtPace } from './analysis/runs.js';
+import { AREAS, parseSymptoms, explainSymptom, activeSymptoms } from './analysis/body.js';
+import { currentVdot, paces, assessGoal, weekPlan, predictSeconds, fmtTime, DISTANCES } from './analysis/plan.js';
 import { icons, workoutIcon } from './ui/icons.js';
 
 const $ = (sel, el = document) => el.querySelector(sel);
@@ -33,23 +36,27 @@ async function reload() {
   render();
 }
 
-const ROUTES = { today: viewToday, sleep: viewSleep, heart: viewHeart, fitness: viewFitness, discover: viewDiscover };
+const ROUTES = { today: viewToday, sleep: viewSleep, heart: viewHeart, fitness: viewTrain, run: viewRun, body: viewBody, discover: viewDiscover };
+// Sub-pages highlight their parent tab.
+const TAB_OF = { run: 'fitness', body: 'fitness' };
 
-function render() {
-  const route = (location.hash.slice(1) || 'today');
+function render({ keepScroll = false } = {}) {
+  const [route, ...args] = decodeURIComponent(location.hash.slice(1) || 'today').split('/');
   const view = ROUTES[route] ?? viewToday;
-  $('#view').innerHTML = `<div class="view">${view()}</div>`;
-  document.querySelectorAll('nav.tabs a').forEach((a) => a.toggleAttribute('aria-current', a.hash === `#${route}` || (!location.hash && a.hash === '#today')));
+  $('#view').innerHTML = `<div class="view">${view(...args)}</div>`;
+  const tab = TAB_OF[route] ?? route;
+  document.querySelectorAll('nav.tabs a').forEach((a) => a.toggleAttribute('aria-current', a.hash === `#${tab}` || (!location.hash && a.hash === '#today')));
   document.querySelectorAll('nav.tabs a[aria-current]').forEach((a) => a.setAttribute('aria-current', 'page'));
-  window.scrollTo({ top: 0 });
-  if (route === 'discover') wireAsk();
+  if (!keepScroll) window.scrollTo({ top: 0 });
+  wireAsk();
+  wireForms();
 }
 
 // ——— Shared bits ———
 // Centred title between two round buttons: profile on the left, watch & data on the right.
-const header = (sub, title) => `
+const header = (sub, title, back) => `
   <header class="top">
-    <button class="icon-btn avatar" data-sheet="settings" aria-label="Profile">${A.data.profile.name ? esc(A.data.profile.name[0].toUpperCase()) : icons.person}</button>
+    ${back ? `<a class="icon-btn" href="${back}" aria-label="Back">${icons.back}</a>` : `<button class="icon-btn avatar" data-sheet="settings" aria-label="Profile">${A.data.profile.name ? esc(A.data.profile.name[0].toUpperCase()) : icons.person}</button>`}
     <div class="title"><div class="t">${esc(title)}</div><div class="s">${esc(sub)}</div></div>
     <button class="icon-btn" data-sheet="settings" aria-label="Watch and data">${icons.watch}</button>
   </header>`;
@@ -110,6 +117,10 @@ function viewToday() {
       <div class="val num">${today.rhr}<small>bpm</small></div><div class="lab">Resting heart rate</div>${delta(today.rhr, rhrUsual, ' bpm', { lowerBetter: true })}
     </a>
   </div>
+
+  ${activeSymptoms(getSymptoms().filter((x) => !x.resolved), A.data.today).slice(0, 1).map((x) => `<a class="card tap" href="#body/${x.areas[0]}" style="margin-top:12px;display:flex;align-items:center;gap:14px">
+    <span class="circle" style="color:var(--warn)">${icons.body}</span>
+    <div style="flex:1"><h3>${esc(AREAS[x.areas[0]].label)}</h3><div class="sub">See how it shows in your running · plan adjusted</div></div><span class="chev sub"></span></a>`).join('')}
 
   <div class="card mint focus" style="margin-top:12px">
     <div class="ico">${focusIcon}</div>
@@ -252,7 +263,16 @@ function viewHeart() {
 }
 
 // ——— Fitness ———
-function viewFitness() {
+// ——— Training ———
+const SEGS = [['overview', 'Overview'], ['runs', 'Runs'], ['plan', 'Plan']];
+
+function viewTrain(seg = 'overview') {
+  const segs = `<nav class="seg" aria-label="Training sections">${SEGS.map(([k, l]) => `<a href="#fitness/${k}" class="${seg === k ? 'on' : ''}" ${seg === k ? 'aria-current="page"' : ''}>${l}</a>`).join('')}</nav>`;
+  const body = seg === 'runs' ? trainRuns() : seg === 'plan' ? trainPlan() : trainOverview();
+  return `${header(shortDate(A.data.today), 'Training')}${segs}${body}`;
+}
+
+function trainOverview() {
   const T = A.training, C = A.compare;
   const vo2 = A.data.vo2max;
   const acwr = T.acwr;
@@ -263,11 +283,8 @@ function viewFitness() {
   const pos = Math.min(100, (acwr / 2) * 100);
   const dist = T.distribution;
   const km8 = T.weeks.map((w) => w.km);
-  const recent = T.recent.slice(0, 8);
-
+  const recent = T.recent.slice(0, 6);
   return `
-  ${header(shortDate(A.data.today), 'Fitness')}
-
   ${vo2.length ? `<div class="card">
     <div class="card-title tint-fit"><span class="dot"></span>Cardio fitness</div>
     <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px">
@@ -303,15 +320,231 @@ function viewFitness() {
     <div class="axis"><span>8 weeks ago</span><span>This week</span></div>
   </div>
 
-  <h2>Recent workouts</h2>
-  <div class="list">
-    ${recent.map((w) => `<button class="row" data-sheet="workout" data-id="${esc(w.id)}">
+  <h2>Recent workouts <a class="more chev" href="#fitness/runs">All runs</a></h2>
+  <div class="list">${recent.map(workoutRow).join('')}</div>`;
+}
+
+const workoutRow = (w) => {
+  const isRun = RUN_TYPES.has(w.type) && w.distanceM;
+  const attrs = isRun ? `href="#run/${esc(w.id)}"` : `data-sheet="workout" data-id="${esc(w.id)}"`;
+  const Tag = isRun ? 'a' : 'button';
+  return `<${Tag} class="row" ${attrs}>
       <div class="wk" style="grid-column:1/-1">
         <div class="badge">${workoutIcon(w.type)}</div>
-        <div><div class="t">${TYPE_LABEL[w.type] ?? esc(w.type)}</div><div class="s">${dateShort(w.start)} · ${timeOf(w.start)}</div></div>
+        <div><div class="t">${TYPE_LABEL[w.type] ?? esc(w.type)}</div><div class="s">${dateShort(w.start)} · ${timeOf(w.start)}${getRunNotes()[w.id]?.tags?.length ? ` · ${esc(getRunNotes()[w.id].tags.join(', '))}` : ''}</div></div>
         <div class="n num">${w.distanceM ? `${(w.distanceM / 1000).toFixed(2)} km` : durStr(w.durationS)}<small>${w.distanceM ? `${paceStr(w)}/km` : `${w.avgHr} bpm avg`}</small></div>
-      </div></button>`).join('')}
-  </div>`;
+      </div></${Tag}>`;
+};
+
+// ——— Runs: body check-in, form trend, every run ———
+function trainRuns() {
+  const runs = runsOf(A.data);
+  const ft = formTrend(runs);
+  const active = activeSymptoms(getSymptoms().filter((x) => !x.resolved), A.data.today);
+  const trendRow = (key, label, unit, fmt, lowerBetter, isBal) => {
+    const r = ft?.[key];
+    if (!r) return '';
+    const worse = isBal ? Math.abs(r.now - 50) - Math.abs(r.before - 50) > 0.7 : lowerBetter ? r.delta > Math.abs(r.before) * 0.03 : r.delta < -Math.abs(r.before) * 0.02;
+    const better = isBal ? Math.abs(r.now - 50) - Math.abs(r.before - 50) < -0.7 : lowerBetter ? r.delta < -Math.abs(r.before) * 0.03 : r.delta > Math.abs(r.before) * 0.02;
+    return `<div class="row"><div><div class="k">${label}</div><div class="v num">${fmt(r.now)}<small>${unit}</small></div>
+      <span class="delta ${worse ? 'down' : better ? 'up' : 'flat'}">${worse || better ? `was ${fmt(r.before)}${unit}` : 'Steady'}</span></div>
+      <div class="right">${sparkline(r.series, { color: worse ? 'var(--bad)' : 'var(--mint)' })}</div></div>`;
+  };
+  return `
+  <form class="card" id="checkin" style="margin-bottom:12px">
+    <div class="card-title" style="margin:0 0 10px">How’s your body?</div>
+    <div class="ask" style="background:var(--bg-elev)"><input name="t" placeholder="e.g. I have a sore lower back" autocomplete="off" aria-label="Describe how you feel"><button type="submit" aria-label="Check">${icons.send.replace('<svg', '<svg width="18" height="18"')}</button></div>
+    <div class="chip-row" style="margin-top:12px">${Object.entries(AREAS).map(([k, a]) => `<button type="button" class="chip" data-action="symptom" data-area="${k}">${a.label}</button>`).join('')}</div>
+    <div class="sub" id="checkin-msg" style="margin-top:10px"></div>
+  </form>
+
+  ${active.length ? `<div class="list">${active.map((x) => `<a class="row lead" href="#body/${x.areas[0]}">
+    <span class="circle" style="color:var(--warn)">${icons.body}</span>
+    <div><div class="t">${esc(AREAS[x.areas[0]].label)}</div><div class="s">${x.date === A.data.today ? 'Reported today' : `Reported ${shortDate(x.date)}`} · ${x.severity}</div></div>
+    <div class="n chev sub" style="font-weight:400">Analysis</div></a>`).join('')}</div>` : ''}
+
+  ${ft ? `<h2>Running form <span class="more">last 3 runs vs 6 before</span></h2>
+  <div class="list">
+    ${trendRow('balanceL', 'Left / right balance', '% L', (v) => v.toFixed(1), false, true)}
+    ${trendRow('voCm', 'Vertical oscillation', ' cm', (v) => v.toFixed(1), true)}
+    ${trendRow('cadence', 'Cadence', ' spm', (v) => Math.round(v), false)}
+    ${trendRow('gctMs', 'Ground contact', ' ms', (v) => Math.round(v), true)}
+    ${trendRow('vertRatio', 'Vertical ratio', '%', (v) => v.toFixed(1), true)}
+  </div>
+  <p class="foot">Balance within 49–51% is even. Oscillation under ~10 cm and cadence around 165–185 are typical of efficient runners.</p>` : ''}
+
+  <h2>All runs <span class="more">${runs.length}</span></h2>
+  <div class="list">${[...runs].reverse().slice(0, 30).map(workoutRow).join('')}</div>`;
+}
+
+// ——— A single run ———
+function viewRun(id) {
+  const runs = runsOf(A.data);
+  const run = runs.find((r) => r.id === id);
+  if (!run) return `${header('', 'Run', '#fitness/runs')}<p class="foot">That run isn’t in your data.</p>`;
+  const cmp = compareRun(run, runs);
+  const th = thirds(run);
+  const rec = recovery(run, runs, A.data);
+  const ctx = context(run, A.data, getRunNotes());
+  const km = run.distanceM / 1000;
+  const recRuns = runs.filter((r) => r.recovery).slice(-12);
+  if (!recRuns.includes(run) && run.recovery) recRuns.push(run);
+
+  return `
+  ${header(`${shortDate(run.start.slice(0, 10))} · ${timeOf(run.start)}`, TYPE_LABEL[run.type] ?? 'Run', '#fitness/runs')}
+
+  <div class="card">
+    <div class="big num">${km.toFixed(2)}<small>km</small></div>
+    <div class="stats three" style="border:0;padding-top:0;margin-top:12px">
+      <div class="stat"><div class="l">Time</div><div class="n num">${durStr(run.durationS)}</div></div>
+      <div class="stat"><div class="l">Pace</div><div class="n num">${paceStr(run)}<small>/km</small></div></div>
+      <div class="stat"><div class="l">Avg HR</div><div class="n num">${run.avgHr}<small>bpm</small></div></div>
+    </div>
+    ${run.series ? `${runProfile(run.series)}
+    <div class="axis"><span>0 km</span><span>Final 15%</span><span>${km.toFixed(1)} km</span></div>
+    <div class="legend"><span><i style="background:var(--mint)"></i>Heart rate</span><span><i style="background:var(--label3)"></i>Elevation · ${run.elevationM ?? 0} m climbed</span></div>` : ''}
+  </div>
+
+  <h2>Against your last 10 runs</h2>
+  <div class="list">
+    ${cmp.map((m) => `<div class="row simple"><div class="k" style="color:var(--label)">${m.label}</div>
+      <div style="text-align:right"><div class="v num ${m.tone === 'down' ? 'down' : m.tone === 'up' ? 'up' : ''}" style="font-size:15px">${m.fmt(m.value)}<small>${m.unit}</small></div>
+      <div class="sub" style="font-size:11px">${Number.isFinite(m.typical) ? `usual ${m.fmt(m.typical)}` : 'not enough history'}</div></div></div>`).join('')}
+  </div>
+  <p class="foot">Mint is better than your usual, coral is worse. Pace is effort-adjusted: each metre climbed counts as 7 m on the flat.</p>
+
+  ${th ? `<h2>Form through the run</h2>
+  <div class="card" style="padding:16px 18px">
+    <div class="stats" style="grid-template-columns:1.3fr repeat(3,1fr);border:0;padding:0;margin:0;row-gap:12px">
+      <div class="stat"><div class="l"> </div></div><div class="stat"><div class="l">Start</div></div><div class="stat"><div class="l">Middle</div></div><div class="stat"><div class="l">End</div></div>
+      ${[['Cadence', 'cadence', (v) => Math.round(v), 'spm'], ['Bounce', 'vo', (v) => v.toFixed(1), 'cm'], ['Balance', 'bal', (v) => v.toFixed(1), '%L'], ['Contact', 'gct', (v) => Math.round(v), 'ms']]
+        .map(([l, k, f, u]) => `<div class="stat"><div class="l">${l}</div></div>${th[k].map((v) => `<div class="stat"><div class="n num" style="font-size:15px">${f(v)}<small>${u}</small></div></div>`).join('')}`).join('')}
+    </div>
+    <p class="sub" style="margin:14px 0 0">${th.voFade >= 0.6 || th.cadFade <= -3
+      ? `Your form faded as you tired: bounce up ${th.voFade.toFixed(1)} cm and cadence ${th.cadFade <= -1 ? `down ${Math.round(-th.cadFade)} spm` : 'held'} in the final third. Core and glute endurance is the fix, not more running.`
+      : 'Your form held up well to the end.'}</p>
+  </div>` : ''}
+
+  ${rec ? `<h2>Recovery</h2>
+  <div class="card">
+    <div class="hero-top"><div><div class="card-title" style="margin:0">Heart rate drop in 60 s</div>
+      <div class="hero-num num" style="font-size:44px">−${rec.drop}<small>bpm</small></div></div>
+      <span class="pill ${rec.verdict === 'Normal' ? '' : rec.verdict.startsWith('Faster') ? 'good' : 'warn'}">${rec.verdict}</span></div>
+    <div class="sub" style="margin-top:6px">${rec.hrEnd} → ${rec.hr60} bpm after 1 min → ${rec.hr120} after 2 · usually −${rec.typicalDrop} · ${rec.rank === 1 ? `fastest of your ${rec.of} runs` : rec.rank === rec.of ? `slowest of your ${rec.of} runs` : rec.rank <= rec.of / 2 ? `${ordinal(rec.rank)} fastest of ${rec.of} runs` : `${ordinal(rec.of - rec.rank + 1)} slowest of ${rec.of} runs`}</div>
+    ${bars(recRuns.map((r) => r.recovery.hrEnd - r.recovery.hr60), { h: 90, tag: `−${rec.drop}` })}
+    <div class="axis"><span>Your recent runs · 1-min drop</span><span>This run</span></div>
+    <div style="margin-top:16px;display:grid;gap:12px">
+      ${rec.reasons.map((r) => `<div class="insight ${r.weight >= 3 ? 'warn' : r.weight ? 'info' : 'good'}"><div class="bar"></div><p style="margin:6px 0 0;color:var(--label)">${esc(r.text)}</p></div>`).join('')}
+    </div>
+    ${rec.likeForLike ? `<p class="sub" style="margin:14px 0 0">${esc(rec.likeForLike.text)}</p>` : ''}
+    ${rec.nextMorning ? `<p class="sub" style="margin:10px 0 0">Next morning: HRV ${rec.nextMorning.hrv} ms (${rec.nextMorning.pct >= 0 ? '+' : '−'}${Math.round(Math.abs(rec.nextMorning.pct) * 100)}% vs normal), resting HR ${rec.nextMorning.rhr}. ${rec.nextMorning.pct < -0.1 ? 'The run cost more than usual. Take the next day easy.' : 'Your body absorbed it well.'}</p>` : ''}
+  </div>
+  <p class="foot">1-minute recovery shows how quickly your heart winds down, and it improves as aerobic fitness grows. It’s compared as a share of the gap between finishing and resting heart rate, so hard and easy finishes are fair to compare.</p>` : ''}
+
+  <h2>What may have affected it</h2>
+  <div class="card">
+    <div class="stats three" style="border:0;padding:0;margin:0;row-gap:14px">
+      ${ctx.items.map((c) => `<div class="stat"><div class="l"><i style="background:${c.tone === 'warn' ? 'var(--warn)' : 'var(--mint)'}"></i>${c.label}</div><div class="n num" style="font-size:15px">${esc(c.value)}</div></div>`).join('')}
+    </div>
+    <div class="card-title" style="margin:18px 0 8px">Anything else? Tap to tag</div>
+    <div style="display:flex;flex-wrap:wrap;gap:8px">${RUN_TAGS.map((t) => `<button class="chip" data-action="tag" data-id="${esc(run.id)}" data-tag="${esc(t)}" aria-pressed="${ctx.tags.includes(t)}" style="${ctx.tags.includes(t) ? 'background:var(--mint-soft);color:var(--mint);border-color:rgba(143,229,170,.3)' : ''}">${esc(t)}</button>`).join('')}</div>
+    <textarea id="run-note" data-id="${esc(run.id)}" rows="2" placeholder="Add a note: shoes, route, fuelling, how it felt…" style="width:100%;margin-top:12px;background:var(--bg-elev);border:1px solid var(--border);border-radius:14px;padding:12px;color:var(--label);font:inherit;font-size:14px;resize:vertical">${esc(ctx.note)}</textarea>
+  </div>
+  ${askBox(`Why did this ${TYPE_LABEL[run.type]?.toLowerCase() ?? 'run'} on ${shortDate(run.start.slice(0, 10))} go the way it did?`, { run: run.id })}`;
+}
+
+const ordinal = (n) => `${n}${[, 'st', 'nd', 'rd'][n % 100 >> 3 ^ 1 && n % 10] || 'th'}`;
+
+// ——— Body check-in result ———
+function viewBody(area) {
+  const list = getSymptoms().filter((x) => !x.resolved && x.areas.includes(area)).sort((a, b) => (a.date < b.date ? 1 : -1));
+  const entry = list[0] ?? { date: A.data.today, text: '', severity: 'mild', areas: [area] };
+  const x = explainSymptom(area, A.data, A.training, A.sleep, entry.severity);
+  if (!x) return `${header('', 'Body', '#fitness/runs')}`;
+  return `
+  ${header(entry.date === A.data.today ? 'Reported today' : `Reported ${shortDate(entry.date)}`, x.label, '#fitness/runs')}
+
+  <div class="card">
+    ${entry.text ? `<div class="sub">You said “${esc(entry.text)}”</div>` : ''}
+    <h3 style="font-size:18px;font-weight:400;line-height:1.45;margin-top:${entry.text ? 8 : 0}px">${esc(x.summary)}</h3>
+    <div class="card-title" style="margin:18px 0 8px">How bad is it?</div>
+    <div class="seg" style="margin:0">${['mild', 'moderate', 'severe'].map((s) => `<button data-action="severity" data-area="${area}" data-v="${s}" aria-pressed="${entry.severity === s}">${s[0].toUpperCase() + s.slice(1)}</button>`).join('')}</div>
+  </div>
+
+  ${x.findings.length ? `<h2>What your running shows</h2>
+  ${x.findings.map((f) => `<div class="card insight ${f.neutral || f.context ? 'info' : 'warn'}"><div class="bar"></div><div>
+    <div class="area">${esc(f.metric)} · ${esc(f.from)} → ${esc(f.to)}</div><h3>${esc(f.title)}</h3><p>${esc(f.why)}</p></div></div>`).join('')}
+  <p class="foot">${esc(x.caveat)}</p>` : ''}
+
+  <h2>What to do <a class="more chev" href="#fitness/plan">Adjusted plan</a></h2>
+  <div class="list">${x.actions.map((t, i) => `<div class="row lead"><span class="circle num" style="font-size:13px">${i + 1}</span><div style="grid-column:2/-1;font-size:14px;line-height:1.5">${esc(t)}</div></div>`).join('')}</div>
+
+  <h2>See a physio or doctor if</h2>
+  <div class="card" style="border-color:rgba(232,144,127,.22)">${x.redFlags.map((t) => `<div style="display:flex;gap:10px;font-size:14px;line-height:1.5;padding:4px 0"><span style="color:var(--bad)">•</span><span>${esc(t)}</span></div>`).join('')}</div>
+
+  <button class="btn secondary" data-action="resolve" data-area="${area}" style="margin-top:16px">It’s better now</button>
+  ${askBox(`I have ${AREAS[area].phrase}${entry.text ? ` ("${entry.text}")` : ''}. What in my running data could explain it, and what should I change?`, { area })}`;
+}
+
+// ——— Plan: goal, prediction, this week, paces ———
+function trainPlan() {
+  const goal = getGoal(A.data.today);
+  const v = currentVdot(A.data, A.training);
+  const g = assessGoal(goal, v.vdot, A.data.today);
+  const symptoms = activeSymptoms(getSymptoms().filter((x) => !x.resolved), A.data.today);
+  const ft = formTrend(runsOf(A.data));
+  const formIssue = ft && (Math.abs(ft.balanceL.now - 50) > 1.2 || ft.voCm.now > 9.5 || ft.cadence.now < 165);
+  const plan = weekPlan({ data: A.data, training: A.training, readiness: A.readiness, goal, vdot: v.vdot, symptoms, form: formIssue });
+  const P = paces(v.vdot, A.training.maxHeart, A.training.restHr);
+  const totalWeeks = plan.phases.reduce((a, p) => a + p.weeks, 0);
+  const tone = { 'Already in reach': 'good', Realistic: 'good', Ambitious: 'warn', Stretch: 'bad' }[g.label];
+
+  const strength = [];
+  if (symptoms.some((x) => x.areas.includes('back')) || (ft && ft.voCm.now > 9.5)) strength.push(['Core: curl-up, side plank, bird-dog', '3 rounds, daily while your back is sore']);
+  if (ft && Math.abs(ft.balanceL.now - 50) > 1.2) strength.push([`Single-leg work, ${ft.balanceL.now > 50 ? 'right' : 'left'} side first`, 'Split squats, single-leg RDLs, step-ups · 3 × 8, extra set on the weaker side']);
+  if (ft && ft.cadence.now < 165) strength.push(['Cadence drills', `Easy runs with a metronome at ${Math.round(ft.cadence.now * 1.05)} spm for 4 × 1 min`]);
+  strength.push(['Calves and feet', 'Slow heel raises, straight and bent knee · 3 × 15']);
+  strength.push(['Hips', 'Glute bridges and banded side steps · 3 × 12']);
+
+  return `
+  <div class="card mint">
+    <div class="card-title">${goal.isDefault ? 'Suggested goal' : 'Your goal'} <button class="chip" data-sheet="goal" style="background:rgba(7,19,12,.1);border:0;color:var(--on-mint);padding:6px 12px">Edit</button></div>
+    <div class="big num" style="color:var(--on-mint)">${DISTANCES[goal.distance] ?? `${goal.distance / 1000} km`} <small style="color:rgba(7,19,12,.6)">in</small>${fmtTime(goal.targetS)}</div>
+    <div class="sub" style="margin-top:6px;font-size:13px">by ${new Date(`${goal.date}T12:00:00`).toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'long' })} · ${g.weeks} weeks away</div>
+  </div>
+
+  <div class="tiles">
+    <div class="tile"><div class="lab">Predicted today</div><div class="val num">${fmtTime(g.predicted)}</div><div class="lab" style="margin-top:6px">VDOT ${v.vdot}</div></div>
+    <div class="tile"><div class="lab">Realistic by race day</div><div class="val num">${fmtTime(Math.max(g.reachable, goal.targetS * (g.gap <= 0 ? 0 : 1)))}</div><div style="margin-top:8px"><span class="pill ${tone}">${g.label}</span></div></div>
+  </div>
+  <p class="foot">${g.gap > 0 ? `You need to improve by ${g.gap} VDOT points, about ${g.perWeek.toFixed(2)} a week. Up to ~0.25 a week is sustainable for most recreational runners.` : 'Your current fitness already predicts this time. Consider a faster target.'} Based on your watch VO₂ max (${v.watch ?? '—'}) and what your recent runs show (${v.runEst ?? '—'}).</p>
+
+  <h2>This week <span class="more">${plan.phase} phase · ~${Math.round(plan.weekKm)} km</span></h2>
+  <div class="list">
+    ${plan.days.map((d) => `<div class="row lead">
+      <span class="circle" style="flex-direction:column;font-size:11px;line-height:1.1;color:${d.kind === 'rest' ? 'var(--label3)' : 'var(--mint)'}"><span>${d.dow}</span></span>
+      <div><div class="t">${esc(d.title)}${d.adjusted ? ` <span class="pill warn" style="padding:2px 8px;font-size:11px">${esc(d.adjusted)}</span>` : ''}</div><div class="s" style="line-height:1.45;margin-top:2px">${esc(d.detail)}</div></div>
+      <div></div></div>`).join('')}
+  </div>
+
+  <h2>The road to race day</h2>
+  <div class="card">
+    <div class="stack" style="height:28px;gap:4px;margin:0">${plan.phases.map((p, i) => `<span style="width:${(p.weeks / totalWeeks) * 100}%;border-radius:8px;display:grid;place-items:center;font-size:11px;background:${i === 0 ? 'var(--mint)' : 'var(--bg-elev2)'};color:${i === 0 ? 'var(--on-mint)' : 'var(--label2)'}">${p.p}</span>`).join('')}</div>
+    ${bars(plan.volume, { h: 90, highlightLast: false }).replace('opacity="0.42"', 'opacity="1"')}
+    <div class="axis"><span>This week · ${Math.round(plan.volume[0])} km</span><span>Race week</span></div>
+    <p class="sub" style="margin:12px 0 0">Volume builds about 8% a week, with a lighter week every fourth to absorb the work, then a taper so you arrive fresh. About 80% stays easy.</p>
+  </div>
+
+  <h2>Your paces</h2>
+  <div class="list">${P.map((p) => `<div class="row"><div><div class="k" style="color:var(--label)">${p.label}</div><div class="sub" style="font-size:12px">${p.use}</div></div>
+    <div style="text-align:right"><div class="num" style="font-size:15px;font-weight:500">${p.range}</div><div class="sub" style="font-size:12px">${p.hr}</div></div></div>`).join('')}</div>
+
+  <h2>Strength & form <span class="more">tailored to your data</span></h2>
+  <div class="list">${strength.map(([t, d]) => `<div class="row lead"><span class="circle">${icons.strength}</span><div><div class="t">${esc(t)}</div><div class="s">${esc(d)}</div></div><div></div></div>`).join('')}</div>
+
+  <h2>Race predictions</h2>
+  <div class="list">${Object.entries(DISTANCES).map(([m, l]) => `<div class="row simple"><div class="k" style="color:var(--label)">${l}</div><div class="v num">${fmtTime(predictSeconds(v.vdot, +m))}</div></div>`).join('')}</div>
+  <p class="foot">Predictions use Jack Daniels’ VDOT tables and assume flat roads, good conditions and training for that distance.</p>`;
 }
 
 // ——— Discover ———
@@ -357,45 +590,82 @@ function viewDiscover() {
   <p class="foot">Experiments compare the nights you stuck to the change with your 4 weeks before it. There’s nothing to log.</p>
 
   <h2>Ask about your data</h2>
-  <form class="ask" id="ask">
+  <form class="ask" data-ask>
     <input name="q" placeholder="${STATUS.ask ? 'Why was my deep sleep low on Tuesday?' : 'Needs an API key on the server'}" ${STATUS.ask ? '' : 'disabled'} autocomplete="off" aria-label="Ask a question about your data">
     <button type="submit" ${STATUS.ask ? '' : 'disabled'} aria-label="Ask">${icons.send.replace('<svg', '<svg width="18" height="18"')}</button>
   </form>
-  <div class="card answer" id="answer" style="margin-top:12px"></div>
+  <div class="card answer" style="margin-top:12px"></div>
   <p class="foot">${STATUS.ask ? 'Answers use a summary of your last 30 days. They come from Claude and can be wrong, so check anything important.' : 'Set ANTHROPIC_API_KEY on the server to turn this on.'}</p>`;
 }
 
-function askContext() {
+// A question box pre-filled for the page it's on. Hidden when the server can't answer.
+function askBox(preset, focus = {}) {
+  if (!STATUS.ask) return '';
+  return `<h2>Ask Meridian</h2>
+  <form class="ask" data-ask data-run="${esc(focus.run ?? '')}" data-area="${esc(focus.area ?? '')}">
+    <input name="q" value="${esc(preset)}" autocomplete="off" aria-label="Ask a question about this">
+    <button type="submit" aria-label="Ask">${icons.send.replace('<svg', '<svg width="18" height="18"')}</button>
+  </form>
+  <div class="card answer" style="margin-top:12px"></div>`;
+}
+
+const runBrief = (w) => ({
+  id: w.id, type: w.type, start: w.start, km: +(w.distanceM / 1000).toFixed(2), min: Math.round(w.durationS / 60),
+  pace: paceStr(w), avgHr: w.avgHr, climbM: w.elevationM, form: w.dynamics, recovery: w.recovery, notes: getRunNotes()[w.id],
+});
+
+function askContext(focus = {}) {
   const d = A.data, s = A.sleep, t = A.training;
-  return {
+  const runs = runsOf(d);
+  const goal = getGoal(d.today);
+  const v = currentVdot(d, t);
+  const ctx = {
+    today: d.today,
     profile: { age: d.profile.age, sex: d.profile.sex, heightCm: d.profile.heightCm, sleepNeedH: d.profile.sleepNeedH },
     readiness: { score: A.readiness.score, state: A.readiness.state.label, drivers: A.readiness.parts.map((p) => ({ factor: p.label, detail: p.detail })) },
     sleep: { score: s.score, debtMin: s.debtMin, regularity: s.regularity.score, weekendShiftMin: Math.round(s.regularity.socialJetLag), suggestedBedtime: hhmm(s.bedtimeTarget) },
-    training: { loadRatio: +t.acwr.toFixed(2), intensity: t.distribution, weeklyRunKm: t.weeks.map((w) => +w.km.toFixed(1)), easyHrCeiling: t.z2Ceiling },
+    training: { loadRatio: +t.acwr.toFixed(2), intensity: t.distribution, weeklyRunKm: t.weeks.map((w) => +w.km.toFixed(1)), easyHrCeiling: t.z2Ceiling, maxHr: t.maxHeart, restHr: Math.round(t.restHr) },
     compare: A.compare,
     patterns: A.patterns.top.map((p) => p.headline + ` (${p.relText}, ${p.evidence})`),
     review: A.review.map((r) => r.title),
+    runningFormTrend: formTrend(runs),
+    symptoms: activeSymptoms(getSymptoms().filter((x) => !x.resolved), d.today),
+    goal: { ...goal, assessment: assessGoal(goal, v.vdot, d.today), vdot: v },
     last30Days: last(d.days, 30).map((x) => ({
       date: x.date, asleepMin: x.sleep ? x.sleep.deepMin + x.sleep.lightMin + x.sleep.remMin : null,
       deepMin: x.sleep?.deepMin, remMin: x.sleep?.remMin, bed: x.sleep ? timeOf(x.sleep.bed) : null,
       hrv: x.hrv, rhr: x.rhr, steps: x.steps, stress: x.stress,
     })),
-    workouts: t.recent.slice(0, 15).map((w) => ({ type: w.type, start: w.start, min: Math.round(w.durationS / 60), km: +(w.distanceM / 1000).toFixed(2), avgHr: w.avgHr })),
+    recentRuns: runs.slice(-12).map(runBrief),
+    otherWorkouts: t.recent.filter((w) => !RUN_TYPES.has(w.type)).slice(0, 8).map((w) => ({ type: w.type, start: w.start, min: Math.round(w.durationS / 60), avgHr: w.avgHr })),
   };
+  if (focus.run) {
+    const run = runs.find((r) => r.id === focus.run);
+    if (run) {
+      ctx.focusRun = {
+        ...runBrief(run),
+        vsLast10: compareRun(run, runs).map((m) => ({ metric: m.label, value: m.value, usual: m.typical })),
+        thirds: thirds(run), recovery: recovery(run, runs, d), context: context(run, d, getRunNotes()),
+        // Every other sample keeps the shape of the run at half the size.
+        series: run.series?.filter((_, i) => i % 2 === 0),
+      };
+    }
+  }
+  if (focus.area) ctx.focusSymptom = explainSymptom(focus.area, d, t, s);
+  return ctx;
 }
 
 function wireAsk() {
-  const form = $('#ask');
-  if (!form) return;
-  form.addEventListener('submit', async (e) => {
+  document.querySelectorAll('form[data-ask]').forEach((form) => form.addEventListener('submit', async (e) => {
     e.preventDefault();
     const q = form.q.value.trim();
     if (!q) return;
-    const out = $('#answer');
+    const out = form.nextElementSibling;
     out.textContent = 'Thinking…';
     form.querySelector('button').disabled = true;
     try {
-      const res = await fetch('api/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: q, context: askContext() }) });
+      const focus = { run: form.dataset.run || undefined, area: form.dataset.area || undefined };
+      const res = await fetch('api/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: q, context: askContext(focus) }) });
       if (!res.ok || !res.body) throw new Error((await res.text()) || res.statusText);
       out.textContent = '';
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -409,7 +679,36 @@ function wireAsk() {
     } finally {
       form.querySelector('button').disabled = false;
     }
+  }));
+}
+
+// Forms that need more than a click: the body check-in and run notes.
+function wireForms() {
+  const checkin = $('#checkin');
+  if (checkin) checkin.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const text = checkin.t.value.trim();
+    if (!text) return;
+    const areas = parseSymptoms(text);
+    if (!areas.length) {
+      $('#checkin-msg').textContent = 'I couldn’t tell which part of you that is. Tap the closest option above.';
+      return;
+    }
+    addSymptom(areas, text);
   });
+  const note = $('#run-note');
+  if (note) note.addEventListener('change', () => {
+    const all = getRunNotes();
+    all[note.dataset.id] = { tags: all[note.dataset.id]?.tags ?? [], text: note.value.trim() };
+    saveRunNotes(all);
+  });
+}
+
+function addSymptom(areas, text = '') {
+  const list = getSymptoms();
+  list.push({ id: `${Date.now()}`, date: A.data.today, text, areas, severity: 'mild' });
+  saveSymptoms(list);
+  location.hash = `#body/${areas[0]}`;
 }
 
 // ——— Sheets ———
@@ -437,6 +736,16 @@ function closeSheet(instant = false) {
 const sheetHead = (title) => `<div class="sheet-head"><h2>${esc(title)}</h2><button class="done" data-action="close">Done</button></div>`;
 
 const SHEETS = {
+  goal() {
+    const g = getGoal(A.data.today);
+    return `${sheetHead('Your goal')}
+      <form id="goal" class="list">
+        <label class="field"><span>Distance</span><select name="distance">${Object.entries(DISTANCES).map(([m, l]) => `<option value="${m}" ${+m === g.distance ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="field"><span>Target time</span><input name="time" value="${fmtTime(g.targetS)}" placeholder="50:00 or 1:45:00" inputmode="numeric"></label>
+        <label class="field"><span>Race date</span><input name="date" type="date" value="${g.date}" min="${A.data.today}"></label>
+      </form>
+      <p class="foot">Your plan, paces and predictions update as soon as you change these.</p>`;
+  },
   readiness() {
     const r = A.readiness;
     const max = Math.max(...r.parts.map((p) => Math.abs(p.impact)), 0.3);
@@ -526,6 +835,15 @@ async function onClick(e) {
   if (!el) return;
   if (el.dataset.sheet) {
     const sheet = openSheet(SHEETS[el.dataset.sheet](el));
+    const goalForm = $('#goal', sheet);
+    if (goalForm) goalForm.addEventListener('change', () => {
+      const f = Object.fromEntries(new FormData(goalForm));
+      const parts = String(f.time).split(':').map(Number);
+      const secs = parts.reduce((acc, x) => acc * 60 + (x || 0), 0);
+      if (!secs || !f.date) return;
+      saveGoal({ distance: +f.distance, targetS: secs, date: f.date });
+      render({ keepScroll: true });
+    });
     const form = $('#profile', sheet);
     if (form) form.addEventListener('change', () => {
       const f = Object.fromEntries(new FormData(form));
@@ -550,6 +868,28 @@ async function onClick(e) {
   }
   const a = el.dataset.action;
   if (a === 'close') closeSheet();
+  if (a === 'symptom') addSymptom([el.dataset.area]);
+  if (a === 'severity' || a === 'resolve') {
+    const list = getSymptoms();
+    const mine = list.filter((x) => !x.resolved && x.areas.includes(el.dataset.area)).sort((p, q) => (p.date < q.date ? 1 : -1));
+    if (!mine.length && a === 'severity') list.push({ id: `${Date.now()}`, date: A.data.today, text: '', areas: [el.dataset.area], severity: el.dataset.v });
+    mine.forEach((x) => { if (a === 'severity') x.severity = el.dataset.v; else x.resolved = true; });
+    saveSymptoms(list);
+    if (a === 'resolve') location.hash = '#fitness/runs'; else render({ keepScroll: true });
+  }
+  if (a === 'tag') {
+    const all = getRunNotes();
+    const n = all[el.dataset.id] ?? { tags: [], text: '' };
+    n.tags = n.tags.includes(el.dataset.tag) ? n.tags.filter((t) => t !== el.dataset.tag) : [...n.tags, el.dataset.tag];
+    all[el.dataset.id] = n;
+    saveRunNotes(all);
+    if (el.dataset.tag === 'Sore back' && n.tags.includes('Sore back') && !getSymptoms().some((x) => !x.resolved && x.areas.includes('back'))) {
+      const list = getSymptoms();
+      list.push({ id: `${Date.now()}`, date: A.data.today, text: 'Tagged on a run', areas: ['back'], severity: 'mild' });
+      saveSymptoms(list);
+    }
+    render({ keepScroll: true });
+  }
   if (a === 'use-demo') { clearImport(); setSource('demo'); closeSheet(); reload(); }
   if (a === 'sync') { await fetch('api/huawei/sync', { method: 'POST' }); setSource('auto'); closeSheet(); reload(); }
   if (a === 'disconnect') { await fetch('api/huawei/logout', { method: 'POST' }); STATUS = await serverStatus(); closeSheet(); reload(); }

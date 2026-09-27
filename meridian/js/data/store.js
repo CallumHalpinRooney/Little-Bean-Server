@@ -63,3 +63,19 @@ export const clearImport = () => write(K.data, null);
 // Seed one running experiment for the demo so the section never starts empty.
 export const getExperiments = () => read(K.exps, [{ templateId: 'bed2330', startDate: '2026-09-14', lengthDays: 14 }]);
 export const saveExperiments = (list) => write(K.exps, list);
+
+// Per-run notes and tags, keyed by workout id: { [id]: { tags: [], text } }.
+export const getRunNotes = () => read('meridian.runNotes', {});
+export const saveRunNotes = (n) => write('meridian.runNotes', n);
+
+// Body check-ins: [{ id, date, text, areas: [], severity: 'mild'|'moderate'|'severe', resolved? }].
+export const getSymptoms = () => read('meridian.symptoms', []);
+export const saveSymptoms = (s) => write('meridian.symptoms', s);
+
+// Race goal. The default gives the plan something sensible to show before you set your own.
+export const getGoal = (today) => read('meridian.goal', null) ?? {
+  distance: 10000, targetS: 50 * 60,
+  date: new Date(new Date(`${today}T12:00:00`).getTime() + 11 * 7 * 864e5).toISOString().slice(0, 10),
+  isDefault: true,
+};
+export const saveGoal = (g) => write('meridian.goal', g);
