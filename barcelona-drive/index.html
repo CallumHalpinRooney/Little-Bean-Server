@@ -152,6 +152,13 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 .tbar .zone{position:absolute;left:20%;width:65%;top:0;bottom:0;background:rgba(95,211,141,.25);border-left:1px solid var(--good);border-right:1px solid var(--good)}
 .tbar b{position:relative;display:block;height:100%;width:0;background:var(--good);opacity:.9}
 #fCount{font-size:12px;color:var(--muted);margin-top:6px}
+#catchBox{pointer-events:auto;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 130px);transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-top:4px solid #4fd1ff;border-radius:10px;padding:14px 18px;text-align:center;min-width:280px;backdrop-filter:blur(6px)}
+#cName{font-family:var(--display);font-weight:900;font-size:34px;line-height:1;text-transform:uppercase;letter-spacing:.03em}
+#cCat{font-family:var(--serif);font-style:italic;font-size:14px;color:#9fdcff;margin-top:4px}
+#cInfo{font-size:14px;color:var(--muted);margin-top:6px}
+#catchBox .row{display:flex;gap:10px;justify-content:center;margin-top:12px}
+#cSell{background:var(--taxi);color:#111;border-color:var(--taxi);font-weight:700}
+#cSell kbd{background:rgba(0,0,0,.15)}
 #prompt.hot{background:var(--bad);color:#fff;animation:pulse .35s infinite alternate}
 @keyframes pulse{to{transform:translateX(-50%) scale(1.08)}}
 
@@ -231,6 +238,10 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
 <div class="hud" id="sub" hidden></div>
 <div class="hud" id="drift" hidden></div>
 <button class="hud" id="prompt" hidden></button>
+<div class="hud" id="catchBox" hidden>
+  <div id="cName"></div><div id="cCat"></div><div id="cInfo"></div>
+  <div class="row"><button class="btn" id="cSell"></button><button class="btn" id="cFree"><kbd>Q</kbd>Let it go</button></div>
+</div>
 <div class="hud" id="bar">
   <button class="btn" id="bMap"><kbd>/</kbd>Map &amp; search</button>
   <button class="btn" id="bFoot"><kbd>F</kbd><span id="footT">Get out</span></button>
@@ -2483,8 +2494,8 @@ const FISH_TYPES = [
   ['Sea bass', 'Llobarro', .5, 4, .9, '#aeb8bd', 11], ['Octopus', 'Pop', .6, 3.5, .85, '#9b4f6e', 7],
   ['Old boot', 'Bota vella', .9, .9, .25, '#5a3b22', 5], ['Bluefin tuna', 'Tonyina vermella', 12, 60, 1.5, '#2c4c7a', 1.2],
 ];
-let fishLog = { count: 0, best: {} };
-try { const f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); if (f && typeof f === 'object') fishLog = { count: f.count | 0, best: f.best || {} }; } catch (e) { }
+let fishLog = { count: 0, best: {}, money: 0, sold: 0, released: 0 };
+try { const f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); if (f && typeof f === 'object') fishLog = { count: f.count | 0, best: f.best || {}, money: +f.money || 0, sold: f.sold | 0, released: f.released | 0 }; } catch (e) { }
 const saveFish = () => { try { localStorage.setItem('bcn-run-fish', JSON.stringify(fishLog)); } catch (e) { } };
 function buildWalker() {
   const p = makePerson('#c8102e', '#1d2a44', '#e8b996', { cap: '#f9c80e' });
@@ -2549,23 +2560,156 @@ function stopFishing() {
   const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false;
   if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
   foot.p.arms[0].rotation.z = foot.p.arms[1].rotation.z = 0;
-  foot.fish = null;
+  foot.fish = null; $('catchBox').hidden = true;
 }
-function makeCatchMesh(type, kg) {
-  const [name, , , , , col] = type;
-  if (name === 'Old boot') { const m = new THREE.Mesh(new THREE.BoxGeometry(.14, .3, .32), flat(col)); return m; }
-  const len = clamp(.16 * Math.cbrt(kg / .1), .12, 2.1);
-  const g = new THREE.Group();
-  if (name === 'Octopus') {
-    const head = new THREE.Mesh(new THREE.SphereGeometry(len * .35, 12, 10), flat(col)); head.scale.set(1, 1.3, 1); g.add(head);
-    for (let k = 0; k < 8; k++) { const t = new THREE.Mesh(new THREE.CylinderGeometry(.015, .04, len * .9, 5).translate(0, -len * .45, 0), flat(col)); t.rotation.set(.35 * Math.cos(k), 0, .35 * Math.sin(k)); t.position.y = -len * .25; g.add(t); }
-    return g;
+// what a catch is worth at the fish market (€ per kg), and how each one looks
+const FISH_PRICE = { Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
+const catchValue = (name, kg) => name === 'Old boot' ? 0 : Math.max(.5, Math.round(kg * FISH_PRICE[name] * 2) / 2);
+// body shape (height and width as a share of length), fin colour, and how to paint the side of the fish
+const FISH_LOOK = {
+  Sardine: { h: .19, w: .11, fin: '#9fb0ba', dorsal: 1, fork: .8, skin: (g, W, H) => {
+    band(g, W, H, ['#2b5d7c', '#3f7f9c', '#c9d6de', '#eef3f5', '#f7f9fa']);
+    g.fillStyle = 'rgba(20,40,60,.8)'; for (let k = 0; k < 6; k++) { g.beginPath(); g.arc(W * (.72 - k * .07), H * .36, 3.2, 0, 7); g.fill(); }
+  } },
+  Mackerel: { h: .19, w: .13, fin: '#6f8f86', dorsal: 2, fork: .9, finlets: true, skin: (g, W, H) => {
+    band(g, W, H, ['#1f5a55', '#2f766e', '#9ab8b0', '#e9eeea', '#f6f7f2']);
+    g.strokeStyle = 'rgba(10,20,20,.85)'; g.lineWidth = 3.2;
+    for (let k = 0; k < 22; k++) { const x = W * (.12 + k * .035); g.beginPath(); g.moveTo(x, 4); for (let y = 4; y < H * .42; y += 6) g.lineTo(x + Math.sin(y * .25 + k) * 5, y); g.stroke(); }
+  } },
+  'Grey mullet': { h: .21, w: .16, fin: '#7c868a', dorsal: 2, fork: .45, blunt: true, skin: (g, W, H) => {
+    band(g, W, H, ['#465158', '#65727a', '#a7b1b6', '#dfe4e6', '#f2f3f2']);
+    g.strokeStyle = 'rgba(40,50,58,.55)'; g.lineWidth = 2; for (let k = 0; k < 6; k++) { g.beginPath(); g.moveTo(W * .1, H * (.18 + k * .07)); g.lineTo(W * .82, H * (.2 + k * .07)); g.stroke(); }
+  } },
+  'Gilt-head bream': { h: .4, w: .13, fin: '#8c9296', dorsal: 1, fork: .6, deep: true, skin: (g, W, H) => {
+    band(g, W, H, ['#5d6a72', '#8a969c', '#c9cfd0', '#e7e9e6', '#f4f4f0']);
+    g.strokeStyle = 'rgba(60,70,80,.35)'; g.lineWidth = 2; for (let k = 0; k < 7; k++) { g.beginPath(); g.moveTo(W * .08, H * (.2 + k * .08)); g.lineTo(W * .8, H * (.2 + k * .08)); g.stroke(); }
+    g.fillStyle = '#e8b53a'; g.beginPath(); g.ellipse(W * .87, H * .3, W * .035, H * .09, -.3, 0, 7); g.fill(); // the golden "eyebrow"
+    g.fillStyle = 'rgba(30,30,35,.8)'; g.beginPath(); g.ellipse(W * .76, H * .36, W * .018, H * .08, 0, 0, 7); g.fill();
+  } },
+  'Sea bass': { h: .25, w: .14, fin: '#7d8a92', dorsal: 2, spiny: true, fork: .4, skin: (g, W, H) => {
+    band(g, W, H, ['#34424c', '#566873', '#b8c2c7', '#e8ecee', '#f5f6f6']);
+    g.fillStyle = 'rgba(30,38,45,.75)'; g.beginPath(); g.ellipse(W * .76, H * .38, W * .02, H * .06, 0, 0, 7); g.fill();
+    g.strokeStyle = 'rgba(80,95,105,.4)'; g.lineWidth = 2; g.beginPath(); g.moveTo(W * .08, H * .45); g.quadraticCurveTo(W * .5, H * .32, W * .78, H * .38); g.stroke();
+  } },
+  'Bluefin tuna': { h: .27, w: .22, fin: '#1b2c4a', dorsal: 2, fork: 1.3, lunate: true, finlets: true, skin: (g, W, H) => {
+    band(g, W, H, ['#0f1f3d', '#1c3766', '#5c7ea8', '#c9d3dc', '#eef1f3']);
+    g.strokeStyle = 'rgba(160,190,230,.35)'; g.lineWidth = 3; g.beginPath(); g.moveTo(W * .1, H * .47); g.lineTo(W * .85, H * .42); g.stroke();
+    g.fillStyle = 'rgba(255,255,255,.18)'; for (let k = 0; k < 40; k++) { g.beginPath(); g.arc(W * (.15 + Math.random() * .6), H * (.6 + Math.random() * .25), 2, 0, 7); g.fill(); }
+  } },
+};
+function band(g, W, H, cols) { // dark back fading to a silver belly, plus fine scales and a lateral line
+  const gr = g.createLinearGradient(0, 0, 0, H); cols.forEach((c, k) => gr.addColorStop(k / (cols.length - 1), c));
+  g.fillStyle = gr; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,.13)'; g.lineWidth = 1;
+  for (let y = 4; y < H; y += 7) for (let x = (y / 7 % 2) * 5; x < W * .82; x += 10) { g.beginPath(); g.arc(x, y, 5, Math.PI * .15, Math.PI * .85); g.stroke(); }
+  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(W * .8, H * .15, 3, H * .7); // edge of the gill cover
+  g.strokeStyle = 'rgba(40,40,40,.25)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(W * .05, H * .45); g.quadraticCurveTo(W * .5, H * .38, W * .8, H * .36); g.stroke();
+}
+const fishTexCache = {};
+function fishTex(name) {
+  if (fishTexCache[name]) return fishTexCache[name];
+  const cv = document.createElement('canvas'); cv.width = 512; cv.height = 128;
+  FISH_LOOK[name].skin(cv.getContext('2d'), 512, 128);
+  const t = new THREE.CanvasTexture(cv); t.anisotropy = 4; return fishTexCache[name] = t;
+}
+function finGeo(pts) { // a fin in the fish's own side plane: pts are [along, up] pairs
+  const s = new THREE.Shape(); pts.forEach(([a, b], k) => k ? s.lineTo(a, b) : s.moveTo(a, b));
+  return new THREE.ShapeGeometry(s).rotateY(-Math.PI / 2); // shape x → fish z (along), y stays up
+}
+function makeFishModel(name, len) {
+  const L = FISH_LOOK[name], H = L.h * len, Wd = L.w * len;
+  // body: a sphere stretched into a streamlined fish, fattest a third of the way back from the nose
+  const geo = new THREE.SphereGeometry(1, 36, 20), pos = geo.attributes.position, uv = geo.attributes.uv;
+  const prof = t => { const p = Math.pow(Math.sin(Math.PI * Math.pow(clamp(t, 0, 1), L.deep ? 1.1 : 1.35)), L.deep ? .65 : .8); return Math.max(p, .1 * (1 - t)); };
+  for (let k = 0; k < pos.count; k++) {
+    // SphereGeometry poles are on y: use y as the length axis
+    const x = pos.getX(k), y = pos.getY(k), z = pos.getZ(k), r = Math.hypot(x, z) || 1, t = (y + 1) / 2; // t: 0 tail, 1 nose
+    const p = prof(t), ux = x / r, uz = z / r;
+    let up = uz * H / 2 * p; if (up < 0) up *= L.deep ? 1 : 1.08;
+    if (L.blunt && t > .85) up *= 1 + (t - .85) * .6;
+    const side = -ux * Wd / 2 * p * (1 - Math.max(0, uz) * .25); // (mirrored so the faces still point outwards)
+    pos.setXYZ(k, side, up + (t > .9 && uz < 0 ? (t - .9) * H * .4 : 0), (t - .5) * len);
+    uv.setXY(k, t, clamp(up / H + .5, 0, 1));
   }
-  const mat = new THREE.MeshStandardMaterial({ color: C(col), metalness: .6, roughness: .3 });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(len / 2, 14, 10), mat); body.scale.set(.32, .45, 1); g.add(body);
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(len * .18, len * .25, 4).rotateX(-Math.PI / 2), mat); tail.scale.set(.25, 1, 1); tail.position.z = -len * .58; g.add(tail);
-  g.rotation.x = Math.PI / 2; // hangs nose-up from the hook
+  geo.computeVertexNormals();
+  const skin = new THREE.MeshStandardMaterial({ map: fishTex(name), metalness: .45, roughness: .32 });
+  const finM = new THREE.MeshStandardMaterial({ color: C(L.fin), roughness: .5, metalness: .2, side: THREE.DoubleSide, transparent: true, opacity: .88 });
+  const g = new THREE.Group(), body = new THREE.Mesh(geo, skin); g.add(body);
+  const z0 = -len / 2;
+  // tail: forked (or lunate for tuna) on its own pivot so it can flap
+  const tail = new THREE.Group(); tail.position.z = z0 + len * .02; g.add(tail);
+  const tl = len * (L.lunate ? .22 : .2), th = H * (.55 + L.fork * .35);
+  tail.add(new THREE.Mesh(finGeo([[0, H * .06], [-tl, th], [-tl * (1 - L.fork * .35), 0], [-tl, -th], [0, -H * .06], [len * .03, 0]]), finM));
+  // dorsal fin(s)
+  const d1 = L.spiny ? [[len * .12, 0], [len * .1, H * .4], [len * .04, H * .5], [-len * .02, H * .42], [-len * .08, H * .28], [-len * .1, 0]]
+    : [[len * .1, 0], [len * .02, H * .55], [-len * .08, H * .35], [-len * .12, 0]];
+  const df = new THREE.Mesh(finGeo(d1), finM); df.position.set(0, H * .42, L.deep ? len * .02 : len * .02); g.add(df);
+  if (L.dorsal === 2) { const d2 = new THREE.Mesh(finGeo([[len * .05, 0], [0, H * .42], [-len * .08, H * .12], [-len * .09, 0]]), finM); d2.position.set(0, H * .34, -len * .18); g.add(d2); }
+  if (L.deep) { const dl = new THREE.Mesh(finGeo([[len * .2, 0], [len * .1, H * .22], [-len * .25, H * .15], [-len * .3, 0]]), finM); dl.position.set(0, H * .4, 0); g.add(dl); }
+  // anal fin, pelvic fins and pectoral fins
+  const an = new THREE.Mesh(finGeo([[len * .05, 0], [-len * .02, -H * .35], [-len * .1, -H * .12], [-len * .1, 0]]), finM); an.position.set(0, -H * .32, -len * .18); g.add(an);
+  for (const sd of [-1, 1]) {
+    const pc = new THREE.Mesh(finGeo([[0, 0], [-len * .16, H * .1], [-len * .13, -H * .12]]), finM); pc.position.set(sd * Wd * .42, -H * .08, len * .22); pc.rotation.y = sd * .5; g.add(pc);
+    const pv = new THREE.Mesh(finGeo([[0, 0], [-len * .09, -H * .22], [-len * .11, -H * .05]]), finM); pv.position.set(sd * Wd * .2, -H * .38, len * .12); pv.rotation.y = sd * .3; g.add(pv);
+    // eye: silver iris, black pupil
+    const eyeR = Math.max(.008, len * (L.deep ? .045 : .038));
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 12, 10), new THREE.MeshStandardMaterial({ color: C(name === 'Bluefin tuna' ? '#b8b8a8' : '#e8e2c8'), metalness: .6, roughness: .25 }));
+    eye.position.set(sd * Wd * .3, H * .1, len * .36); eye.scale.set(.5, 1, 1); g.add(eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(eyeR * .6, 10, 8), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: .05 }));
+    pupil.position.set(sd * (Wd * .3 + eyeR * .3), H * .1, len * .36); pupil.scale.set(.5, 1, 1); g.add(pupil);
+  }
+  // mouth
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(len * .025, len * .006, 5, 10, Math.PI), new THREE.MeshStandardMaterial({ color: 0x5a4a48, roughness: .6 }));
+  mouth.rotation.y = Math.PI / 2; mouth.position.set(0, -H * .02, len * .49); g.add(mouth);
+  if (L.finlets) for (let k = 0; k < 6; k++) for (const sy of [1, -1]) {
+    const f = new THREE.Mesh(finGeo([[0, 0], [-len * .02, sy * H * .09], [-len * .035, 0]]), new THREE.MeshStandardMaterial({ color: C(name === 'Bluefin tuna' ? '#e8c23a' : L.fin), side: THREE.DoubleSide }));
+    f.position.set(0, sy * H * (.2 - k * .02), -len * (.22 + k * .045)); g.add(f);
+  }
+  g.userData = { tail, len, wig: (t, a) => { tail.rotation.y = Math.sin(t * 14) * .6 * a; body.rotation.y = Math.sin(t * 14 - 1) * .08 * a; } };
   return g;
+}
+function makeOctopus(len) {
+  const g = new THREE.Group(), col = '#9b4f6e';
+  const cv = document.createElement('canvas'); cv.width = cv.height = 128; const x = cv.getContext('2d');
+  x.fillStyle = '#a4566f'; x.fillRect(0, 0, 128, 128);
+  for (let k = 0; k < 260; k++) { x.fillStyle = `rgba(${Math.random() < .5 ? '70,25,40' : '230,190,190'},${.25 + Math.random() * .35})`; x.beginPath(); x.arc(Math.random() * 128, Math.random() * 128, 1 + Math.random() * 3, 0, 7); x.fill(); }
+  const skin = new THREE.MeshStandardMaterial({ map: new THREE.CanvasTexture(cv), roughness: .55, metalness: .05 });
+  const mantle = new THREE.Mesh(new THREE.SphereGeometry(len * .3, 20, 16), skin); mantle.scale.set(.9, 1.35, .9); mantle.position.y = len * .35; g.add(mantle);
+  for (const sd of [-1, 1]) {
+    const e = new THREE.Mesh(new THREE.SphereGeometry(len * .06, 10, 8), new THREE.MeshStandardMaterial({ color: 0xd8c27a, roughness: .3 })); e.position.set(sd * len * .2, len * .08, len * .12); g.add(e);
+    const p = new THREE.Mesh(new THREE.BoxGeometry(len * .07, len * .02, len * .02), new THREE.MeshStandardMaterial({ color: 0x080808 })); p.position.set(sd * len * .22, len * .08, len * .17); g.add(p);
+  }
+  const arms = [];
+  for (let k = 0; k < 8; k++) {
+    const a = k / 8 * Math.PI * 2, pts = [];
+    for (let s = 0; s <= 6; s++) { const u = s / 6, r = len * (.12 + u * .35), curl = u * u * 1.6; pts.push(new THREE.Vector3(Math.cos(a) * r * Math.cos(curl) , -u * len * .9 + Math.sin(curl) * len * .25 * u, Math.sin(a) * r * Math.cos(curl))); }
+    const curve = new THREE.CatmullRomCurve3(pts), seg = 24, rad = 6, tg = new THREE.TubeGeometry(curve, seg, len * .055, rad, false), P = tg.attributes.position, c = new THREE.Vector3();
+    for (let i = 0; i <= seg; i++) { curve.getPointAt(i / seg, c); const sc = 1 - .88 * i / seg; for (let j = 0; j <= rad; j++) { const q = i * (rad + 1) + j; P.setXYZ(q, c.x + (P.getX(q) - c.x) * sc, c.y + (P.getY(q) - c.y) * sc, c.z + (P.getZ(q) - c.z) * sc); } }
+    tg.computeVertexNormals();
+    const arm = new THREE.Mesh(tg, skin), pv = new THREE.Group(); pv.add(arm); g.add(pv); arms.push(pv);
+  }
+  g.userData = { len, top: len * .75, wig: (t, a) => arms.forEach((pv, k) => { pv.rotation.x = Math.sin(t * 3 + k) * .25 * a; pv.rotation.z = Math.cos(t * 2.6 + k * 1.7) * .25 * a; }) };
+  return g;
+}
+function makeBoot() {
+  const g = new THREE.Group(), leather = new THREE.MeshStandardMaterial({ color: 0x4a3120, roughness: .75 }), sole = flat('#1d1a17');
+  const shaft = new THREE.Mesh(new THREE.CylinderGeometry(.075, .085, .3, 14), leather); shaft.position.y = .02; g.add(shaft);
+  const foot2 = new THREE.Mesh(new THREE.SphereGeometry(.09, 14, 10), leather); foot2.scale.set(.95, .65, 1.9); foot2.position.set(0, -.14, .08); g.add(foot2);
+  const s = new THREE.Mesh(new THREE.BoxGeometry(.17, .03, .33), sole); s.position.set(0, -.19, .08); g.add(s);
+  const weed = new THREE.Mesh(new THREE.TorusGeometry(.07, .008, 4, 12, 4), flat('#2f6b2f')); weed.position.set(0, .12, 0); weed.rotation.x = 1.2; g.add(weed);
+  for (let k = 0; k < 4; k++) { const lace = new THREE.Mesh(new THREE.BoxGeometry(.1, .008, .008), flat('#d8d0c0')); lace.position.set(0, .1 - k * .06, .08); g.add(lace); }
+  g.userData = { len: .4, top: .17, wig: () => { } };
+  return g;
+}
+function makeCatchMesh(type, kg) { // hangs from the hook by its mouth: origin at the hook
+  const name = type[0], len = clamp(.16 * Math.cbrt(kg / .1), .12, 2.1), outer = new THREE.Group();
+  let m;
+  if (name === 'Old boot') { m = makeBoot(); m.position.y = -m.userData.top; }
+  else if (name === 'Octopus') { m = makeOctopus(len); m.position.y = -m.userData.top; }
+  else { m = makeFishModel(name, len); m.rotation.x = -Math.PI / 2; m.position.y = -len / 2; } // nose up, body below
+  outer.add(m); m.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  outer.userData = { len: m.userData.len, wig: m.userData.wig, inner: m, name };
+  return outer;
 }
 const _tw = new THREE.Vector3();
 function updateFishing(dt, act, press) {
@@ -2612,7 +2756,7 @@ function updateFishing(dt, act, press) {
     const k = clamp(F.D / F.D0, 0, 1.3);
     bx = foot.x + F.nx * F.D + F.tx * (F.spot ? 0 : 0); bz = foot.z + F.nz * F.D; by = F.D > 1.5 ? .05 + Math.abs(Math.sin(now * 9)) * .12 * fight : lerp(_tw.y - .8, .05, F.D / 1.5);
     if (!R.fishMesh && F.D < 4) { R.fishMesh = makeCatchMesh(F.type, F.kg); scene.add(R.fishMesh); }
-    if (R.fishMesh) { R.fishMesh.position.set(bx, by - .1, bz); R.fishMesh.rotation.z = Math.sin(now * 22) * .5; }
+    if (R.fishMesh) { R.fishMesh.position.set(bx, by + .02, bz); R.fishMesh.rotation.z = Math.sin(now * 5) * .25; R.fishMesh.userData.wig(now, 1); }
     showBob = !R.fishMesh;
     if (F.tension >= 1) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Snap!', 'The line broke. Ease off when the tension bar goes red.', 2.5); }
     else if (F.low > 2.2) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } show('', 'The line went slack and the fish swam off. Keep reeling!', 2.5); }
@@ -2620,27 +2764,74 @@ function updateFishing(dt, act, press) {
       F.st = 'show'; F.T = 0;
       const [name, cat] = F.type, prev = fishLog.best[name];
       fishLog.count++; const rec = prev == null || F.kg > prev; if (rec) fishLog.best[name] = F.kg; saveFish();
-      show(name, `${F.kg} kg · ${cat} in Catalan${rec ? ' · New personal best!' : ''} · Catch #${fishLog.count}`, 3.2); audio.ding();
+      F.value = catchValue(name, F.kg);
+      $('cName').textContent = name; $('cCat').textContent = `${cat} in Catalan`;
+      $('cInfo').textContent = name === 'Old boot' ? 'Someone threw this in the sea…' : `${F.kg} kg${rec ? ' · New personal best!' : ''} · Catch #${fishLog.count}`;
+      $('cSell').innerHTML = name === 'Old boot' ? '<kbd>E</kbd>Put it in the bin' : `<kbd>E</kbd>Sell for €${F.value.toFixed(2)}`;
+      $('cFree').hidden = name === 'Old boot';
+      $('catchBox').hidden = false; audio.ding();
     }
   } else if (F.st === 'show') { // hold the catch up for the camera
     ang = .3; arm = -.5;
     R.tip.getWorldPosition(_tw);
-    if (R.fishMesh) { R.fishMesh.position.set(_tw.x, _tw.y - .9, _tw.z); R.fishMesh.rotation.z = Math.sin(now * 8) * .3; }
-    if (F.T > 3) { if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } F.st = 'ready'; F.T = 0; F.spot = null; }
+    if (R.fishMesh) { R.fishMesh.position.set(_tw.x, _tw.y - .5, _tw.z); R.fishMesh.rotation.z = Math.sin(now * 2.2) * .12; R.fishMesh.rotation.y = Math.atan2(-(F.tz * .8 - F.nz * .55), F.tx * .8 - F.nx * .55) + Math.sin(now * .7) * .45; /* turns on the line, side-on to the camera */ R.fishMesh.userData.wig(now, Math.sin(now * 1.3) > .4 ? 1 : .15); }
+    if (press && F.T > .5) sellCatch(); // Q lets it go
   }
   R.pivot.rotation.x = ang;
   foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05 + arm;
   R.bob.visible = showBob; R.bob.position.set(bx, by, bz);
   R.tip.getWorldPosition(_tw);
   const pa = R.line.geometry.attributes.position; pa.setXYZ(0, _tw.x, _tw.y, _tw.z);
-  if (R.fishMesh) pa.setXYZ(1, R.fishMesh.position.x, R.fishMesh.position.y + .15, R.fishMesh.position.z);
+  if (R.fishMesh) pa.setXYZ(1, R.fishMesh.position.x, R.fishMesh.position.y, R.fishMesh.position.z);
   else if (showBob) pa.setXYZ(1, bx, by, bz); else pa.setXYZ(1, _tw.x, _tw.y - .6, _tw.z);
   pa.needsUpdate = true;
+}
+function sellCatch() {
+  const F = foot.fish, R = foot.rod; if (!F || F.st !== 'show') return;
+  const name = F.type[0];
+  if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
+  F.st = 'ready'; F.T = 0; F.spot = null; $('catchBox').hidden = true;
+  if (name === 'Old boot') { show('Nice one!', 'You put the old boot in the bin and kept the sea clean.', 2.8); audio.ding(); return; }
+  fishLog.money = Math.round((fishLog.money + F.value) * 100) / 100; fishLog.sold++; saveFish();
+  show(`+€${F.value.toFixed(2)}`, `You sold the ${name.toLowerCase()} to the fish market. Wallet: €${fishLog.money.toFixed(2)}`, 3);
+  audio.ding(); setTimeout(() => audio.ding(), 140); setTimeout(() => audio.ding(), 280);
+}
+const freed = []; // fish you let go: they drop back into the sea and swim off
+function releaseCatch() {
+  const F = foot.fish, R = foot.rod; if (!F || F.st !== 'show' || F.type[0] === 'Old boot') return;
+  const m = R.fishMesh; R.fishMesh = null;
+  if (m) { m.rotation.order = 'YXZ'; m.rotation.set(0, Math.atan2(F.nx, F.nz), 0); freed.push({ m, vx: F.nx * 1.6, vy: 1.2, vz: F.nz * 1.6, nx: F.nx, nz: F.nz, t: 0, wet: false }); }
+  F.st = 'ready'; F.T = 0; F.spot = null; $('catchBox').hidden = true;
+  fishLog.released++; saveFish();
+  show(`Adéu, ${F.type[1].toLowerCase()}!`, `You let the ${F.type[0].toLowerCase()} go. Fish let go: ${fishLog.released}`, 3);
+}
+const splashGeo = new THREE.RingGeometry(.6, 1, 28).rotateX(-Math.PI / 2);
+function updateFreed(dt) {
+  const now = performance.now() / 1000;
+  for (let k = freed.length - 1; k >= 0; k--) {
+    const f = freed[k]; f.t += dt;
+    if (f.ring) { f.m.scale.setScalar(.3 + f.t * 2.2); f.m.material.opacity = Math.max(0, .8 - f.t); if (f.t > .8) { scene.remove(f.m); f.m.material.dispose(); freed.splice(k, 1); } continue; }
+    const m = f.m;
+    if (!f.wet) {
+      f.vy -= 9.8 * dt; m.position.x += f.vx * dt; m.position.y += f.vy * dt; m.position.z += f.vz * dt;
+      m.rotation.x = Math.min(Math.PI / 2, m.rotation.x + dt * 3); m.userData.wig(now, 1);
+      if (m.position.y < .05) {
+        f.wet = true; f.t = 0; audio.plop();
+        const r = new THREE.Mesh(splashGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, depthWrite: false }));
+        r.position.set(m.position.x, .06, m.position.z); scene.add(r); freed.push({ m: r, ring: true, t: 0 });
+      }
+    } else { // tail beats, off into the deep
+      m.rotation.x = Math.PI / 2 + .15; m.userData.wig(now * 1.6, 1);
+      m.position.x += f.nx * 2.4 * dt; m.position.z += f.nz * 2.4 * dt; m.position.y = Math.max(-2.5, m.position.y - dt * .6);
+      if (f.t > 3.5) { scene.remove(m); freed.splice(k, 1); }
+    }
+  }
 }
 function nearCounter() { return room && room.counter && room.info.buy && Math.hypot(foot.x - room.counter.x, foot.z - room.counter.z) < 2; }
 function updateFoot(dt) {
   const f = foot, act = !!(input.act || (IS_TOUCH && input.hand)), press = act && !f.prevAct;
   f.prevAct = act;
+  if (freed.length) updateFreed(dt);
   if (f.swim) { updateSwim(dt); return; }
   if (f.fish) { updateFishing(dt, act, press); f.y = walkY(f.x, f.z); }
   else {
@@ -3387,6 +3578,7 @@ $('rRetry').onclick = () => startMission(lastResult);
 $('rFree').onclick = closeAll;
 $('rList').onclick = () => openPanel('missions');
 let nearMission = -1;
+$('cSell').onclick = sellCatch; $('cFree').onclick = releaseCatch;
 $('prompt').onclick = () => {
   if (foot.on) {
     if (foot.inside) { if (nearCounter()) { show(room.info.label, `You bought ${room.info.buy}.`, 2.8); audio.ding(); } }
@@ -3432,7 +3624,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') resetCar();
   if (e.code === 'KeyN') audio.toggle();
   if (e.code === 'KeyQ' && M) finishMission(false, 'Mission abandoned.');
-  if (e.code === 'KeyQ' && foot.fish) stopFishing();
+  if (e.code === 'KeyQ' && foot.fish) foot.fish.st === 'show' ? releaseCatch() : stopFishing();
   if (e.code === 'KeyF') toggleFoot();
   if (e.code === 'KeyE' && nearMission >= 0 && !M && !paused && !foot.on) startMission(nearMission);
   if (/^Digit[1-7]$/.test(e.code) && !paused) setCar(+e.code.slice(5) - 1);
@@ -3645,7 +3837,7 @@ function teleport(go, label, sub) {
   if (foot.fish) stopFishing();
   if (foot.swim) endSwim();
   if (foot.on) { foot.on = false; scene.remove(foot.p.root); $('footT').textContent = 'Get out'; }
-  closeAll();
+  closeAll(); document.activeElement?.blur?.(); // hand the keys back to the game
   const tip = go();
   if (label == null) { const s = streetName(player.x, player.z); label = s ? s[0] : 'Barcelona'; }
   player.u = player.v = player.r = 0; player.throttle = 0; player.steer = 0; lastSkid[0] = lastSkid[1] = null;
@@ -3953,6 +4145,14 @@ function loop() {
     camera.position.set(cam.fx, cam.fy, cam.fz);
     const la = F.swim ? 2.5 : fishing ? 5 : 1.5;
     camera.lookAt(F.x + Math.sin(F.h) * la, F.y + (F.swim ? (F.y < -1 ? 0 : -.2) : fishing ? .6 : 1.4), F.z + Math.cos(F.h) * la);
+    const FM = fishing && F.fish.st === 'show' && F.rod.fishMesh;
+    if (FM) { // close-up of your catch, from along the railing
+      const Ln = FM.userData.len, cy = FM.position.y - Ln * .45, dd = .55 + Ln * 1.6, Fi = F.fish; // fish in the top half, above the catch card
+      const tx = FM.position.x + Fi.tx * dd * .8 - Fi.nx * dd * .55, tz = FM.position.z + Fi.tz * dd * .8 - Fi.nz * dd * .55;
+      const kz = 1 - Math.exp(-dt * 4); cam.cu = cam.cu || [camera.position.x, camera.position.y, camera.position.z];
+      cam.cu[0] = lerp(cam.cu[0], tx, kz); cam.cu[1] = lerp(cam.cu[1], cy + .12, kz); cam.cu[2] = lerp(cam.cu[2], tz, kz);
+      camera.position.set(cam.cu[0], cam.cu[1], cam.cu[2]); camera.lookAt(FM.position.x, cy - dd * .26, FM.position.z);
+    } else cam.cu = null;
     camera.fov = lerp(camera.fov, 58, .1); camera.updateProjectionMatrix();
     cam.x = cam.fx; cam.z = cam.fz;
   } else { cam.fh = undefined; cam.fx = undefined; cam.fz = undefined; cam.fy = undefined; }
@@ -3978,7 +4178,7 @@ function loop() {
       $('fState').textContent = F.st === 'reel' ? `Fighting a fish: ${Math.max(0, F.D).toFixed(1)} m to go` : F.st === 'bite' ? 'Bite!' : F.st === 'wait' ? 'Float is out' : F.st === 'show' ? 'Nice catch!' : 'Ready to cast';
       $('fTen').style.width = clamp(F.st === 'reel' ? F.tension : 0, 0, 1) * 100 + '%';
       $('fTen').style.background = F.tension > .85 ? 'var(--bad)' : F.tension < .2 ? 'var(--muted)' : 'var(--good)';
-      $('fCount').textContent = `Catches: ${fishLog.count}`;
+      $('fCount').textContent = `Catches: ${fishLog.count} · Wallet: €${fishLog.money.toFixed(2)}`;
     }
     $('plaque').hidden = !st; if (st) { $('plaqueT').textContent = st[0]; $('plaqueD').textContent = st[1]; }
     const wv = police.state !== 'off' || !!police.arrest;
@@ -3998,7 +4198,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
