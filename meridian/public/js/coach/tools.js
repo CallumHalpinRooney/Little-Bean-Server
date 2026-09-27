@@ -4,11 +4,11 @@
 //
 // Pure module: no network, no model. createToolbox(data, state) → { definitions, run }.
 
-import { analyse, hhmm, hm } from '../public/js/analysis/engine.js';
-import { runsOf, compareRun, thirds, recovery, context, formTrend, FORM_GUIDE, summary, fmtPace } from '../public/js/analysis/runs.js';
-import { AREAS, explainSymptom, activeSymptoms } from '../public/js/analysis/body.js';
-import { currentVdot, paces, assessGoal, weekPlan, predictSeconds, fmtTime, DISTANCES } from '../public/js/analysis/plan.js';
-import { last } from '../public/js/analysis/stats.js';
+import { analyse, hhmm, hm } from '../analysis/engine.js';
+import { runsOf, compareRun, thirds, recovery, context, formTrend, FORM_GUIDE, summary, fmtPace } from '../analysis/runs.js';
+import { AREAS, explainSymptom, activeSymptoms } from '../analysis/body.js';
+import { currentVdot, paces, assessGoal, weekPlan, predictSeconds, fmtTime, DISTANCES } from '../analysis/plan.js';
+import { last } from '../analysis/stats.js';
 
 const round = (v, d = 1) => (Number.isFinite(v) ? +v.toFixed(d) : null);
 const asleepOf = (s) => (s ? s.deepMin + s.lightMin + s.remMin : null);

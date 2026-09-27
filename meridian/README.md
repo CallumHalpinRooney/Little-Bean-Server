@@ -40,6 +40,17 @@ You ask ──▶ Coach (Claude) ──decides what to look up──▶ Tools (M
 |---|---|---|
 | Three live numbers (readiness, sleep, HRV; tap one to ask about it), the daily briefing, and the conversation | Your measured data only: every run, with the HR/elevation profile, comparison with your usual, form through the run and recovery. **Ask the coach about this run** hands it straight to the coach | Your setup answers (editable), goal, what the coach remembers, watch connection |
 
+## Two ways to run the coach
+
+| | **On your Claude plan** (no API key) | **On your own server** (API key) |
+|---|---|---|
+| Where | A private claude.ai Artifact, opened in the Claude app or claude.ai | Any Node host (`render.yaml` included) |
+| Who pays | Your existing Claude subscription's usage | Anthropic API billing (~$0.10–0.30 a question) |
+| Watch data | Demo data for now (Artifacts can't reach Huawei's servers) | Live Huawei Health Kit sync |
+| Setup | Nothing: open the link and allow Claude access once | Deploy, add key and passcode |
+
+Both use the same prompt (`public/js/coach/prompt.js`) and the same tools (`public/js/coach/tools.js`). In the Artifact, the tools run in the page and Claude is reached through claude.ai's `sample` capability (`public/js/coach/local.js`). On the server, `server/coach.js` runs the same tools and calls the Anthropic API. The Artifact entry page is `public/artifact.html`.
+
 ## Running it
 
 ```bash
