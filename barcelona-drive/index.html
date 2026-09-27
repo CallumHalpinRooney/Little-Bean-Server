@@ -1125,12 +1125,12 @@ const pacR = a => Math.sin(1.3 * Math.atan(8 * a));
 
 function stepCar(c, dt, inp) {
   const s = c.spec, g = 9.81, m = s.mass, L = s.wb, a = L * .5, b = L - a, hcg = .45, Iz = m * a * b * 1.05;
-  const mu = s.grip * surfaceMu(c.x, c.z);
+  const mu = s.grip * surfaceMu(c.x, c.z) * 1.12;
   // steering: slower and smaller at speed
   const spd = Math.abs(c.u);
-  const lim = .6 / (1 + spd / 11);
+  const lim = Math.min(.5, s.wb * mu * g / (spd * spd + 1) + .08); // as much lock as the front tyres can use at this speed
   const target = (inp.left - inp.right) * lim;
-  c.steer += clamp(target - c.steer, -dt * (target === 0 ? 3.5 : 2.2), dt * (target === 0 ? 3.5 : 2.2));
+  c.steer += clamp(target - c.steer, -dt * (target === 0 ? 5 : 3.6), dt * (target === 0 ? 5 : 3.6));
   const d = c.steer;
   // throttle / brake / reverse logic
   let thr = 0, brk = 0;
@@ -1194,7 +1194,7 @@ function stepCar(c, dt, inp) {
   let dr = (a * (Fxf * sd + Fyf * cd) - b * Fyr) / Iz;
   if (aids && spd > 3) {
     const beta = Math.atan2(c.v, Math.abs(c.u));
-    const yawMax = mu * g * .95 / Math.max(3, Math.abs(c.u));
+    const yawMax = mu * g * 1.02 / Math.max(3, Math.abs(c.u));
     const yawTarget = clamp(c.u * Math.tan(d) / L, -yawMax, yawMax);
     const over = Math.max(0, Math.abs(beta) - .05);
     dr -= (c.r - yawTarget) * (3 + over * 40);
