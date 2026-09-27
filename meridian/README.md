@@ -12,7 +12,7 @@ A companion app for the **Huawei Watch GT 6 Pro**. It takes the data the watch a
 - **You vs. you, then you vs. peers.** HRV and resting heart rate are judged against *your* 60-day normal range. Population comparisons live on their own page and are clearly labelled as approximate.
 - **Critical, not cheerleading.** The weekly review ranks problems before praise and explains the fix.
 - **Only claims the data can back.** Personal patterns are shown only when they pass a significance test with enough nights on both sides.
-- Apple Human Interface Guidelines styling: grouped inset cards, system colours, large titles, a translucent tab bar, bottom sheets, full light/dark support and reduced-motion support.
+- **Deep green theme.** Near-black with a green cast, one mint accent, light type weights (Inter, bundled so it works offline), hairline borders, gradient bar charts, circular icon badges and a floating tab bar. Colour only appears where it carries meaning, such as a warning. Reduced-motion is respected.
 
 ## What it does that the Huawei Health app doesn't
 
