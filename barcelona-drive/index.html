@@ -164,6 +164,10 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 #tackle .note{background:rgba(249,200,14,.12);border:1px solid var(--taxi);border-radius:6px;padding:8px 12px;margin:8px 0}
 .card .go.poor{background:#3a3d44;color:var(--muted)}
 .card .go:disabled{background:var(--good);color:#111;opacity:.9}
+#wallet{display:flex;align-items:baseline;gap:8px;padding:6px 12px;align-self:flex-start}
+#wallet .wl{font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}
+#wMoney{font-family:var(--display);font-weight:800;font-size:22px;color:var(--good);font-variant-numeric:tabular-nums}
+#wPlus{font-style:normal;font-family:var(--display);font-weight:800;font-size:18px}
 #flight{border-left:4px solid #9fd3ff}
 #flTitle{font-family:var(--display);font-weight:800;font-size:18px;text-transform:uppercase;letter-spacing:.06em;color:#9fd3ff}
 .flrow{display:flex;gap:16px;margin-top:4px}.flrow small{display:block;font-size:11px;color:var(--muted);letter-spacing:.08em;text-transform:uppercase}.flrow b{font-family:var(--display);font-size:22px;font-variant-numeric:tabular-nums}
@@ -247,6 +251,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
     <div class="tbar"><div class="zone"></div><b id="fTen"></b></div>
     <div id="fCount"></div>
   </div>
+  <div class="chip" id="wallet"><span class="wl">Wallet</span><b id="wMoney">€0.00</b><i id="wPlus" hidden></i></div>
   <div class="chip" id="flight" hidden>
     <div id="flTitle">Flying</div>
     <div class="flrow"><span><small>Altitude</small><b id="flAlt">0 m</b></span><span><small>Speed</small><b id="flSpd">0</b></span></div>
@@ -318,6 +323,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
       <kbd>P</kbd><span>Paint shop: design your own car</span>
       <kbd>O</kbd><span>Police chases on or off</span>
       <kbd>/</kbd><span>Map &amp; search: jump to any street, landmark or shop (or click the minimap)</span>
+      <kbd>€</kbd><span>Earn money by driving (faster pays more), finishing missions and escaping the police</span>
       <kbd>J</kbd><span>Airport: fly a plane round Barcelona, or to Mallorca, the Pyrenees, Egypt and Paris</span>
       <kbd>K</kbd><span>Tackle shop: spend fish money on rods, reels, bait, lures and boats (B swaps bait while fishing)</span>
       <kbd>F</kbd><span>Get out of the car and walk (Shift runs, Space jumps)</span>
@@ -2236,6 +2242,28 @@ function updatePeds(dt, full) {
 }
 
 /* ================= POLICE ================= */
+
+/* ---------- money: earned by driving, escaping the police, missions and fishing ---------- */
+let saveT = 0, cashPop = 0, cashAcc = 0, driveAcc = 0;
+function earn(amount, big) { // big = show it in the middle of the screen too
+  if (!amount) return;
+  fishLog.money = Math.round((fishLog.money + amount) * 100) / 100;
+  cashAcc += amount; cashPop = 2.2;
+  if (big) { audio.ding(); setTimeout(() => audio.ding(), 140); setTimeout(() => audio.ding(), 280); }
+  clearTimeout(saveT); saveT = setTimeout(saveFish, 800);
+}
+function driveEarn(dt, spd) { // €2 every 100 m, more when you go fast, double with the police after you
+  if (spd < 2) return;
+  const mul = (spd * 3.6 > 150 ? 2 : spd * 3.6 > 90 ? 1.5 : 1) * (police.state === 'hunt' ? 2 : 1);
+  driveAcc += spd * dt * .02 * mul;
+  if (driveAcc >= 1) { const e = Math.floor(driveAcc); driveAcc -= e; earn(e); }
+}
+function updateWallet(dt) {
+  $('wMoney').textContent = '€' + fishLog.money.toFixed(2);
+  if (cashPop > 0) { cashPop -= dt; $('wPlus').hidden = false; $('wPlus').textContent = (cashAcc >= 0 ? '+€' : '−€') + Math.abs(cashAcc).toFixed(cashAcc % 1 ? 2 : 0); $('wPlus').style.color = cashAcc >= 0 ? 'var(--good)' : 'var(--bad)'; $('wPlus').style.opacity = Math.min(1, cashPop); }
+  else { $('wPlus').hidden = true; cashAcc = 0; }
+}
+
 const police = { on: false, state: 'off', cops: [], pin: 0, escape: 0, cool: 0, arrest: null, mission: false, dmin: 1e9, arrests: 0 };
 function nearestRoadPoint(x, z) {
   if (inBox(x, z)) { const n = nearestNode(x, z); if (n >= 0) return [nodeX(n), nodeZ(n)]; }
@@ -2260,7 +2288,7 @@ function despawnCops() { for (const a of police.cops) { scene.remove(a.vis.root)
 function startPursuit(n) {
   despawnCops();
   for (let k = 0; k < n; k++) spawnCop(160 + k * 45, (k - (n - 1) / 2) * 45);
-  police.state = 'hunt'; police.pin = 0; police.escape = 0;
+  police.state = 'hunt'; police.pin = 0; police.escape = 0; police.t0 = performance.now();
   if (!heli.g.visible) { heli.x = player.x - Math.sin(player.h) * 260; heli.z = player.z - Math.cos(player.h) * 260; heli.y = groundH(player.x, player.z) + 160; heli.vx = heli.vy = heli.vz = 0; heli.g.visible = true; }
   heli.active = true;
 }
@@ -2268,7 +2296,7 @@ function endPursuit(cool) { despawnCops(); police.state = cool > 0 ? 'cool' : 'o
 function setPolice(on) {
   police.on = on; $('polT').textContent = on ? 'Police: on' : 'Police: off';
   if (police.mission) return;
-  if (on && !M) { startPursuit(3); show('Police!', 'Three patrol cars and a helicopter are after you. Get 300 m away to escape.', 3.5); }
+  if (on && !M) { startPursuit(3); show('Police!', 'Three patrol cars and a helicopter are after you. Get 300 m away to escape and win a cash bonus!', 3.5); }
   if (!on) { endPursuit(0); if (police.arrest) { for (const o of police.arrest.officers) scene.remove(o.p.root); police.arrest = null; } }
 }
 function updateCop(a, dt) {
@@ -2321,7 +2349,8 @@ function updateArrest(dt) {
     for (const o of A.officers) scene.remove(o.p.root);
     police.arrest = null; police.arrests++;
     endPursuit(20);
-    show('Arrested', `You paid a €500 fine (arrests so far: ${police.arrests}). The police will look again in 20 s.`, 4);
+    const fine = Math.min(100, fishLog.money); earn(-fine);
+    show('Arrested', `You paid a €${fine.toFixed(0)} fine (arrests so far: ${police.arrests}). The police will look again in 20 s.`, 4);
   }
 }
 function updatePolice(dt) {
@@ -2340,7 +2369,11 @@ function updatePolice(dt) {
   if (dmin > 300) police.escape += dt; else police.escape = Math.max(0, police.escape - dt * 2);
   if (police.mission) return; // the Getaway mission decides how it ends
   if (police.pin >= 3) startArrest(near);
-  else if (police.escape >= 8) { endPursuit(25); show('You got away', 'The police lost you. They will look again in 25 s.', 3.5); }
+  else if (police.escape >= 8) {
+    const secs = (performance.now() - (police.t0 || performance.now())) / 1000, bonus = 250 + police.cops.length * 100 + Math.min(500, Math.round(secs * 5));
+    endPursuit(25); earn(bonus, true);
+    show(`Escaped! +€${bonus}`, `You got away! €250, plus €100 for each police car and €5 for every second of the chase. They will look again in 25 s.`, 4.5);
+  }
 }
 
 /* ---------- police helicopter ---------- */
@@ -2474,6 +2507,7 @@ function finishMission(ok, text) {
     const prev = best[def.id];
     const better = prev == null || (def.type === 'drift' ? val > prev : val < prev);
     if (better) { best[def.id] = val; saveBest(); rec = ' New personal best.'; }
+    const pay = (def.type === 'chase' ? 400 : 150) + (better ? 100 : 0); earn(pay, true); rec += ` You earned €${pay}.`;
   }
   M = null; endChase();
   cpBeam.visible = cpNext.visible = arrow.visible = false;
@@ -2939,7 +2973,7 @@ function sellCatch() {
   if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
   F.st = 'ready'; F.T = 0; F.spot = null; $('catchBox').hidden = true;
   if (name === 'Old boot') { show('Nice one!', 'You put the old boot in the bin and kept the sea clean.', 2.8); audio.ding(); return; }
-  fishLog.money = Math.round((fishLog.money + F.value) * 100) / 100; fishLog.sold++; saveFish();
+  earn(F.value); fishLog.sold++; saveFish();
   show(`+€${F.value.toFixed(2)}`, `You sold the ${name.toLowerCase()} to the fish market. Wallet: €${fishLog.money.toFixed(2)}`, 3);
   audio.ding(); setTimeout(() => audio.ding(), 140); setTimeout(() => audio.ding(), 280);
 }
@@ -4723,6 +4757,7 @@ function awayFrame(dt) {
   planeCam(dt);
   if (frame % 3 === 0) { planeHud(); $('plaque').hidden = false; $('plaqueT').textContent = AWAY.name; $('plaqueD').textContent = '✈'; }
   if (msgT > 0) { msgT -= dt; if (msgT <= 0) { $('msg').hidden = true; $('sub').hidden = true; } }
+  updateWallet(dt);
   audio.update(planeAudio(), 1e9, 1e9);
   renderer.render(AWAY.scene, camera);
 }
@@ -5110,6 +5145,7 @@ function loop() {
     for (let k = 0; k < sub; k++) stepCar(c, dt / sub, inp);
     if (frozen) { c.u = c.v = c.r = 0; }
     const hit = collideCar(c, .98);
+    if (!frozen) driveEarn(dt, Math.hypot(c.u, c.v));
     // car vs traffic
     let traffic = 0;
     const fx = Math.sin(c.h), fz = Math.cos(c.h);
@@ -5291,12 +5327,13 @@ function loop() {
   if (frame % 2 === 0) drawMap();
   if (frame % 15 === 0) updateTiles();
   if (msgT > 0) { msgT -= dt; if (msgT <= 0) { $('msg').hidden = true; $('sub').hidden = true; } }
+  updateWallet(dt);
   audio.update(plane.on ? planeAudio() : foot.boat ? boatAudio() : c, police.state === 'hunt' ? police.dmin : 1e9, heli.g.visible ? Math.hypot(heli.x - c.x, heli.y - (c.gy || 0), heli.z - c.z) : 1e9);
   if (window.__cam) { camera.clearViewOffset(); camera.position.set(...window.__cam.p); camera.lookAt(...window.__cam.t); camera.fov = window.__cam.fov || 60; camera.updateProjectionMatrix(); if (frame % 15 === 1) updateTiles(); } // test hook
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
