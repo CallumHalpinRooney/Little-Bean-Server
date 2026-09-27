@@ -1654,7 +1654,7 @@ function updateAgent(a, dt) {
   // look ahead for the player and other cars
   const ahead = (ox, oz) => { const dx = ox - a.x, dz = oz - a.z, al = dx * hx + dz * hz, lat = Math.abs(-dx * hz + dz * hx); return al > 0 && al < 16 && lat < 2.6; };
   if (!a.police) {
-    if (ahead(player.x, player.z) || (foot.on && ahead(foot.x, foot.z))) want = 0;
+    if (ahead(player.x, player.z) || (foot.on && !foot.inside && ahead(foot.x, foot.z))) want = 0;
     else for (const o of agents) if (o !== a && Math.abs(o.x - a.x) < 20 && Math.abs(o.z - a.z) < 20 && ahead(o.x, o.z)) { want = 0; break; }
   }
   const e = EDGES[a.e];
@@ -1821,7 +1821,7 @@ function walkAt(w, s, out) { return edgeAt(w, s, out); } // same shape as a stre
 const PN = IS_TOUCH_EARLY() ? 800 : 1400, PIER_PEDS = 20;
 function IS_TOUCH_EARLY() { return matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window; }
 const peds = [];
-const focusPos = () => foot.on ? foot : player;
+const focusPos = () => foot.inside ? foot.inside : foot.on ? foot : player;
 function placePed(q, cx, cz, rMin, rMax) { // put a walker on a footpath somewhere in a ring around (cx, cz)
   for (let tries = 0; tries < 16; tries++) {
     const a = Math.random() * 6.283, r = rnd(rMin, rMax), x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
@@ -2464,6 +2464,7 @@ function toggleFoot() {
     scene.add(foot.p.root); $('footT').textContent = 'Get in';
     cam.h = foot.h;
   } else {
+    if (foot.inside) return show('', 'Walk out of the building first.', 1.8);
     if (Math.hypot(foot.x - player.x, foot.z - player.z) > 4.5) return show('', 'Walk back to your car to get in.', 1.8);
     if (foot.fish) stopFishing();
     foot.on = false; scene.remove(foot.p.root); $('footT').textContent = 'Get out';
@@ -2576,41 +2577,334 @@ function updateFishing(dt, act, press) {
   else if (showBob) pa.setXYZ(1, bx, by, bz); else pa.setXYZ(1, _tw.x, _tw.y - .6, _tw.z);
   pa.needsUpdate = true;
 }
+function nearCounter() { return room && room.counter && room.info.buy && Math.hypot(foot.x - room.counter.x, foot.z - room.counter.z) < 2; }
 function updateFoot(dt) {
   const f = foot, act = !!(input.act || (IS_TOUCH && input.hand)), press = act && !f.prevAct;
   f.prevAct = act;
-  const gy = walkY(f.x, f.z);
-  if (f.fish) { updateFishing(dt, act, press); f.y = gy; }
+  if (f.fish) { updateFishing(dt, act, press); f.y = walkY(f.x, f.z); }
   else {
     f.h += (input.left - input.right) * 2.8 * dt;
-    const want = input.up ? (input.run ? 5.4 : 1.9) : input.down ? -1.2 : 0;
+    const want = input.up ? (input.run ? (f.inside ? 3.2 : 5.4) : 1.9) : input.down ? -1.2 : 0;
     f.v += clamp(want - f.v, -dt * 14, dt * 9);
     f.x += Math.sin(f.h) * f.v * dt; f.z += Math.cos(f.h) * f.v * dt;
-    for (let it = 0; it < 2; it++) { const pen = penOct(f.x, f.z, .32); if (pen) { f.x += pen.nx * pen.p; f.z += pen.nz * pen.p; } }
-    { // your parked car is solid
-      const m = MODELS[player.spec.model], cfx = Math.sin(player.h), cfz = Math.cos(player.h);
-      const dx = f.x - player.x, dz = f.z - player.z, al = dx * cfx + dz * cfz, lt = dx * cfz - dz * cfx;
-      const pa = m.L / 2 + .3 - Math.abs(al), pl = m.W / 2 + .3 - Math.abs(lt);
-      if (pa > 0 && pl > 0) { if (pa < pl) { f.x += cfx * pa * Math.sign(al); f.z += cfz * pa * Math.sign(al); } else { f.x += cfz * pl * Math.sign(lt); f.z -= cfx * pl * Math.sign(lt); } }
+    if (f.inside) roomCollide(f);
+    else {
+      for (let it = 0; it < 2; it++) { const pen = penOct(f.x, f.z, .32, true); if (pen) { f.x += pen.nx * pen.p; f.z += pen.nz * pen.p; } }
+      { // your parked car is solid
+        const m = MODELS[player.spec.model], cfx = Math.sin(player.h), cfz = Math.cos(player.h);
+        const dx = f.x - player.x, dz = f.z - player.z, al = dx * cfx + dz * cfz, lt = dx * cfz - dz * cfx;
+        const pa = m.L / 2 + .3 - Math.abs(al), pl = m.W / 2 + .3 - Math.abs(lt);
+        if (pa > 0 && pl > 0) { if (pa < pl) { f.x += cfx * pa * Math.sign(al); f.z += cfz * pa * Math.sign(al); } else { f.x += cfz * pl * Math.sign(lt); f.z -= cfx * pl * Math.sign(lt); } }
+      }
+      for (const a of agents) { const dx = f.x - a.x, dz = f.z - a.z, d = Math.hypot(dx, dz); if (d < 2.3 && d > .01) { f.x = a.x + dx / d * 2.3; f.z = a.z + dz / d * 2.3; } }
     }
-    for (const a of agents) { const dx = f.x - a.x, dz = f.z - a.z, d = Math.hypot(dx, dz); if (d < 2.3 && d > .01) { f.x = a.x + dx / d * 2.3; f.z = a.z + dz / d * 2.3; } }
+    const gy = f.inside ? room.heightAt(f.x, f.z) : walkY(f.x, f.z);
     if (!IS_TOUCH && input.hand && f.y <= gy + .02) f.jv = 4.3;
-    f.jv -= 9.81 * dt; f.y += f.jv * dt; if (f.y < gy) { f.y = gy; f.jv = 0; }
+    f.jv -= 9.81 * dt; f.y += f.jv * dt; if (f.y < gy) { f.y = f.inside ? lerp(f.y, gy, .5) : gy; f.jv = 0; }
     f.ph += Math.abs(f.v) * dt * 3.2;
     const amp = clamp(Math.abs(f.v) / 1.9, 0, 1) * (Math.abs(f.v) > 3 ? .85 : .5);
     animPerson(f.p, f.ph, amp, f.y > gy + .05 ? .9 : 0);
-    if (press && railNear(f.x, f.z)) startFishing();
+    if (f.inside) {
+      if (f.z > room.D / 2 + .1) exitDoor();
+      else if (press && nearCounter()) { show(room.info.label, `You bought ${room.info.buy}.`, 2.8); audio.ding(); }
+    } else if (press) {
+      if (railNear(f.x, f.z)) startFishing();
+      else { const d = nearDoor(f.x, f.z); if (d) enterDoor(d); }
+    }
   }
   f.p.root.position.set(f.x, f.y, f.z); f.p.root.rotation.y = f.h;
 }
 function footPrompt() {
+  if (foot.inside) {
+    if (nearCounter()) return IS_TOUCH ? `Tap here to buy ${room.info.buy}` : `Press E to buy ${room.info.buy}`;
+    if (foot.z > room.D / 2 - 2.2) return 'Walk out through the door to leave';
+    return '';
+  }
   if (foot.fish) {
     const st = foot.fish.st;
     return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in' : 'Hold E to reel in') : '';
   }
   if (railNear(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fish' : 'Press E to fish';
+  const d = nearDoor(foot.x, foot.z);
+  if (d) { const what = d.type === 'lobby' ? 'the entrance hall' : d.name ? `${d.name} (${TYPE_INFO[d.type].label.toLowerCase()})` : `the ${TYPE_INFO[d.type].label.toLowerCase()}`; return IS_TOUCH ? `Tap here to go into ${what}` : `Press E to go into ${what}`; }
   if (Math.hypot(foot.x - player.x, foot.z - player.z) < 4.5) return IS_TOUCH ? 'Tap here to get in' : 'Press F to get in';
   return '';
+}
+
+/* ================= DOORS & INTERIORS =================
+   Every real shop, café and bar in the map has a door on its real wall; apartment blocks have
+   their entrance halls. Walk up and press E to go in. */
+const TYPE_INFO = {
+  bar: { label: 'Tapas bar', awn: '#8c1d18', buy: 'unes patates braves and a lemonade', floor: 'hydraulic', wall: '#e9dcc4' },
+  cafe: { label: 'Café', awn: '#35573a', buy: 'a hot chocolate and a croissant', floor: 'hydraulic', wall: '#efe4d0' },
+  market: { label: 'Supermarket', awn: '#1f6f3a', buy: 'a bag of oranges from València', floor: 'lino', wall: '#f2f2ee' },
+  bakery: { label: 'Bakery', awn: '#b8862e', buy: 'una barra de pa, still warm', floor: 'hydraulic', wall: '#f3e8d2' },
+  boutique: { label: 'Clothes shop', awn: '#2b2d31', buy: 'a Barça shirt', floor: 'wood', wall: '#f4f1ec' },
+  pharmacy: { label: 'Pharmacy', awn: '#1f8f3a', buy: 'a box of plasters (tiretes)', floor: 'lino', wall: '#f7f9f8' },
+  books: { label: 'Bookshop', awn: '#5a2d1e', buy: 'a book of Catalan legends', floor: 'wood', wall: '#efe6d6' },
+  shop: { label: 'Shop', awn: '#1f4fd0', buy: 'a little Gaudí lizard magnet', floor: 'hydraulic', wall: '#efece6' },
+  lobby: { label: 'Entrance hall', awn: null, buy: null, floor: 'marble', wall: '#e3d5bd' },
+  fast: { label: 'Fast food', awn: '#b3121b', buy: 'a burger, chips and a drink', floor: 'lino', wall: '#f7efe4' },
+};
+const FAST_RE = /mcdonald|burger|kfc|pizza|kebab|d[öo]ner|subway|taco|domino|montaditos|pans & company|wok|sushi/i;
+const DOORS = DATA.doors.map(([x, z, nx, nz, t, nm], i) => { const name = NAMES[nm] || '', type = DATA.types[t]; return { x, z, nx, nz, type: type === 'bar' && FAST_RE.test(name) ? 'fast' : type, name, i }; });
+const doorGrid = new Map(); DOORS.forEach((d, i) => gridAdd(doorGrid, d.x, d.z, d.x, d.z, i));
+function nearDoor(x, z, maxD = 2.6) {
+  let best = null, bd = maxD;
+  for (let di = -1; di <= 1; di++) for (let dj = -1; dj <= 1; dj++) {
+    const l = doorGrid.get(ckey(Math.floor(x / CELL) + di, Math.floor(z / CELL) + dj)); if (!l) continue;
+    for (const i of l) { const d = DOORS[i], dd = Math.hypot(d.x - x, d.z - z); if (dd < bd) { bd = dd; best = d; } }
+  }
+  return best;
+}
+{ // doors, awnings and the green crosses of Barcelona's pharmacies, all instanced
+  const shops = DOORS.filter(d => d.type !== 'lobby'), pharm = DOORS.filter(d => d.type === 'pharmacy');
+  const doorM = new THREE.InstancedMesh(new THREE.BoxGeometry(1.5, 2.6, .16).translate(0, 1.3, 0), new THREE.MeshStandardMaterial({ roughness: .5, metalness: .2 }), DOORS.length);
+  const awnM = new THREE.InstancedMesh(new THREE.BoxGeometry(2.8, .1, 1.2).translate(0, 0, .55), new THREE.MeshStandardMaterial({ roughness: .8 }), shops.length);
+  const cs = new THREE.Shape(); [[-.15, .45], [.15, .45], [.15, .15], [.45, .15], [.45, -.15], [.15, -.15], [.15, -.45], [-.15, -.45], [-.15, -.15], [-.45, -.15], [-.45, .15], [-.15, .15]].forEach(([x, y], k) => k ? cs.lineTo(x, y) : cs.moveTo(x, y));
+  const crossM = new THREE.InstancedMesh(new THREE.ExtrudeGeometry(cs, { depth: .12, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: C('#0f5f23'), emissive: C('#1bd13f'), emissiveIntensity: 1.3 }), pharm.length);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), col = new THREE.Color();
+  let ai = 0, ci = 0;
+  DOORS.forEach((d, k) => {
+    const y = groundH(d.x, d.z), h = Math.atan2(d.nx, d.nz);
+    q.setFromEuler(e.set(0, h, 0));
+    m4.compose(v.set(d.x + d.nx * .06, y, d.z + d.nz * .06), q, one); doorM.setMatrixAt(k, m4);
+    doorM.setColorAt(k, col.set(d.type === 'lobby' ? '#4b2e1c' : '#26343d').convertSRGBToLinear());
+    if (d.type !== 'lobby') {
+      q.setFromEuler(e.set(.28, h, 0)); m4.compose(v.set(d.x + d.nx * .1, y + 3.1, d.z + d.nz * .1), q, one); awnM.setMatrixAt(ai, m4);
+      awnM.setColorAt(ai++, col.set(TYPE_INFO[d.type].awn).convertSRGBToLinear());
+    }
+    if (d.type === 'pharmacy') { q.setFromEuler(e.set(0, h + Math.PI / 2, 0)); m4.compose(v.set(d.x + d.nx * .9, y + 3.9, d.z + d.nz * .9), q, one); crossM.setMatrixAt(ci++, m4); }
+  });
+  for (const m of [doorM, awnM, crossM]) { m.frustumCulled = false; m.castShadow = m !== crossM; scene.add(m); }
+  ANIM.push(() => { crossM.material.emissiveIntensity = 1 + .5 * Math.sin(performance.now() / 300); });
+}
+
+// ---------- interiors: a separate little scene, built when you walk in ----------
+const inScene = new THREE.Scene(); inScene.background = new THREE.Color(0x1a1714);
+inScene.add(new THREE.HemisphereLight(C('#fff3e2'), C('#8a7a66'), 1.0));
+const inLights = [0, 1, 2].map(() => { const l = new THREE.PointLight(C('#ffe6c0'), .9, 16, 1.6); inScene.add(l); return l; });
+let room = null;
+function mulberry(seed) { return () => { seed |= 0; seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const floorTexCache = {};
+function floorTex(kind, seed) {
+  const key = kind + (kind === 'hydraulic' ? seed % 5 : '');
+  if (floorTexCache[key]) return floorTexCache[key];
+  const R = mulberry(seed + 3), pal = [['#b5452f', '#e8dcc2', '#2f5d7c'], ['#2f6e4a', '#efe4cc', '#b8862e'], ['#1f3d6b', '#f0e6d2', '#c8102e'], ['#8a3b2a', '#e9dfc8', '#4f6f3a'], ['#5a4a8a', '#efe7d6', '#d9a21b']][seed % 5];
+  const t = canvasTex(128, 128, (g, w, h) => {
+    if (kind === 'hydraulic') { // Modernista cement tiles: a flower in a square, four to a tile
+      for (let a = 0; a < 2; a++) for (let b = 0; b < 2; b++) {
+        const x = a * 64, y = b * 64; g.fillStyle = pal[1]; g.fillRect(x, y, 64, 64);
+        g.fillStyle = pal[0]; g.beginPath(); g.moveTo(x + 32, y + 4); g.lineTo(x + 60, y + 32); g.lineTo(x + 32, y + 60); g.lineTo(x + 4, y + 32); g.closePath(); g.fill();
+        g.fillStyle = pal[1]; g.beginPath(); g.arc(x + 32, y + 32, 16, 0, 7); g.fill();
+        g.fillStyle = pal[2]; for (let k = 0; k < 4; k++) { g.beginPath(); g.ellipse(x + 32 + Math.cos(k * Math.PI / 2) * 9, y + 32 + Math.sin(k * Math.PI / 2) * 9, 7, 3.5, k * Math.PI / 2, 0, 7); g.fill(); }
+        g.fillStyle = pal[0]; g.fillRect(x, y, 6, 6); g.fillRect(x + 58, y, 6, 6); g.fillRect(x, y + 58, 6, 6); g.fillRect(x + 58, y + 58, 6, 6);
+        g.strokeStyle = 'rgba(0,0,0,.15)'; g.strokeRect(x + .5, y + .5, 63, 63);
+      }
+    } else if (kind === 'wood') {
+      for (let y = 0; y < h; y += 16) { const v = 120 + R() * 40 | 0; g.fillStyle = `rgb(${v},${v * .72 | 0},${v * .48 | 0})`; g.fillRect(0, y, w, 15); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(0, y + 15, w, 1); g.fillRect((R() * w) | 0, y, 1, 16); }
+    } else if (kind === 'marble') {
+      g.fillStyle = '#ece8e0'; g.fillRect(0, 0, w, h);
+      for (let k = 0; k < 14; k++) { g.strokeStyle = `rgba(90,90,100,${.08 + R() * .12})`; g.lineWidth = .6 + R(); g.beginPath(); g.moveTo(R() * w, 0); for (let q = 0; q < 5; q++) g.lineTo(R() * w, (q + 1) * h / 5); g.stroke(); }
+      g.strokeStyle = 'rgba(0,0,0,.12)'; g.strokeRect(.5, .5, w - 1, h - 1);
+    } else { g.fillStyle = '#dcdcd6'; g.fillRect(0, 0, w, h); for (let k = 0; k < 900; k++) { g.fillStyle = `rgba(0,0,0,${R() * .06})`; g.fillRect(R() * w, R() * h, 2, 2); } g.strokeStyle = 'rgba(0,0,0,.1)'; g.strokeRect(.5, .5, w - 1, h - 1); }
+  }, 1, 1);
+  return floorTexCache[key] = t;
+}
+function textBoard(lines, bg = '#1d2a22', fg = '#f2eee2', w = 512, h = 320) {
+  const t = drawTex(w, h, g => {
+    g.fillStyle = bg; g.fillRect(0, 0, w, h); g.strokeStyle = '#6b4a2e'; g.lineWidth = 16; g.strokeRect(0, 0, w, h);
+    g.fillStyle = fg; g.textAlign = 'center';
+    lines.forEach((l, k) => { g.font = k ? '600 34px "Barlow", sans-serif' : '800 52px "Big Shoulders Display", Impact, sans-serif'; g.fillText(l, w / 2, k ? 90 + k * 46 : 70); });
+  });
+  return new THREE.MeshStandardMaterial({ map: t, roughness: .8 });
+}
+const BOARDS = {
+  bar: ['TAPES', 'Patates braves  4,50 €', 'Pa amb tomàquet  3,00 €', 'Croquetes  6,50 €', 'Pop a la gallega  12 €'],
+  cafe: ['CAFÈ', 'Tallat  1,60 €', 'Cafè amb llet  1,90 €', 'Xocolata desfeta  2,80 €', 'Croissant  1,50 €'],
+  bakery: ['FORN DE PA', 'Barra de pa  1,10 €', 'Coca de llardons  3 €', 'Ensaïmada  2,20 €', 'Panellets  per pes'],
+  fast: ['MENÚ', 'Hamburguesa  5,50 €', 'Patates fregides  2,50 €', 'Refresc  2,20 €', 'Gelat  1,80 €'],
+};
+function buildInterior(door) {
+  const R = mulberry(door.i * 9973 + 17), rr = (a, b) => a + R() * (b - a), pk = a => a[(R() * a.length) | 0];
+  const type = door.type, info = TYPE_INFO[type];
+  const g = new THREE.Group(), boxes = [], npcs = [], geos = [];
+  const W = type === 'market' ? 16 : type === 'lobby' ? 10 : Math.round(rr(9, 13)), D = type === 'market' ? 20 : type === 'lobby' ? 13 : Math.round(rr(10, 14)), H = type === 'lobby' ? 7.5 : 3.8;
+  const mesh = (geo, mat, x, y, z) => { geos.push(geo); const m = new THREE.Mesh(geo, typeof mat === 'string' ? flat(mat) : mat); m.position.set(x, y, z); g.add(m); return m; };
+  const box = (w, h, d, x, y, z, mat, solid = true) => { const m = mesh(new THREE.BoxGeometry(w, h, d), mat, x, y + h / 2, z); if (solid) boxes.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2]); return m; };
+  const cyl = (r, h, x, y, z, mat, solid = false, r2 = r) => { const m = mesh(new THREE.CylinderGeometry(r, r2, h, 14), mat, x, y + h / 2, z); if (solid) boxes.push([x - r, z - r, x + r, z + r]); return m; };
+  // shell: floor, ceiling, walls; the front wall has the doorway and shop windows full of daylight
+  const ft = floorTex(info.floor, door.i); ft.repeat.set(W / (info.floor === 'hydraulic' ? 0.8 : info.floor === 'wood' ? 2.5 : 1.2), D / (info.floor === 'hydraulic' ? 0.8 : info.floor === 'wood' ? 2.5 : 1.2));
+  const floor = mesh(new THREE.PlaneGeometry(W, D).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: ft, roughness: .6 }), 0, 0, 0);
+  mesh(new THREE.PlaneGeometry(W, D).rotateX(Math.PI / 2), '#f4f0e8', 0, H, 0);
+  const wallM = new THREE.MeshStandardMaterial({ color: C(info.wall), roughness: .9 });
+  mesh(new THREE.PlaneGeometry(W, H), wallM, 0, H / 2, -D / 2);
+  mesh(new THREE.PlaneGeometry(D, H).rotateY(Math.PI / 2), wallM, -W / 2, H / 2, 0);
+  mesh(new THREE.PlaneGeometry(D, H).rotateY(-Math.PI / 2), wallM, W / 2, H / 2, 0);
+  const side = (W - 2) / 2;
+  mesh(new THREE.PlaneGeometry(side, H).rotateY(Math.PI), wallM, -W / 2 + side / 2, H / 2, D / 2);
+  mesh(new THREE.PlaneGeometry(side, H).rotateY(Math.PI), wallM, W / 2 - side / 2, H / 2, D / 2);
+  mesh(new THREE.PlaneGeometry(2, H - 2.6).rotateY(Math.PI), wallM, 0, 2.6 + (H - 2.6) / 2, D / 2);
+  const day = new THREE.MeshBasicMaterial({ color: C('#fff4dc') });
+  mesh(new THREE.PlaneGeometry(2, 2.6).rotateY(Math.PI), day, 0, 1.3, D / 2 + .02); // the open doorway, bright with the street outside
+  if (type !== 'lobby') for (const sx of [-1, 1]) mesh(new THREE.PlaneGeometry(Math.min(3, side - .6), 2).rotateY(Math.PI), day, sx * (1 + side / 2), 1.6, D / 2 - .01);
+  mesh(new THREE.BoxGeometry(W, .12, .06), '#5a4a3a', 0, .06, -D / 2 + .03); // skirting
+  inLights[0].position.set(0, H - .4, D / 4); inLights[1].position.set(-W / 4, H - .4, -D / 4); inLights[2].position.set(W / 4, H - .4, -D / 4);
+  for (const l of inLights) { l.intensity = type === 'bar' ? .75 : .95; l.color.set(type === 'pharmacy' || type === 'market' ? 0xf4f8ff : 0xffe2b8); }
+  for (const l of inLights) { const lamp = cyl(.25, .1, l.position.x, H - .12, l.position.z, new THREE.MeshBasicMaterial({ color: 0xfff1d6 })); }
+  const person = (shirt, pants, x, z, h, kind, extra = {}) => {
+    const p = makePerson(shirt, pants, pick(SKIN), extra.cap ? { cap: extra.cap } : {});
+    p.root.position.set(x, 0, z); p.root.rotation.y = h; g.add(p.root);
+    npcs.push({ p, kind, x, z, h, ph: R() * 6, ...extra });
+    if (kind !== 'walk') boxes.push([x - .3, z - .3, x + .3, z + .3]);
+    return p;
+  };
+  const products = [], addProd = (x, y, z, sx, sy, sz, c) => products.push([x, y, z, sx, sy, sz, c]);
+  const shelf = (x, z, len, rot, tall = 1.9, fill = 'box', sides = [-1, 1]) => { // a shelving unit along x (rot 0) or z (rot 1), stacked with goods on its faces
+    const w = rot ? .55 : len, d = rot ? len : .55;
+    box(rot ? .08 : len, tall, rot ? len : .08, x, 0, z, '#d8d2c6', false); boxes.push([x - w / 2, z - d / 2, x + w / 2, z + d / 2]);
+    for (let lv = 0; lv < 4; lv++) {
+      const y = .12 + lv * (tall - .2) / 4;
+      box(rot ? .55 : len, .03, rot ? len : .55, x, y - .03, z, '#cfc8ba', false);
+      for (const sd of sides) for (let t = -len / 2 + .15; t < len / 2 - .1; t += fill === 'book' ? rr(.05, .09) : rr(.18, .3)) {
+        const off = sd * .17, px = rot ? x + off : x + t, pz = rot ? z + t : z + off;
+        if (fill === 'book') addProd(px, y, pz, rot ? .22 : .045, rr(.22, .34), rot ? .045 : .22, pk(['#7a1313', '#1f3d6b', '#2f6e4a', '#d9a21b', '#3a3a3a', '#e8dcc2', '#5a2d1e', '#c8102e']));
+        else addProd(px, y, pz, rr(.12, .22), rr(.16, .34), rr(.12, .2), pk(['#c8102e', '#f9c80e', '#1f4fd0', '#2fbf4a', '#e2711d', '#f4f4f4', '#7b2cbf', '#ff5fa2', '#8a5a2e']));
+      }
+    }
+  };
+  let counter = null;
+  const back = -D / 2;
+  if (type === 'bar' || type === 'cafe' || type === 'fast') {
+    // counter along the left, stools, a shelf of bottles, marble tables
+    const cx = -W / 2 + 2.2, cl = D * .6, cz = back + cl / 2 + 1;
+    box(.9, 1.1, cl, cx, 0, cz, '#6b4a2e'); box(1.1, .06, cl + .2, cx, 1.1, cz, type === 'bar' ? '#3a2a1e' : '#e8e4dc', false);
+    person(type === 'bar' ? '#222222' : type === 'fast' ? '#b3121b' : '#f4f4f4', '#1d2a44', -W / 2 + .9, cz, Math.PI / 2, 'work', type === 'fast' ? { cap: '#b3121b' } : {});
+    for (let t = -cl / 2 + .3; t < cl / 2; t += .7) { const bx = -W / 2 + .35, bz = cz + t; for (let k = 0; k < 3; k++) addProd(bx, 1.4 + k * .45, bz + rr(-.15, .15), .09, .3, .09, pk(['#2f6e4a', '#6b2a1e', '#d9a21b', '#e8e8e8', '#3a5a2a'])); }
+    box(.35, .06, cl, -W / 2 + .35, 1.35, cz, '#5a3a24', false); box(.35, .06, cl, -W / 2 + .35, 1.8, cz, '#5a3a24', false); box(.35, .06, cl, -W / 2 + .35, 2.25, cz, '#5a3a24', false);
+    for (let t = -cl / 2 + .6; t < cl / 2 - .3; t += 1.1) { cyl(.2, .04, cx + 1, .75, cz + t, '#2b2d31'); cyl(.04, .75, cx + 1, 0, cz + t, '#8a8f96'); }
+    if (type === 'cafe') { box(.6, .5, .5, cx, 1.16, cz - cl / 2 + .6, new THREE.MeshStandardMaterial({ color: C('#c0c3c7'), metalness: .9, roughness: .25 }), false); const glass = box(.8, .45, 1.6, cx + .1, 1.16, cz + .8, new THREE.MeshStandardMaterial({ color: C('#dfefff'), transparent: true, opacity: .25 }), false); for (let k = 0; k < 8; k++) addProd(cx + rr(-.2, .3), 1.22, cz + .2 + k * .17, .12, .07, .08, '#c98b3c'); }
+    if (type === 'bar') for (let k = 0; k < 4; k++) { const hm = cyl(.05, .55, cx - .1, H - 1.1, cz - cl / 2 + .8 + k * .6, '#7a3a2a', false, .16); } // hams hanging over the bar
+    counter = { x: cx + .9, z: cz };
+    const bd = BOARDS[type]; if (bd) { const m = mesh(new THREE.PlaneGeometry(2.4, 1.5), textBoard(bd), 1.2, 2.2, back + .03); }
+    for (let tx = -W / 2 + 4.2; tx < W / 2 - 1; tx += 2.4) for (let tz = back + 2; tz < D / 2 - 2.5; tz += 2.6) {
+      const marble = type === 'cafe' ? '#ece8e0' : '#6b4a2e';
+      cyl(type === 'cafe' ? .42 : .5, .05, tx, .74, tz, marble); cyl(.05, .74, tx, 0, tz, '#2b2d31'); boxes.push([tx - .45, tz - .45, tx + .45, tz + .45]);
+      for (const [ox, oz, oh] of [[.75, 0, -Math.PI / 2], [-.75, 0, Math.PI / 2]]) {
+        box(.42, .45, .42, tx + ox, 0, tz + oz, '#5a3a24', true); box(.42, .45, .06, tx + ox + Math.sign(ox) * .2, .45, tz + oz, '#5a3a24', false).rotation.y = Math.PI / 2;
+        if (R() < .6) person(pick(SHIRTS), pick(PANTS), tx + ox, tz + oz, oh, 'sit');
+        cyl(.04, .09, tx + ox * .35, .79, tz + oz + .1, '#f4f4f4');
+      }
+    }
+  } else if (type === 'market') {
+    for (let ax = -W / 2 + 3; ax < W / 2 - 2; ax += 3.2) shelf(ax, -1.5, 11, 1);
+    shelf(0, back + .5, W - 1.5, 0, 2.1);
+    const fridge = box(W - 2, 2.1, .6, 0, 0, back + 1.4, new THREE.MeshStandardMaterial({ color: C('#e9f4ff'), emissive: C('#bfe0ff'), emissiveIntensity: .5 }), true);
+    for (let k = 0; k < 6; k++) { const fx = -W / 2 + 1.5 + k * 1.1, fz = D / 2 - 3.5; box(.9, .7, .7, fx, 0, fz, '#8a6a44'); const fc = pk(['#f28c1e', '#c8102e', '#f9d71c', '#6ab04c', '#7b2cbf']); for (let q = 0; q < 8; q++) addProd(fx + rr(-.3, .3), .74, fz + rr(-.25, .25), .12, .12, .12, fc); }
+    box(1.6, .95, .7, W / 2 - 2.2, 0, D / 2 - 2.5, '#d8d2c6'); person('#1f6f3a', '#2b2d31', W / 2 - 2.2, D / 2 - 3.3, 0, 'work');
+    counter = { x: W / 2 - 2.2, z: D / 2 - 1.6 };
+    for (let k = 0; k < 4; k++) person(pick(SHIRTS), pick(PANTS), 0, 0, 0, 'walk', { path: [[-W / 2 + 1.5 + k * 3.2, D / 2 - 5], [-W / 2 + 1.5 + k * 3.2, back + 3]], t: R() });
+  } else if (type === 'bakery') {
+    box(W - 3, 1.0, .8, 0, 0, back + 3.2, '#e8dcc2');
+    box(W - 3, .5, .7, 0, 1.0, back + 3.2, new THREE.MeshStandardMaterial({ color: C('#e8f4ff'), transparent: true, opacity: .25 }), false);
+    for (let k = 0; k < 26; k++) addProd(rr(-W / 2 + 2, W / 2 - 2), 1.05, back + 3.2 + rr(-.25, .25), rr(.15, .35), .1, rr(.12, .2), pk(['#c98b3c', '#a8672a', '#e0b27a', '#8a4f22']));
+    for (let x = -W / 2 + 1; x < W / 2 - 1; x += .9) for (let lv = 0; lv < 3; lv++) { box(.8, .04, .45, x, .9 + lv * .55, back + .35, '#8a6a44', false); addProd(x, .95 + lv * .55, back + .35, .6, .12, .1, '#c98b3c'); }
+    person('#f4f4f4', '#f4f4f4', 0, back + 1.8, 0, 'work', { cap: '#f4f4f4' });
+    counter = { x: 0, z: back + 4.3 };
+    for (let k = 0; k < 3; k++) person(pick(SHIRTS), pick(PANTS), -1.5 + k * 1.3, back + 5 + k * .9, Math.PI, 'stand');
+    mesh(new THREE.PlaneGeometry(2.4, 1.5), textBoard(BOARDS.bakery, '#3a2a1e'), W / 2 - 1.6, 2.4, back + .03);
+  } else if (type === 'boutique' || type === 'shop') {
+    for (let r = 0; r < 3; r++) { const rz = back + 2.5 + r * 2.8; box(2.6, .05, .05, -1.2, 1.55, rz, '#8a8f96', false); cyl(.03, 1.55, -2.4, 0, rz, '#8a8f96'); cyl(.03, 1.55, 0, 0, rz, '#8a8f96'); boxes.push([-2.6, rz - .35, .2, rz + .35]); for (let t = -1.1; t < 1.1; t += .16) addProd(-1.2 + t, .75, rz, .06, .75, .5, pk(SHIRTS)); }
+    shelf(W / 2 - .4, 0, D - 3, 1, 2);
+    for (let k = 0; k < 2; k++) { const mp = makePerson(pick(SHIRTS), pick(PANTS), '#e8e4dc'); mp.root.position.set(2 + k * 1.6, 0, back + 2); g.add(mp.root); boxes.push([1.7 + k * 1.6, back + 1.7, 2.3 + k * 1.6, back + 2.3]); }
+    const mirror = mesh(new THREE.PlaneGeometry(1.2, 2.2), new THREE.MeshStandardMaterial({ color: C('#dfe8ee'), metalness: 1, roughness: .05 }), -W / 2 + .03, 1.2, back + 2); mirror.rotation.y = Math.PI / 2;
+    box(1.8, .95, .7, W / 2 - 2.5, 0, D / 2 - 3, '#2b2d31'); person(pick(SHIRTS), '#2b2d31', W / 2 - 2.5, D / 2 - 3.8, 0, 'work');
+    counter = { x: W / 2 - 2.5, z: D / 2 - 2 };
+    person(pick(SHIRTS), pick(PANTS), 0, 0, 0, 'walk', { path: [[-3.5, back + 2], [-3.5, D / 2 - 3], [1, D / 2 - 3]], t: R() });
+  } else if (type === 'pharmacy') {
+    shelf(-W / 2 + .4, 0, D - 3, 1, 2.3); shelf(W / 2 - .4, 0, D - 3, 1, 2.3); shelf(0, back + .4, W - 1.5, 0, 2.3);
+    box(W - 4, 1.0, .7, 0, 0, back + 3, '#f4f4f4'); person('#f7f9f8', '#1d2a44', 0, back + 2.1, 0, 'work');
+    const cross = mesh(new THREE.BoxGeometry(1, .3, .05), new THREE.MeshStandardMaterial({ color: C('#0f5f23'), emissive: C('#1bd13f'), emissiveIntensity: 1.2 }), 0, 3, back + .9);
+    const cross2 = mesh(new THREE.BoxGeometry(.3, 1, .05), cross.material, 0, 3, back + .9);
+    counter = { x: 0, z: back + 4.1 };
+    person(pick(SHIRTS), pick(PANTS), -1, back + 4.3, Math.PI, 'stand');
+  } else if (type === 'books') {
+    shelf(-W / 2 + .4, 0, D - 3, 1, 2.6, 'book'); shelf(W / 2 - .4, 0, D - 3, 1, 2.6, 'book'); shelf(0, back + .4, W - 1.5, 0, 2.6, 'book');
+    box(2.4, .8, 1.2, 0, 0, 0, '#6b4a2e'); for (let k = 0; k < 14; k++) addProd(rr(-1, 1), .82 + rr(0, .15), rr(-.45, .45), .22, .04, .3, pk(['#c8102e', '#1f3d6b', '#e8dcc2', '#2f6e4a']));
+    box(1, .9, 1, -W / 2 + 2, 0, D / 2 - 3, '#7a1313'); person(pick(SHIRTS), pick(PANTS), -W / 2 + 2, D / 2 - 3, Math.PI / 2, 'sit');
+    box(1.6, .95, .7, W / 2 - 2.5, 0, D / 2 - 3, '#6b4a2e'); person(pick(SHIRTS), pick(PANTS), W / 2 - 2.5, D / 2 - 3.8, 0, 'work');
+    counter = { x: W / 2 - 2.5, z: D / 2 - 2 };
+  } else { // lobby: marble, mailboxes, a lift in an iron cage and the staircase going up
+    box(W, 1.1, .08, 0, 0, back + .04, '#4b2e1c', false); // wood panelling
+    for (let r = 0; r < 3; r++) for (let c = 0; c < 6; c++) addProd(-W / 2 + .1, 1.3 + r * .3, -2 + c * .35, .06, .25, .3, '#9a7a3a');
+    const cage = new THREE.MeshStandardMaterial({ color: C('#1d1d1f'), metalness: .6, roughness: .4 });
+    for (let k = 0; k < 9; k++) { cyl(.02, 2.6, W / 2 - 2.6 + k * .25, 0, back + 1.2, cage); }
+    box(2.2, .08, 1.6, W / 2 - 1.6, 2.6, back + 1, cage, false); boxes.push([W / 2 - 2.7, back, W / 2, back + 2.1]);
+    box(1.2, 1, .6, -W / 2 + 1.5, 0, D / 2 - 3, '#4b2e1c'); person('#394a6b', '#2b2d31', -W / 2 + 1.5, D / 2 - 3.6, 0, 'work'); // the porter
+    counter = { x: -W / 2 + 1.5, z: D / 2 - 2.3 };
+    for (let k = 0; k < 12; k++) box(1.6, .18, .35, -W / 2 + 1, k * .18, back + 5 - k * .3, '#d8d0c2', false); // the grand staircase
+    box(1.6, .1, 1.6, -W / 2 + 1, 12 * .18, back + 1, '#d8d0c2', false);
+    boxes.push([-W / 2 + 1.8, back, -W / 2 + 1.9, back + 5.2]);
+    cyl(.3, .6, W / 2 - .8, 0, D / 2 - 2, '#8a5a2e', true); const leaves = mesh(new THREE.IcosahedronGeometry(.6, 0), '#3d6b35', W / 2 - .8, 1.1, D / 2 - 2);
+    person(pick(SHIRTS), pick(PANTS), 0, 0, 0, 'walk', { path: [[0, D / 2 - 2], [-W / 2 + 1, back + 5.5]], t: R() });
+  }
+  if (products.length) {
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1).translate(0, .5, 0), new THREE.MeshStandardMaterial({ roughness: .6 }), products.length);
+    const m4 = new THREE.Matrix4(), col = new THREE.Color();
+    products.forEach(([x, y, z, sx, sy, sz, c], k) => { m4.makeScale(sx, sy, sz); m4.setPosition(x, y, z); im.setMatrixAt(k, m4); im.setColorAt(k, col.set(c).convertSRGBToLinear()); });
+    g.add(im); geos.push(im.geometry);
+  }
+  inScene.add(g);
+  const stairsZ0 = back + 5, stairsX = -W / 2 + 1;
+  return {
+    g, geos, W, D, H, boxes, npcs, counter, door, info, type,
+    heightAt: (x, z) => type === 'lobby' && Math.abs(x - stairsX) < .8 && z < stairsZ0 + .2 ? Math.min(12, Math.max(0, (stairsZ0 + .15 - z) / .3)) * .18 + (z < back + 1.8 ? .18 : 0) : 0,
+  };
+}
+function updateRoom(dt) {
+  if (!room) return;
+  for (const n of room.npcs) {
+    n.ph += dt;
+    const p = n.p;
+    if (n.kind === 'sit') { p.legs[0].rotation.x = p.legs[1].rotation.x = -1.5; p.body.position.y = -.43; p.arms[0].rotation.x = -.9 + Math.sin(n.ph * 1.3) * .15; p.arms[1].rotation.x = -.5; p.head.rotation.y = Math.sin(n.ph * .4) * .4; }
+    else if (n.kind === 'work') { p.arms[0].rotation.x = -.8 + Math.sin(n.ph * 2.2) * .35; p.arms[1].rotation.x = -.7 + Math.cos(n.ph * 1.7) * .3; p.root.rotation.y = n.h + Math.sin(n.ph * .5) * .5; }
+    else if (n.kind === 'stand') { p.body.position.y = Math.sin(n.ph * 1.5) * .01; p.arms[0].rotation.x = Math.sin(n.ph * .8) * .1; p.head.rotation.y = Math.sin(n.ph * .3) * .5; }
+    else if (n.kind === 'walk') { // stroll between points and back
+      const P = n.path, L = P.length - 1; n.t = (n.t + dt * .08) % (2 * L);
+      const u = n.t < L ? n.t : 2 * L - n.t, i = Math.min(L - 1, Math.floor(u)), f = u - i, a = P[i], b = P[i + 1];
+      const x = lerp(a[0], b[0], f), z = lerp(a[1], b[1], f), dir = n.t < L ? 1 : -1;
+      p.root.position.set(x, 0, z); p.root.rotation.y = Math.atan2((b[0] - a[0]) * dir, (b[1] - a[1]) * dir);
+      animPerson(p, n.ph * 3.5, .45);
+    }
+  }
+}
+function enterDoor(d) {
+  audio.init();
+  room = buildInterior(d);
+  foot.inside = d; foot.x = 0; foot.z = room.D / 2 - 1.2; foot.h = Math.PI; foot.y = 0; foot.v = 0;
+  scene.remove(foot.p.root); inScene.add(foot.p.root);
+  cam.fh = undefined; cam.fx = undefined; cam.fz = undefined;
+  show(d.name || room.info.label, d.name ? room.info.label : 'Have a look around', 2.5);
+}
+function exitDoor() {
+  const d = foot.inside;
+  inScene.remove(room.g); for (const gg of room.geos) gg.dispose?.();
+  room = null; foot.inside = null;
+  inScene.remove(foot.p.root); scene.add(foot.p.root);
+  foot.x = d.x + d.nx * 1.4; foot.z = d.z + d.nz * 1.4; foot.h = Math.atan2(d.nx, d.nz); foot.y = groundH(foot.x, foot.z); foot.v = 0;
+  cam.fh = undefined; cam.fx = undefined; cam.fz = undefined;
+}
+function roomCollide(f) { // walls, furniture and people inside
+  const r = room, m = .32;
+  for (const [x0, z0, x1, z1] of r.boxes) {
+    if (f.x > x0 - m && f.x < x1 + m && f.z > z0 - m && f.z < z1 + m) {
+      const pl = f.x - (x0 - m), pr = x1 + m - f.x, pb = f.z - (z0 - m), pf = z1 + m - f.z, mn = Math.min(pl, pr, pb, pf);
+      if (mn === pl) f.x = x0 - m; else if (mn === pr) f.x = x1 + m; else if (mn === pb) f.z = z0 - m; else f.z = z1 + m;
+    }
+  }
+  f.x = clamp(f.x, -r.W / 2 + m, r.W / 2 - m);
+  const inDoorway = Math.abs(f.x) < .8;
+  f.z = clamp(f.z, -r.D / 2 + m, inDoorway ? r.D / 2 + .5 : r.D / 2 - m);
 }
 
 /* ================= PAINT SHOP ================= */
@@ -2730,8 +3024,10 @@ $('rList').onclick = () => openPanel('missions');
 let nearMission = -1;
 $('prompt').onclick = () => {
   if (foot.on) {
-    if (foot.fish) { if (['ready', 'bite'].includes(foot.fish.st)) { input.act = 1; setTimeout(() => input.act = 0, 120); } }
+    if (foot.inside) { if (nearCounter()) { show(room.info.label, `You bought ${room.info.buy}.`, 2.8); audio.ding(); } }
+    else if (foot.fish) { if (['ready', 'bite'].includes(foot.fish.st)) { input.act = 1; setTimeout(() => input.act = 0, 120); } }
     else if (railNear(foot.x, foot.z)) startFishing();
+    else if (nearDoor(foot.x, foot.z)) enterDoor(nearDoor(foot.x, foot.z));
     else toggleFoot();
   } else if (nearMission >= 0) startMission(nearMission);
 };
@@ -2825,7 +3121,7 @@ const MCK = .34, mapCity = document.createElement('canvas'); mapCity.width = Mat
 const mapCtx = $('map').getContext('2d');
 let mapZoom = .55;
 function drawMap() {
-  const me = foot.on ? foot : player;
+  const me = foot.inside ? { x: foot.inside.x, z: foot.inside.z, h: foot.h } : foot.on ? foot : player;
   const cv = $('map'), S = cv.width, g = mapCtx, phi = me.h + Math.PI;
   mapZoom = lerp(mapZoom, lerp(.55, .22, clamp(Math.abs(player.u) / 70, 0, 1)), .03);
   const zoom = mapZoom * (S / 360); // pixels per metre
@@ -2968,6 +3264,7 @@ function loop() {
     if (a.vis.lightbar) { const on = Math.floor(performance.now() / 160) % 2; a.vis.lightbar[0].emissiveIntensity = on ? 3 : .1; a.vis.lightbar[1].emissiveIntensity = on ? .1 : 3; }
   }
   if (!paused) updatePeds(dt, false);
+  if (room) updateRoom(dt);
   // skids and smoke
   const fx = Math.sin(c.h), fz = Math.cos(c.h), lx = Math.cos(c.h), lz = -Math.sin(c.h);
   const sp = Math.hypot(c.u, c.v);
@@ -3020,10 +3317,11 @@ function loop() {
     const F = foot, fishing = !!F.fish, d = fishing ? 6.5 : 4.4, hh = fishing ? 3 : 2.1;
     const aim = F.h + (fishing ? .45 : 0);
     cam.fh = cam.fh === undefined ? aim : cam.fh + angDiff(cam.fh, aim) * (1 - Math.exp(-dt * 4));
-    let ftx = F.x - Math.sin(cam.fh) * d, ftz = F.z - Math.cos(cam.fh) * d;
-    for (let s2 = 1; s2 <= 8; s2++) { const px = lerp(F.x, ftx, s2 / 8), pz = lerp(F.z, ftz, s2 / 8), pc = penOct(px, pz, .4); if (pc && pc.p > .6) { ftx = lerp(F.x, ftx, (s2 - 1) / 8); ftz = lerp(F.z, ftz, (s2 - 1) / 8); break; } }
+    let ftx = F.x - Math.sin(cam.fh) * (F.inside ? 3.2 : d), ftz = F.z - Math.cos(cam.fh) * (F.inside ? 3.2 : d);
+    if (F.inside) { ftx = clamp(ftx, -room.W / 2 + .3, room.W / 2 - .3); ftz = clamp(ftz, -room.D / 2 + .3, room.D / 2 - .3); }
+    else for (let s2 = 1; s2 <= 8; s2++) { const px = lerp(F.x, ftx, s2 / 8), pz = lerp(F.z, ftz, s2 / 8), pc = penOct(px, pz, .4, true); if (pc && pc.p > .6) { ftx = lerp(F.x, ftx, (s2 - 1) / 8); ftz = lerp(F.z, ftz, (s2 - 1) / 8); break; } }
     cam.fx = lerp(cam.fx ?? ftx, ftx, 1 - Math.exp(-dt * 8)); cam.fz = lerp(cam.fz ?? ftz, ftz, 1 - Math.exp(-dt * 8));
-    camera.position.set(cam.fx, Math.max(F.y + hh, walkY(cam.fx, cam.fz) + 1), cam.fz);
+    camera.position.set(cam.fx, F.inside ? Math.min(F.y + 2, room.H - .3) : Math.max(F.y + hh, walkY(cam.fx, cam.fz) + 1), cam.fz);
     const la = fishing ? 5 : 1.5;
     camera.lookAt(F.x + Math.sin(F.h) * la, F.y + (fishing ? .6 : 1.4), F.z + Math.cos(F.h) * la);
     camera.fov = lerp(camera.fov, 58, .1); camera.updateProjectionMatrix();
@@ -3043,7 +3341,7 @@ function loop() {
     $('spd').textContent = Math.round(Math.abs(foot.on ? foot.v : c.u) * 3.6);
     $('gear').textContent = c.gear === -1 ? 'R' : sp < .3 && !c.throttle ? 'N' : c.spec.ev ? 'D' : c.gear;
     $('rpmFill').style.width = clamp(c.rpm / c.spec.redline, 0, 1) * 100 + '%';
-    const st = foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
+    const st = foot.inside ? [foot.inside.name || room.info.label, district(foot.inside.x, foot.inside.z)] : foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
     const F = foot.fish; $('fishing').hidden = !F;
     if (F) {
       $('fState').textContent = F.st === 'reel' ? `Fighting a fish: ${Math.max(0, F.D).toFixed(1)} m to go` : F.st === 'bite' ? 'Bite!' : F.st === 'wait' ? 'Float is out' : F.st === 'show' ? 'Nice catch!' : 'Ready to cast';
@@ -3066,10 +3364,10 @@ function loop() {
   if (msgT > 0) { msgT -= dt; if (msgT <= 0) { $('msg').hidden = true; $('sub').hidden = true; } }
   audio.update(c, police.state === 'hunt' ? police.dmin : 1e9, heli.g.visible ? Math.hypot(heli.x - c.x, heli.y - (c.gy || 0), heli.z - c.z) : 1e9);
   if (window.__cam) { camera.clearViewOffset(); camera.position.set(...window.__cam.p); camera.lookAt(...window.__cam.t); camera.fov = window.__cam.fov || 60; camera.updateProjectionMatrix(); if (frame % 15 === 1) updateTiles(); } // test hook
-  renderer.render(scene, camera);
+  renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
