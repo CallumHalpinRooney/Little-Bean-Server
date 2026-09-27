@@ -110,6 +110,17 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 #wPin{background:var(--bad)} #wEsc{background:var(--good)}
 #wNote{font-size:13px;margin-top:6px;color:var(--muted)}
 
+/* fishing */
+#fishing{border-left:4px solid #4fd1ff}
+#fTitle{font-family:var(--display);font-weight:800;font-size:18px;text-transform:uppercase;letter-spacing:.06em;color:#4fd1ff}
+#fState{font-size:14px;margin-top:4px}
+.tbar{position:relative;height:10px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:8px}
+.tbar .zone{position:absolute;left:20%;width:65%;top:0;bottom:0;background:rgba(95,211,141,.25);border-left:1px solid var(--good);border-right:1px solid var(--good)}
+.tbar b{position:relative;display:block;height:100%;width:0;background:var(--good);opacity:.9}
+#fCount{font-size:12px;color:var(--muted);margin-top:6px}
+#prompt.hot{background:var(--bad);color:#fff;animation:pulse .35s infinite alternate}
+@keyframes pulse{to{transform:translateX(-50%) scale(1.08)}}
+
 /* paint shop */
 #design{position:fixed;left:0;top:0;bottom:0;width:min(380px,100%);box-sizing:border-box;z-index:20;background:rgba(21,23,27,.96);border-right:1px solid var(--line);overflow:auto;padding:calc(env(safe-area-inset-top,0px) + 18px) 18px 0;display:flex;flex-direction:column;gap:16px}
 #design h2{font-family:var(--display);font-weight:900;font-size:34px;margin:0;text-transform:uppercase;line-height:1}
@@ -160,6 +171,12 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
     <div class="meters"><div><small>Arrest</small><i><b id="wPin"></b></i></div><div><small>Escape</small><i><b id="wEsc"></b></i></div></div>
     <div id="wNote"></div>
   </div>
+  <div class="chip" id="fishing" hidden>
+    <div id="fTitle">Fishing</div>
+    <div id="fState"></div>
+    <div class="tbar"><div class="zone"></div><b id="fTen"></b></div>
+    <div id="fCount"></div>
+  </div>
   <div class="chip" id="mission" hidden>
     <div id="mTitle"></div>
     <div id="mObj"></div>
@@ -177,6 +194,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
 <div class="hud" id="drift" hidden></div>
 <button class="hud" id="prompt" hidden></button>
 <div class="hud" id="bar">
+  <button class="btn" id="bFoot"><kbd>F</kbd><span id="footT">Get out</span></button>
   <button class="btn" id="bGarage"><kbd>G</kbd>Garage</button>
   <button class="btn" id="bPaint"><kbd>P</kbd>Paint shop</button>
   <button class="btn" id="bMissions"><kbd>M</kbd>Missions</button>
@@ -205,6 +223,8 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
       <kbd>G · M · C</kbd><span>Garage · Missions · Camera</span>
       <kbd>P</kbd><span>Paint shop: design your own car</span>
       <kbd>O</kbd><span>Police chases on or off</span>
+      <kbd>F</kbd><span>Get out of the car and walk (Shift runs, Space jumps)</span>
+      <kbd>E</kbd><span>At the pier railing: fish (hold E to reel in)</span>
       <kbd>1 – 7</kbd><span>Quick swap car</span>
       <kbd>R · Q</kbd><span>Reset car · Quit mission</span>
     </div>
@@ -387,8 +407,38 @@ function nearMR(x, z) {
   return best < 0 ? { d: 1e9, p: null } : { d: Math.sqrt(bd), p: MR[best] };
 }
 /* a wooden fishing pier off the beach */
-const PIER = { x: -150, z0: W + 14, z1: W + 240, w: 10, h: 1.4 };
-const onPier = (x, z) => Math.abs(x - PIER.x) < PIER.w / 2 && z > PIER.z0 && z < PIER.z1;
+const PIER = { x: -150, z0: W + 14, z1: W + 380, w: 16, h: 1.6, headW: 84, headD: 38 };
+PIER.hz = PIER.z1 - PIER.headD; // where the T-head platform starts
+const PIER_RECTS = [
+  { x0: PIER.x - PIER.w / 2, x1: PIER.x + PIER.w / 2, z0: PIER.z0, z1: PIER.z1 },
+  { x0: PIER.x - PIER.headW / 2, x1: PIER.x + PIER.headW / 2, z0: PIER.hz, z1: PIER.z1 },
+];
+const onPier = (x, z) => PIER_RECTS.some(r => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);
+// railings, each with its outward normal (the side you fish from)
+const RAILS = [];
+{
+  const R = (ax, az, bx, bz, nx, nz) => RAILS.push({ ax, az, bx, bz, nx, nz, len: Math.hypot(bx - ax, bz - az) });
+  const a = PIER_RECTS[0], b = PIER_RECTS[1], zr = PIER.z0 + 16;
+  R(a.x0, zr, a.x0, b.z0, -1, 0); R(a.x1, zr, a.x1, b.z0, 1, 0);
+  R(b.x0, b.z0, a.x0, b.z0, 0, -1); R(a.x1, b.z0, b.x1, b.z0, 0, -1);
+  R(b.x0, b.z0, b.x0, b.z1, -1, 0); R(b.x1, b.z0, b.x1, b.z1, 1, 0); R(b.x0, b.z1, b.x1, b.z1, 0, 1);
+}
+function pierConstrain(px, pz, rad) { // keep things between the railings
+  const m = rad + .3;
+  if (onPier(px, pz)) {
+    const S = [{ x0: PIER_RECTS[0].x0 + m, x1: PIER_RECTS[0].x1 - m, z0: -1e9, z1: PIER.z1 - m }, { x0: PIER_RECTS[1].x0 + m, x1: PIER_RECTS[1].x1 - m, z0: PIER.hz + m, z1: PIER.z1 - m }];
+    if (S.some(r => px >= r.x0 && px <= r.x1 && pz >= r.z0 && pz <= r.z1)) return null;
+    let best = null;
+    for (const r of S) { const qx = clamp(px, r.x0, r.x1), qz = clamp(pz, r.z0, r.z1), d = Math.hypot(qx - px, qz - pz); if (!best || d < best.p) best = { nx: (qx - px) / (d || 1), nz: (qz - pz) / (d || 1), p: d }; }
+    return best;
+  }
+  let best = null;
+  for (const r of PIER_RECTS) {
+    const qx = clamp(px, r.x0, r.x1), qz = clamp(pz, r.z0, r.z1), d = Math.hypot(px - qx, pz - qz);
+    if (d < rad && (!best || rad - d > best.p)) best = { nx: (px - qx) / (d || 1), nz: (pz - qz) / (d || 1), p: rad - d };
+  }
+  return best;
+}
 function groundH(x, z) {
   if (z > W + 10) return onPier(x, z) ? PIER.h * clamp((z - PIER.z0) / 16, 0, 1) : 0;
   if (z > MTN.foot + 5 || Math.abs(x) > 1100) return 0;
@@ -1105,7 +1155,7 @@ function setCar(idx) {
   audio.retune();
 }
 
-const input = { up: 0, down: 0, left: 0, right: 0, hand: 0 };
+const input = { up: 0, down: 0, left: 0, right: 0, hand: 0, run: 0, act: 0 };
 const keys = {};
 function surfaceMu(x, z) {
   if (onPier(x, z)) return .9;
@@ -1239,16 +1289,8 @@ function penOct(px, pz, rad) {
   if (px < BOUND.x0 + rad) best = { nx: 1, nz: 0, p: BOUND.x0 + rad - px };
   if (px > BOUND.x1 - rad) best = { nx: -1, nz: 0, p: px - BOUND.x1 + rad };
   if (pz < BOUND.z0 + rad) best = { nx: 0, nz: 1, p: BOUND.z0 + rad - pz };
-  const hw = PIER.w / 2, dxp = px - PIER.x;
-  if (pz > BOUND.z1 - rad && !(Math.abs(dxp) < hw && pz < PIER.z1)) best = { nx: 0, nz: -1, p: pz - BOUND.z1 + rad };
-  if (pz > PIER.z0 + 16 && pz < PIER.z1 + 3) { // pier railings
-    const lim = hw - rad - .3;
-    if (Math.abs(dxp) < hw) {
-      if (dxp > lim) best = { nx: -1, nz: 0, p: dxp - lim };
-      else if (dxp < -lim) best = { nx: 1, nz: 0, p: -lim - dxp };
-      if (pz > PIER.z1 - rad - .3) best = { nx: 0, nz: -1, p: pz - (PIER.z1 - rad - .3) };
-    } else if (Math.abs(dxp) < hw + rad) best = { nx: Math.sign(dxp), nz: 0, p: hw + rad - Math.abs(dxp) };
-  }
+  if (pz > BOUND.z1 - rad && !onPier(px, pz)) best = { nx: 0, nz: -1, p: pz - BOUND.z1 + rad };
+  if (pz > PIER.z0 + 15 && pz < PIER.z1 + 4 && Math.abs(px - PIER.x) < PIER.headW / 2 + 4) { const pc = pierConstrain(px, pz, rad); if (pc) best = pc; }
   return best;
 }
 function impulse(c, nx, nz, k, e, mass) {
@@ -1395,7 +1437,7 @@ const audio = {
     const f = s.ev ? 80 + c.rpm / s.redline * 1300 : Math.max(22, c.rpm / 60 * s.cyl / 2);
     this.o1.frequency.setTargetAtTime(f, t, .03); this.o2.frequency.setTargetAtTime(f / 2, t, .03);
     this.lp.frequency.setTargetAtTime(s.ev ? 2500 : 500 + c.throttle * 2600 + c.rpm / 5, t, .05);
-    this.eg.gain.setTargetAtTime(s.ev ? .04 + c.throttle * .05 : .06 + c.throttle * .12, t, .05);
+    this.eg.gain.setTargetAtTime((s.ev ? .04 + c.throttle * .05 : .06 + c.throttle * .12) * (foot.on ? .35 : 1), t, .05);
     const sl = Math.max(Math.abs(c.slipR), Math.abs(c.slipF) * .8);
     const sq = Math.hypot(c.u, c.v) > 4 ? clamp((sl - .12) * 2.5, 0, .35) + (c.wheelspin ? .12 : 0) : 0;
     this.screech.gain.setTargetAtTime(sq, t, .05);
@@ -1418,6 +1460,13 @@ const audio = {
     const f = A.createBiquadFilter(); f.type = 'bandpass'; f.frequency.value = 700; f.Q.value = 1.5;
     const g = A.createGain(); g.gain.setValueAtTime(.5, A.currentTime); g.gain.exponentialRampToValueAtTime(.001, A.currentTime + .12);
     s.connect(f); f.connect(g); g.connect(this.master); s.start(); s.stop(A.currentTime + .15);
+  },
+  plop() {
+    if (!this.ctx) return;
+    const A = this.ctx, o = A.createOscillator(), g = A.createGain(); o.type = 'sine';
+    o.frequency.setValueAtTime(420, A.currentTime); o.frequency.exponentialRampToValueAtTime(90, A.currentTime + .18);
+    g.gain.setValueAtTime(.35, A.currentTime); g.gain.exponentialRampToValueAtTime(.001, A.currentTime + .22);
+    o.connect(g); g.connect(this.master); o.start(); o.stop(A.currentTime + .25);
   },
   ding() {
     if (!this.ctx) return;
@@ -1475,7 +1524,7 @@ const peds = [];
 for (const b of blocks.values()) if (b.kind === 'bld' || b.kind === 'sagrada') for (let n = 0; n < 3; n++)
   peds.push({ kind: 'blk', cx: b.cx, cz: b.cz, p: rnd(0, OCTP.L), dir: Math.random() < .5 ? 1 : -1, v: rnd(1.1, 1.7), y: .18 });
 for (let n = 0; n < 70; n++) peds.push({ kind: 'line', p: rnd(-W, W), zl: W + rnd(11, 15.5), dir: Math.random() < .5 ? 1 : -1, v: rnd(1, 1.6), y: .12 });
-for (let n = 0; n < 10; n++) peds.push({ kind: 'pier', p: rnd(PIER.z0 + 30, PIER.z1 - 10), xl: PIER.x + rnd(-2, 2), dir: Math.random() < .5 ? 1 : -1, v: rnd(.8, 1.3), y: PIER.h });
+for (let n = 0; n < 16; n++) peds.push({ kind: 'pier', p: rnd(PIER.z0 + 30, PIER.hz - 5), xl: PIER.x + rnd(-5, 5), dir: Math.random() < .5 ? 1 : -1, v: rnd(.8, 1.3), y: PIER.h });
 const PN = peds.length;
 const pedIM = {
   torso: new THREE.InstancedMesh(PG.torso, new THREE.MeshStandardMaterial({ roughness: .85 }), PN),
@@ -1508,7 +1557,7 @@ function updatePeds(dt, full) {
     let x, z, tx, tz, ix, iz;
     if (q.kind === 'blk') { const r = octPos(q.p); x = q.cx + r[0]; z = q.cz + r[1]; tx = r[2] * q.dir; tz = r[3] * q.dir; const l = Math.hypot(r[0], r[1]) || 1; ix = -r[0] / l; iz = -r[1] / l; }
     else if (q.kind === 'line') { if (q.p > W) q.p = -W; if (q.p < -W) q.p = W; x = q.p; z = q.zl; tx = q.dir; tz = 0; ix = 0; iz = 1; if (Math.abs(x - PIER.x) < PIER.w / 2 + .5) ix = 0; }
-    else { if (q.p > PIER.z1 - 8 || q.p < PIER.z0 + 25) q.dir *= -1; x = q.xl; z = q.p; tx = 0; tz = q.dir; ix = Math.sign(q.xl - PIER.x) || 1; iz = 0; }
+    else { if (q.p > PIER.hz - 4 || q.p < PIER.z0 + 25) q.dir *= -1; x = q.xl; z = q.p; tx = 0; tz = q.dir; ix = Math.sign(q.xl - PIER.x) || 1; iz = 0; }
     // jump out of the way, towards the buildings (or the sand, or the railing)
     const off = smooth01(q.dodge) * (q.kind === 'pier' ? 1.8 : 2.8);
     q.x = x + ix * off; q.z = z + iz * off; q.h = Math.atan2(tx, tz);
@@ -1575,30 +1624,44 @@ updatePeds(0, true);
   const plank = rep => canvasTex(64, 256, (g, w, h) => {
     for (let y = 0; y < h; y += 16) { const v = 118 + Math.random() * 40 | 0; g.fillStyle = `rgb(${v},${v * .74 | 0},${v * .5 | 0})`; g.fillRect(0, y, w, 15); g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, y + 15, w, 1); }
   }, 1, rep);
-  const len = PIER.z1 - (PIER.z0 + 16), zc = (PIER.z1 + PIER.z0 + 16) / 2;
-  const deck = new THREE.Mesh(new THREE.BoxGeometry(PIER.w, .3, len), new THREE.MeshStandardMaterial({ map: plank(len / 4), roughness: .85 }));
-  deck.position.set(PIER.x, PIER.h - .15, zc); deck.castShadow = deck.receiveShadow = true; scene.add(deck);
+  const wood = n => new THREE.MeshStandardMaterial({ map: plank(n), roughness: .85 });
+  const walkLen = PIER.hz - (PIER.z0 + 16);
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(PIER.w, .3, walkLen), wood(walkLen / 4));
+  deck.position.set(PIER.x, PIER.h - .15, PIER.z0 + 16 + walkLen / 2); deck.castShadow = deck.receiveShadow = true; scene.add(deck);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(PIER.headW, .3, PIER.headD), wood(PIER.headD / 4));
+  head.position.set(PIER.x, PIER.h - .15, PIER.hz + PIER.headD / 2); head.castShadow = head.receiveShadow = true; scene.add(head);
   const rl = Math.hypot(16, PIER.h);
-  const ramp = new THREE.Mesh(new THREE.BoxGeometry(PIER.w, .3, rl), new THREE.MeshStandardMaterial({ map: plank(rl / 4), roughness: .85 }));
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(PIER.w, .3, rl), wood(rl / 4));
   ramp.position.set(PIER.x, PIER.h / 2 - .15, PIER.z0 + 8); ramp.rotation.x = -Math.atan2(PIER.h, 16); ramp.receiveShadow = true; scene.add(ramp);
   const m4 = new THREE.Matrix4(), piles = [], posts = [];
-  for (let z = PIER.z0 + 22; z <= PIER.z1 - 1; z += 6) for (const sx of [-1, 0, 1]) piles.push([PIER.x + sx * (PIER.w / 2 - .3), z]);
-  for (let z = PIER.z0 + 16; z <= PIER.z1; z += 3) for (const sx of [-1, 1]) posts.push([PIER.x + sx * (PIER.w / 2 - .08), z]);
-  for (let x = -PIER.w / 2 + 1; x < PIER.w / 2; x += 2) posts.push([PIER.x + x, PIER.z1 - .08]);
-  const pileM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.22, .26, PIER.h + 4, 8).translate(0, (PIER.h + 4) / 2 - 4, 0), new THREE.MeshStandardMaterial({ color: C('#4d3b2a'), roughness: 1 }), piles.length);
+  for (let z = PIER.z0 + 22; z < PIER.hz; z += 6) for (const sx of [-1, 0, 1]) piles.push([PIER.x + sx * (PIER.w / 2 - .4), z]);
+  for (let x = -PIER.headW / 2 + .5; x <= PIER.headW / 2; x += 8) for (let z = PIER.hz + .5; z <= PIER.z1; z += 9) piles.push([PIER.x + x, z]);
+  for (const r of RAILS) for (let t = 0; t <= r.len; t += 3) posts.push([r.ax + (r.bx - r.ax) * t / r.len - r.nx * .08, r.az + (r.bz - r.az) * t / r.len - r.nz * .08]);
+  const pileM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.24, .28, PIER.h + 4, 8).translate(0, (PIER.h + 4) / 2 - 4, 0), new THREE.MeshStandardMaterial({ color: C('#4d3b2a'), roughness: 1 }), piles.length);
   piles.forEach(([x, z], k) => { m4.makeTranslation(x, 0, z); pileM.setMatrixAt(k, m4); });
   const postM = new THREE.InstancedMesh(new THREE.BoxGeometry(.1, 1.05, .1).translate(0, .52, 0), new THREE.MeshStandardMaterial({ color: C('#e9e6dc'), roughness: .6 }), posts.length);
   posts.forEach(([x, z], k) => { m4.makeTranslation(x, PIER.h, z); postM.setMatrixAt(k, m4); });
   scene.add(pileM, postM);
   const railMat = new THREE.MeshStandardMaterial({ color: C('#e9e6dc'), roughness: .6 });
-  for (const sx of [-1, 1]) for (const y of [.55, 1.05]) { const r = new THREE.Mesh(new THREE.BoxGeometry(.08, .07, len), railMat); r.position.set(PIER.x + sx * (PIER.w / 2 - .08), PIER.h + y, zc); scene.add(r); }
-  for (const y of [.55, 1.05]) { const r = new THREE.Mesh(new THREE.BoxGeometry(PIER.w, .07, .08), railMat); r.position.set(PIER.x, PIER.h + y, PIER.z1 - .08); scene.add(r); }
-  const lampHead = new THREE.MeshStandardMaterial({ color: C('#fff5d8'), emissive: C('#ffe2a8'), emissiveIntensity: .8 });
-  for (let z = PIER.z0 + 40; z < PIER.z1; z += 45) for (const sx of [-1, 1]) {
-    const pl = new THREE.Mesh(new THREE.CylinderGeometry(.06, .08, 4.2, 6), darkMat); pl.position.set(PIER.x + sx * (PIER.w / 2 - .3), PIER.h + 2.1, z); scene.add(pl);
-    const hd = new THREE.Mesh(new THREE.SphereGeometry(.22, 10, 8), lampHead); hd.position.set(PIER.x + sx * (PIER.w / 2 - .3), PIER.h + 4.3, z); scene.add(hd);
-    addCircle(PIER.x + sx * (PIER.w / 2 - .3), z, .3);
+  for (const r of RAILS) for (const y of [.55, 1.05]) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(.08, .07, r.len), railMat);
+    bar.position.set((r.ax + r.bx) / 2 - r.nx * .08, PIER.h + y, (r.az + r.bz) / 2 - r.nz * .08); bar.rotation.y = Math.atan2(r.bx - r.ax, r.bz - r.az); scene.add(bar);
   }
+  const lampHead = new THREE.MeshStandardMaterial({ color: C('#fff5d8'), emissive: C('#ffe2a8'), emissiveIntensity: .8 });
+  const lamp = (x, z) => {
+    const pl = new THREE.Mesh(new THREE.CylinderGeometry(.06, .08, 4.2, 6), darkMat); pl.position.set(x, PIER.h + 2.1, z); scene.add(pl);
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(.22, 10, 8), lampHead); hd.position.set(x, PIER.h + 4.3, z); scene.add(hd);
+    addCircle(x, z, .3);
+  };
+  for (let z = PIER.z0 + 40; z < PIER.hz; z += 45) for (const sx of [-1, 1]) lamp(PIER.x + sx * (PIER.w / 2 - .4), z);
+  for (const sx of [-1, 1]) for (const z of [PIER.hz + .6, PIER.z1 - .6]) lamp(PIER.x + sx * (PIER.headW / 2 - .6), z);
+  // bait kiosk and benches on the platform
+  const K = { x: PIER.x, z: PIER.hz + PIER.headD / 2 + 4 };
+  const hut = new THREE.Mesh(new THREE.BoxGeometry(7, 3, 4.5), flat('#e9e2cf')); hut.position.set(K.x, PIER.h + 1.5, K.z); hut.castShadow = true; scene.add(hut);
+  const awn = new THREE.Mesh(new THREE.BoxGeometry(8, .12, 2.2), new THREE.MeshStandardMaterial({ map: canvasTex(64, 16, (g) => { for (let k = 0; k < 8; k++) { g.fillStyle = k % 2 ? '#f4f4f4' : '#1f4fd0'; g.fillRect(k * 8, 0, 8, 16); } }, 1, 1) }));
+  awn.position.set(K.x, PIER.h + 2.8, K.z - 3.2); awn.rotation.x = .25; scene.add(awn);
+  addCircle(K.x - 2.2, K.z, 2.6); addCircle(K.x + 2.2, K.z, 2.6);
+  for (const x of [-28, -18, 18, 28]) { const bench = new THREE.Mesh(new THREE.BoxGeometry(2.2, .45, .6), flat('#6b4a2e')); bench.position.set(PIER.x + x, PIER.h + .23, PIER.hz + 18); bench.castShadow = true; scene.add(bench); addCircle(PIER.x + x - .6, PIER.hz + 18, .5); addCircle(PIER.x + x + .6, PIER.hz + 18, .5); }
 }
 { // anglers along the railings, casting and reeling in
   const rodMat = new THREE.MeshStandardMaterial({ color: C('#1c1c1c'), roughness: .4 });
@@ -1606,22 +1669,25 @@ updatePeds(0, true);
   const fishMat = new THREE.MeshStandardMaterial({ color: C('#c9d3d8'), metalness: .7, roughness: .3 });
   const bobMat = new THREE.MeshStandardMaterial({ color: C('#ff3b2f'), roughness: .5 });
   const anglers = [];
-  for (let k = 0; k < 9; k++) {
-    const side = k % 2 ? 1 : -1, x = PIER.x + side * (PIER.w / 2 - .75), z = PIER.z0 + 50 + k * 19;
+  const angSpots = [];
+  for (const r of RAILS) for (let t = 9; t < r.len - 6; t += rnd(14, 24)) angSpots.push([r, t]);
+  for (const [r, t] of angSpots) {
+    const tx0 = (r.bx - r.ax) / r.len, tz0 = (r.bz - r.az) / r.len;
+    const x = r.ax + tx0 * t - r.nx * .75, z = r.az + tz0 * t - r.nz * .75;
     const hat = Math.random() < .6 ? pick(['#2b2d31', '#c8102e', '#f4f4f4', '#1f4fd0', '#6b3e26']) : null;
     const p = makePerson(pick(SHIRTS), pick(PANTS), pick(SKIN), hat ? { cap: hat } : {});
-    p.root.position.set(x, PIER.h, z); p.root.rotation.y = side > 0 ? Math.PI / 2 : -Math.PI / 2; scene.add(p.root);
+    p.root.position.set(x, PIER.h, z); p.root.rotation.y = Math.atan2(r.nx, r.nz); scene.add(p.root);
     p.arms[0].rotation.x = p.arms[1].rotation.x = -1.05; p.arms[0].rotation.z = .25; p.arms[1].rotation.z = -.25;
     const pivot = new THREE.Group(); pivot.position.set(0, 1.12, .42); p.body.add(pivot);
     const rod = new THREE.Mesh(new THREE.CylinderGeometry(.012, .03, 3.6, 5).translate(0, 1.4, 0), rodMat); pivot.add(rod);
     const tip = new THREE.Object3D(); tip.position.y = 3.2; pivot.add(tip);
-    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(.16, .13, .32, 10), flat(pick(['#1f4fd0', '#f9c80e', '#e9e6dc']))); bucket.position.set(x - side * .5, PIER.h + .16, z + .7); scene.add(bucket);
+    const bucket = new THREE.Mesh(new THREE.CylinderGeometry(.16, .13, .32, 10), flat(pick(['#1f4fd0', '#f9c80e', '#e9e6dc']))); bucket.position.set(x - r.nx * .5 + tx0 * .7, PIER.h + .16, z - r.nz * .5 + tz0 * .7); scene.add(bucket);
     const bob = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), bobMat); scene.add(bob);
     const fish = new THREE.Mesh(new THREE.SphereGeometry(.09, 8, 6), fishMat); fish.scale.set(.6, 1, 2.6); fish.visible = false; scene.add(fish);
     const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
     const line = new THREE.Line(lg, lineMat); line.frustumCulled = false; scene.add(line);
     addCircle(x, z, .55);
-    const spot = () => ({ x: x + side * rnd(6, 10), z: z + rnd(-3, 3) });
+    const spot = () => { const d = rnd(6, 10), s2 = rnd(-3, 3); return { x: x + r.nx * d + tx0 * s2, z: z + r.nz * d + tz0 * s2 }; };
     anglers.push({ p, pivot, tip, bob, fish, line, st: 'wait', t: rnd(2, 10), T: 0, ph: rnd(0, 6), spot: spot(), newSpot: spot, from: null });
   }
   const tw = new THREE.Vector3(); let clock2 = 0;
@@ -1704,7 +1770,7 @@ updatePeds(0, true);
     const jib = new THREE.Mesh(jibG, sailM); jib.position.set(0, 1.2, .8); inner.add(jib);
     scene.add(g);
     const dir = Math.random() < .5 ? 1 : -1;
-    boats.push({ g, inner, x: rnd(-WORLD, WORLD), z: BEACH1 + rnd(90, 650), dir, v: rnd(2.5, 5), ph: rnd(0, 6) });
+    boats.push({ g, inner, x: rnd(-WORLD, WORLD), z: PIER.z1 + rnd(90, 650), dir, v: rnd(2.5, 5), ph: rnd(0, 6) });
   }
   let t = 0;
   ANIM.push(dt => {
@@ -1813,7 +1879,7 @@ function updatePolice(dt) {
   if (police.arrest) return updateArrest(dt);
   if (police.state === 'cool') {
     if (!M) police.cool -= dt;
-    if (police.cool <= 0) { if (police.on && !M) { startPursuit(3); show('Spotted!', 'A patrol car recognised your car.', 2.5); } else police.state = 'off'; }
+    if (police.cool <= 0 && !foot.on) { if (police.on && !M) { startPursuit(3); show('Spotted!', 'A patrol car recognised your car.', 2.5); } else police.state = 'off'; }
     return;
   }
   if (police.state !== 'hunt') return;
@@ -2017,6 +2083,203 @@ function updateMission(dt) {
   $('mStats').innerHTML = stats.map(([k, v]) => `<div><small>${k}</small>${v}</div>`).join('');
 }
 
+/* ================= ON FOOT & FISHING ================= */
+const IS_TOUCH = matchMedia('(pointer: coarse)').matches || 'ontouchstart' in window;
+const foot = { on: false, x: 0, z: 0, y: 0, h: 0, v: 0, ph: 0, jv: 0, p: null, fish: null, prevAct: false };
+// Mediterranean catch: name, Catalan name, min kg, max kg, how hard it fights, colour, how common
+const FISH_TYPES = [
+  ['Sardine', 'Sardina', .05, .15, .35, '#b8c7d1', 22], ['Mackerel', 'Verat', .2, .9, .55, '#5f8f9b', 18],
+  ['Grey mullet', 'Llissa', .4, 2.5, .6, '#9aa4a8', 14], ['Gilt-head bream', 'Orada', .3, 1.8, .75, '#d9d4b0', 16],
+  ['Sea bass', 'Llobarro', .5, 4, .9, '#aeb8bd', 11], ['Octopus', 'Pop', .6, 3.5, .85, '#9b4f6e', 7],
+  ['Old boot', 'Bota vella', .9, .9, .25, '#5a3b22', 5], ['Bluefin tuna', 'Tonyina vermella', 12, 60, 1.5, '#2c4c7a', 1.2],
+];
+let fishLog = { count: 0, best: {} };
+try { const f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); if (f && typeof f === 'object') fishLog = { count: f.count | 0, best: f.best || {} }; } catch (e) { }
+const saveFish = () => { try { localStorage.setItem('bcn-run-fish', JSON.stringify(fishLog)); } catch (e) { } };
+function buildWalker() {
+  const p = makePerson('#c8102e', '#1d2a44', '#e8b996', { cap: '#f9c80e' });
+  const pivot = new THREE.Group(); pivot.position.set(0, 1.12, .42); pivot.visible = false; p.body.add(pivot);
+  pivot.add(new THREE.Mesh(new THREE.CylinderGeometry(.013, .032, 3.8, 6).translate(0, 1.5, 0), flat('#1c1c1c')));
+  const reel = new THREE.Mesh(new THREE.CylinderGeometry(.07, .07, .06, 12).rotateZ(Math.PI / 2), flat('#c0c3c7')); reel.position.y = .25; pivot.add(reel);
+  const tip = new THREE.Object3D(); tip.position.y = 3.4; pivot.add(tip);
+  const bob = new THREE.Mesh(new THREE.SphereGeometry(.08, 10, 8), new THREE.MeshStandardMaterial({ color: C('#ff3b2f'), roughness: .5 })); bob.visible = false; scene.add(bob);
+  const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
+  const line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xf2f2f2 })); line.frustumCulled = false; line.visible = false; scene.add(line);
+  foot.p = p; foot.rod = { pivot, tip, bob, line, fishMesh: null };
+}
+// height of whatever you are standing on: kerbs, the promenade, the pier deck, hillsides
+function walkY(x, z) {
+  let y = groundH(x, z);
+  if (inCity(x, z) && z < W + 10) {
+    const b = blocks.get(bkey(Math.floor((x + W) / P), Math.floor((z + W) / P)));
+    if (b && b.kind !== 'park' && b.kind !== 'glories') { const lx = Math.abs(x - b.cx), lz = Math.abs(z - b.cz); if (lx < SIDE_H && lz < SIDE_H && lx + lz < 2 * SIDE_H - SIDE_CUT) y += .18; }
+  } else if (z > W + 10 && z < W + 16 && !onPier(x, z)) y += .12;
+  if (Math.hypot(x - PLAZA.x, z - PLAZA.z) < PLAZA.r) y = Math.max(y, MTOP + .06);
+  return y;
+}
+function toggleFoot() {
+  if (paused) return;
+  if (!foot.on) {
+    if (M) return show('', 'Finish or quit the mission first (Q).', 2.2);
+    if (police.state === 'hunt' || police.arrest) return show('', "You can't get out while the police are chasing you!", 2.4);
+    if (Math.hypot(player.u, player.v) > 3) return show('', 'Stop the car first.', 1.6);
+    if (!foot.p) buildWalker();
+    const lx = Math.cos(player.h), lz = -Math.sin(player.h), side = MODELS[player.spec.model].W / 2 + .6;
+    for (const sd of [1, -1]) { foot.x = player.x + lx * side * sd; foot.z = player.z + lz * side * sd; if (!penOct(foot.x, foot.z, .4)) break; }
+    foot.h = player.h; foot.v = 0; foot.jv = 0; foot.y = walkY(foot.x, foot.z); foot.on = true;
+    player.u = player.v = player.r = 0; player.throttle = 0; player.steer = 0;
+    scene.add(foot.p.root); $('footT').textContent = 'Get in';
+    cam.h = foot.h;
+  } else {
+    if (Math.hypot(foot.x - player.x, foot.z - player.z) > 4.5) return show('', 'Walk back to your car to get in.', 1.8);
+    if (foot.fish) stopFishing();
+    foot.on = false; scene.remove(foot.p.root); $('footT').textContent = 'Get out';
+  }
+}
+function railNear(x, z) {
+  if (!onPier(x, z)) return null;
+  let best = null;
+  for (const r of RAILS) { const { d, t } = segDist(r, x, z); if (d < 1.7 && (!best || d < best.d)) best = { r, d, t }; }
+  return best;
+}
+function startFishing() {
+  const rn = railNear(foot.x, foot.z); if (!rn) return;
+  const r = rn.r, px = r.ax + (r.bx - r.ax) * rn.t, pz = r.az + (r.bz - r.az) * rn.t;
+  foot.x = px - r.nx * .72; foot.z = pz - r.nz * .72; foot.h = Math.atan2(r.nx, r.nz); foot.v = 0;
+  foot.fish = { st: 'ready', T: 0, nx: r.nx, nz: r.nz, tx: (r.bx - r.ax) / r.len, tz: (r.bz - r.az) / r.len, spot: null, D: 0, D0: 1, tension: 0, low: 0, type: null, kg: 0, biteAt: 0 };
+  foot.rod.pivot.visible = true; foot.rod.line.visible = true;
+  animPerson(foot.p, 0, 0); foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05; foot.p.arms[0].rotation.z = .25; foot.p.arms[1].rotation.z = -.25;
+  audio.init();
+}
+function stopFishing() {
+  const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false;
+  if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
+  foot.p.arms[0].rotation.z = foot.p.arms[1].rotation.z = 0;
+  foot.fish = null;
+}
+function makeCatchMesh(type, kg) {
+  const [name, , , , , col] = type;
+  if (name === 'Old boot') { const m = new THREE.Mesh(new THREE.BoxGeometry(.14, .3, .32), flat(col)); return m; }
+  const len = clamp(.16 * Math.cbrt(kg / .1), .12, 2.1);
+  const g = new THREE.Group();
+  if (name === 'Octopus') {
+    const head = new THREE.Mesh(new THREE.SphereGeometry(len * .35, 12, 10), flat(col)); head.scale.set(1, 1.3, 1); g.add(head);
+    for (let k = 0; k < 8; k++) { const t = new THREE.Mesh(new THREE.CylinderGeometry(.015, .04, len * .9, 5).translate(0, -len * .45, 0), flat(col)); t.rotation.set(.35 * Math.cos(k), 0, .35 * Math.sin(k)); t.position.y = -len * .25; g.add(t); }
+    return g;
+  }
+  const mat = new THREE.MeshStandardMaterial({ color: C(col), metalness: .6, roughness: .3 });
+  const body = new THREE.Mesh(new THREE.SphereGeometry(len / 2, 14, 10), mat); body.scale.set(.32, .45, 1); g.add(body);
+  const tail = new THREE.Mesh(new THREE.ConeGeometry(len * .18, len * .25, 4).rotateX(-Math.PI / 2), mat); tail.scale.set(.25, 1, 1); tail.position.z = -len * .58; g.add(tail);
+  g.rotation.x = Math.PI / 2; // hangs nose-up from the hook
+  return g;
+}
+const _tw = new THREE.Vector3();
+function updateFishing(dt, act, press) {
+  const F = foot.fish, R = foot.rod; F.T += dt;
+  const now = performance.now() / 1000;
+  let ang = 1.0, arm = 0, bx = 0, by = .07 + Math.sin(now * 2) * .04, bz = 0, showBob = false;
+  if (F.spot) { bx = F.spot.x; bz = F.spot.z; }
+  if (F.st === 'ready') {
+    ang = 1 + Math.sin(now * 1.2) * .03;
+    if (press) { F.st = 'cast'; F.T = 0; const d = rnd(8, 12), s2 = rnd(-3, 3); F.spot = { x: foot.x + F.nx * d + F.tx * s2, z: foot.z + F.nz * d + F.tz * s2 }; }
+    else if (input.up || input.down) return stopFishing();
+  } else if (F.st === 'cast') { // back over the shoulder, whip forward, the float flies out
+    const u = F.T / 1.4;
+    ang = u < .4 ? lerp(1, -.55, smooth01(u / .4)) : u < .55 ? lerp(-.55, 1.3, (u - .4) / .15) : lerp(1.3, 1, smooth01((u - .55) / .45));
+    arm = u < .4 ? -smooth01(u / .4) * .9 : u < .55 ? -.9 + (u - .4) / .15 * 1.1 : .2 * (1 - (u - .55) / .45);
+    R.tip.getWorldPosition(_tw);
+    if (u < .55) { bx = _tw.x; by = _tw.y; bz = _tw.z; }
+    else if (u < .9) { const k = (u - .55) / .35; bx = lerp(_tw.x, F.spot.x, k); bz = lerp(_tw.z, F.spot.z, k); by = lerp(_tw.y, .07, k) + Math.sin(k * Math.PI) * 3; }
+    showBob = true;
+    if (u >= 1) { F.st = 'wait'; F.T = 0; F.biteAt = rnd(3, 9); audio.plop(); }
+  } else if (F.st === 'wait') {
+    showBob = true; ang = 1 + Math.sin(now * 1.3) * .02;
+    if (Math.sin(now * 6.3) > .985) by -= .09; // a nibble
+    if (F.T > F.biteAt) { F.st = 'bite'; F.T = 0; audio.plop(); }
+    if (input.up || input.down) return stopFishing();
+  } else if (F.st === 'bite') { // the float is dragged under: strike now!
+    showBob = true; by = -.2 + Math.sin(now * 30) * .05; ang = .95;
+    if (press) {
+      let r = Math.random() * FISH_TYPES.reduce((a, t) => a + t[6], 0); let type = FISH_TYPES[0];
+      for (const t of FISH_TYPES) { r -= t[6]; if (r <= 0) { type = t; break; } }
+      F.type = type; F.kg = +(type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 1.6)).toFixed(2);
+      F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) + (type[0] === 'Bluefin tuna' ? 14 : type[4] * 4);
+      F.tension = .4; F.low = 0; F.st = 'reel'; F.T = 0; audio.ding();
+    } else if (F.T > 1.1) { F.st = 'wait'; F.T = 0; F.biteAt = rnd(4, 9); show('', 'Too slow: the fish stole the bait.', 1.8); }
+  } else if (F.st === 'reel') { // hold E to reel; keep the tension in the green or the line snaps
+    const fight = F.type[4], surge = .55 + .45 * Math.sin(F.T * (1.7 + fight)) + .35 * Math.sin(F.T * 5.3 + 1);
+    F.tension += (act ? .5 + fight * surge * .55 : -.8) * dt + fight * surge * .05 * dt;
+    F.tension = Math.max(0, F.tension);
+    if (act && F.tension > .2 && F.tension < .85) F.D -= (3.3 - fight * .9) * dt;
+    else if (!act) F.D = Math.min(F.D0 + 8, F.D + fight * .45 * dt);
+    F.low = F.tension < .1 ? F.low + dt : 0;
+    ang = .45 + Math.sin(now * 16) * .06 * F.tension - F.tension * .2; arm = act ? -.3 + Math.sin(now * 12) * .12 : -.1;
+    R.tip.getWorldPosition(_tw);
+    const k = clamp(F.D / F.D0, 0, 1.3);
+    bx = foot.x + F.nx * F.D + F.tx * (F.spot ? 0 : 0); bz = foot.z + F.nz * F.D; by = F.D > 1.5 ? .05 + Math.abs(Math.sin(now * 9)) * .12 * fight : lerp(_tw.y - .8, .05, F.D / 1.5);
+    if (!R.fishMesh && F.D < 4) { R.fishMesh = makeCatchMesh(F.type, F.kg); scene.add(R.fishMesh); }
+    if (R.fishMesh) { R.fishMesh.position.set(bx, by - .1, bz); R.fishMesh.rotation.z = Math.sin(now * 22) * .5; }
+    showBob = !R.fishMesh;
+    if (F.tension >= 1) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Snap!', 'The line broke. Ease off when the tension bar goes red.', 2.5); }
+    else if (F.low > 2.2) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } show('', 'The line went slack and the fish swam off. Keep reeling!', 2.5); }
+    else if (F.D <= .4) {
+      F.st = 'show'; F.T = 0;
+      const [name, cat] = F.type, prev = fishLog.best[name];
+      fishLog.count++; const rec = prev == null || F.kg > prev; if (rec) fishLog.best[name] = F.kg; saveFish();
+      show(name, `${F.kg} kg · ${cat} in Catalan${rec ? ' · New personal best!' : ''} · Catch #${fishLog.count}`, 3.2); audio.ding();
+    }
+  } else if (F.st === 'show') { // hold the catch up for the camera
+    ang = .3; arm = -.5;
+    R.tip.getWorldPosition(_tw);
+    if (R.fishMesh) { R.fishMesh.position.set(_tw.x, _tw.y - .9, _tw.z); R.fishMesh.rotation.z = Math.sin(now * 8) * .3; }
+    if (F.T > 3) { if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } F.st = 'ready'; F.T = 0; F.spot = null; }
+  }
+  R.pivot.rotation.x = ang;
+  foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05 + arm;
+  R.bob.visible = showBob; R.bob.position.set(bx, by, bz);
+  R.tip.getWorldPosition(_tw);
+  const pa = R.line.geometry.attributes.position; pa.setXYZ(0, _tw.x, _tw.y, _tw.z);
+  if (R.fishMesh) pa.setXYZ(1, R.fishMesh.position.x, R.fishMesh.position.y + .15, R.fishMesh.position.z);
+  else if (showBob) pa.setXYZ(1, bx, by, bz); else pa.setXYZ(1, _tw.x, _tw.y - .6, _tw.z);
+  pa.needsUpdate = true;
+}
+function updateFoot(dt) {
+  const f = foot, act = !!(input.act || (IS_TOUCH && input.hand)), press = act && !f.prevAct;
+  f.prevAct = act;
+  const gy = walkY(f.x, f.z);
+  if (f.fish) { updateFishing(dt, act, press); f.y = gy; }
+  else {
+    f.h += (input.left - input.right) * 2.8 * dt;
+    const want = input.up ? (input.run ? 5.4 : 1.9) : input.down ? -1.2 : 0;
+    f.v += clamp(want - f.v, -dt * 14, dt * 9);
+    f.x += Math.sin(f.h) * f.v * dt; f.z += Math.cos(f.h) * f.v * dt;
+    for (let it = 0; it < 2; it++) { const pen = penOct(f.x, f.z, .32); if (pen) { f.x += pen.nx * pen.p; f.z += pen.nz * pen.p; } }
+    { // your parked car is solid
+      const m = MODELS[player.spec.model], cfx = Math.sin(player.h), cfz = Math.cos(player.h);
+      const dx = f.x - player.x, dz = f.z - player.z, al = dx * cfx + dz * cfz, lt = dx * cfz - dz * cfx;
+      const pa = m.L / 2 + .3 - Math.abs(al), pl = m.W / 2 + .3 - Math.abs(lt);
+      if (pa > 0 && pl > 0) { if (pa < pl) { f.x += cfx * pa * Math.sign(al); f.z += cfz * pa * Math.sign(al); } else { f.x += cfz * pl * Math.sign(lt); f.z -= cfx * pl * Math.sign(lt); } }
+    }
+    for (const a of agents) { const dx = f.x - a.x, dz = f.z - a.z, d = Math.hypot(dx, dz); if (d < 2.3 && d > .01) { f.x = a.x + dx / d * 2.3; f.z = a.z + dz / d * 2.3; } }
+    if (!IS_TOUCH && input.hand && f.y <= gy + .02) f.jv = 4.3;
+    f.jv -= 9.81 * dt; f.y += f.jv * dt; if (f.y < gy) { f.y = gy; f.jv = 0; }
+    f.ph += Math.abs(f.v) * dt * 3.2;
+    const amp = clamp(Math.abs(f.v) / 1.9, 0, 1) * (Math.abs(f.v) > 3 ? .85 : .5);
+    animPerson(f.p, f.ph, amp, f.y > gy + .05 ? .9 : 0);
+    if (press && railNear(f.x, f.z)) startFishing();
+  }
+  f.p.root.position.set(f.x, f.y, f.z); f.p.root.rotation.y = f.h;
+}
+function footPrompt() {
+  if (foot.fish) {
+    const st = foot.fish.st;
+    return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in' : 'Hold E to reel in') : '';
+  }
+  if (railNear(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fish' : 'Press E to fish';
+  if (Math.hypot(foot.x - player.x, foot.z - player.z) < 4.5) return IS_TOUCH ? 'Tap here to get in' : 'Press F to get in';
+  return '';
+}
+
 /* ================= PAINT SHOP ================= */
 const PALETTE = ['#b3121b', '#e2711d', '#f9c80e', '#2fbf4a', '#1f9e8f', '#1f4fd0', '#7b2cbf', '#ff5fa2', '#f4f4f4', '#8a8f96', '#151515', '#6b3e26'];
 const DOPTS = {
@@ -2123,6 +2386,7 @@ $('gPaint').onclick = openDesign;
 $('bMissions').onclick = () => openPanel('missions');
 $('bCam').onclick = () => camMode = (camMode + 1) % 3;
 $('bPolice').onclick = () => setPolice(!police.on);
+$('bFoot').onclick = toggleFoot;
 $('bReset').onclick = resetCar;
 $('bSound').onclick = () => audio.toggle();
 $('bStart').onclick = () => { $('start').hidden = true; paused = false; audio.init(); show('Bon viatge', 'Yellow beams are missions. Drive into one and press E.', 3.5); };
@@ -2130,7 +2394,13 @@ $('rRetry').onclick = () => startMission(lastResult);
 $('rFree').onclick = closeAll;
 $('rList').onclick = () => openPanel('missions');
 let nearMission = -1;
-$('prompt').onclick = () => { if (nearMission >= 0) startMission(nearMission); };
+$('prompt').onclick = () => {
+  if (foot.on) {
+    if (foot.fish) { if (['ready', 'bite'].includes(foot.fish.st)) { input.act = 1; setTimeout(() => input.act = 0, 120); } }
+    else if (railNear(foot.x, foot.z)) startFishing();
+    else toggleFoot();
+  } else if (nearMission >= 0) startMission(nearMission);
+};
 
 function resetCar() {
   const mr = player.z < MTN.foot + 60 && Math.abs(player.x) < 1150 ? nearMR(player.x, player.z) : { d: 1e9 };
@@ -2153,7 +2423,7 @@ function resetCar() {
   player.u = player.v = player.r = 0; lastSkid[0] = lastSkid[1] = null;
 }
 
-const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'hand' };
+const KEYMAP = { ArrowUp: 'up', KeyW: 'up', ArrowDown: 'down', KeyS: 'down', ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'hand', ShiftLeft: 'run', ShiftRight: 'run', KeyE: 'act' };
 addEventListener('keydown', e => {
   if (e.target instanceof HTMLInputElement) return; // typing a car name
   if (KEYMAP[e.code]) { input[KEYMAP[e.code]] = 1; e.preventDefault(); }
@@ -2168,7 +2438,9 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyR') resetCar();
   if (e.code === 'KeyN') audio.toggle();
   if (e.code === 'KeyQ' && M) finishMission(false, 'Mission abandoned.');
-  if (e.code === 'KeyE' && nearMission >= 0 && !M && !paused) startMission(nearMission);
+  if (e.code === 'KeyQ' && foot.fish) stopFishing();
+  if (e.code === 'KeyF') toggleFoot();
+  if (e.code === 'KeyE' && nearMission >= 0 && !M && !paused && !foot.on) startMission(nearMission);
   if (/^Digit[1-7]$/.test(e.code) && !paused) setCar(+e.code.slice(5) - 1);
 });
 addEventListener('keyup', e => { if (KEYMAP[e.code]) input[KEYMAP[e.code]] = 0; });
@@ -2211,19 +2483,20 @@ const mapBase = document.createElement('canvas'); mapBase.width = mapBase.height
   g.strokeStyle = '#3b3f47'; g.lineWidth = Math.max(3, 13 * MK * 1.6); g.beginPath();
   MR.forEach((p, k) => k ? g.lineTo(X(p.x), X(p.z)) : g.moveTo(X(p.x), X(p.z))); g.stroke();
   g.fillStyle = '#3b3f47'; g.beginPath(); g.arc(X(PLAZA.x), X(PLAZA.z), PLAZA.r * MK * 1.3, 0, 7); g.fill();
-  g.fillStyle = '#8a6a44'; g.fillRect(X(PIER.x - PIER.w / 2), X(PIER.z0), Math.max(3, PIER.w * MK * 1.5), (PIER.z1 - PIER.z0) * MK);
+  g.fillStyle = '#8a6a44'; for (const r of PIER_RECTS) g.fillRect(X(r.x0), X(r.z0), Math.max(3, (r.x1 - r.x0) * MK * 1.3), Math.max(3, (r.z1 - r.z0) * MK));
 }
 const mapCtx = $('map').getContext('2d');
 let mapZoom = .55;
 function drawMap() {
-  const cv = $('map'), S = cv.width, g = mapCtx, phi = player.h + Math.PI;
+  const me = foot.on ? foot : player;
+  const cv = $('map'), S = cv.width, g = mapCtx, phi = me.h + Math.PI;
   mapZoom = lerp(mapZoom, lerp(.55, .22, clamp(Math.abs(player.u) / 70, 0, 1)), .03);
   const zoom = mapZoom / MK * (S / 360);
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, S, S);
   g.save(); g.translate(S / 2, S / 2); g.rotate(phi); g.scale(zoom, zoom);
-  g.translate(-(player.x + MAPE) * MK, -(player.z + MAPE) * MK); g.drawImage(mapBase, 0, 0); g.restore();
+  g.translate(-(me.x + MAPE) * MK, -(me.z + MAPE) * MK); g.drawImage(mapBase, 0, 0); g.restore();
   const toS = (x, z, clampR) => {
-    const dx = x - player.x, dz = z - player.z, c = Math.cos(phi), s = Math.sin(phi), k = zoom * MK;
+    const dx = x - me.x, dz = z - me.z, c = Math.cos(phi), s = Math.sin(phi), k = zoom * MK;
     let sx = (dx * c - dz * s) * k, sy = (dx * s + dz * c) * k; const d = Math.hypot(sx, sy);
     if (clampR && d > S / 2 - 12) { sx *= (S / 2 - 12) / d; sy *= (S / 2 - 12) / d; }
     return [S / 2 + sx, S / 2 + sy];
@@ -2232,6 +2505,7 @@ function drawMap() {
   if (!M) MISSIONS.forEach(m => dot(m.start.x, m.start.z, '#f9c80e', 9));
   for (const a of agents) if (a.police) dot(a.x, a.z, Math.floor(performance.now() / 250) % 2 ? '#ff3030' : '#2a5bff', 8);
   if (heli.g.visible) dot(heli.x, heli.z, '#f4f4f4', 6);
+  if (foot.on) dot(player.x, player.z, '#c8102e', 7);
   const t = missionTarget(); if (t) dot(t.x, t.z, '#4fd1ff', 11);
   g.save(); g.translate(S / 2, S / 2); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 3;
   g.beginPath(); g.moveTo(0, -16); g.lineTo(11, 12); g.lineTo(0, 6); g.lineTo(-11, 12); g.closePath(); g.fill(); g.stroke(); g.restore();
@@ -2275,6 +2549,7 @@ function loop() {
   if (!paused) {
     const frozen = (M && M.count > 0) || !!police.arrest;
     const inp = frozen ? { up: 0, down: 0, left: 0, right: 0, hand: 1 } : input;
+    if (foot.on) updateFoot(dt); else {
     { // terrain grade under the car (for gravity and body tilt)
       const e = 1.6, sf = Math.sin(c.h), cf = Math.cos(c.h);
       const gF = (groundH(c.x + sf * e, c.z + cf * e) - groundH(c.x - sf * e, c.z - cf * e)) / (2 * e);
@@ -2305,15 +2580,18 @@ function loop() {
     const impact = Math.max(hit, traffic);
     c.hitCd -= dt;
     if (impact > 3 && c.hitCd <= 0) { c.hv -= Math.min(impact, 20) * .012; audio.crash(impact); cam.shake = Math.min(1, impact / 15); c.hitCd = .35; if (M && M.def.type === 'taxi' && M.count <= 0) M.fare = Math.max(0, M.fare - 3); if (M && M.def.type === 'drift') { M.combo = 0; $('drift').hidden = true; } }
+    }
     for (const a of agents) a.police ? updateCop(a, dt) : updateAgent(a, dt);
     updatePolice(dt); updateHeli(dt);
     updateMission(dt);
     // mission start proximity
     nearMission = -1;
-    if (!M) MISSIONS.forEach((m, k) => { if (Math.hypot(m.start.x - c.x, m.start.z - c.z) < 9) nearMission = k; });
+    if (!M && !foot.on) MISSIONS.forEach((m, k) => { if (Math.hypot(m.start.x - c.x, m.start.z - c.z) < 9) nearMission = k; });
   }
   const pr = $('prompt');
-  if (nearMission >= 0 && !M && !paused) { pr.hidden = false; pr.textContent = `Press E to start ${MISSIONS[nearMission].name}`; } else pr.hidden = true;
+  const fp = foot.on && !paused ? footPrompt() : '';
+  if (fp) { pr.hidden = false; pr.textContent = fp; pr.classList.toggle('hot', fp.startsWith('BITE')); }
+  else if (nearMission >= 0 && !M && !paused && !foot.on) { pr.hidden = false; pr.textContent = `Press E to start ${MISSIONS[nearMission].name}`; pr.classList.remove('hot'); } else pr.hidden = true;
 
   // visuals: car body pitch and roll
   c.spin += c.u * dt / c.spec.R;
@@ -2394,6 +2672,19 @@ function loop() {
   camera.position.set(cam.x + rnd(-sh, sh), camY + rnd(-sh, sh), cam.z + rnd(-sh, sh));
   camera.lookAt(c.x + fx * 3, gy + 1.1 + (camMode === 2 ? .2 : 0), c.z + fz * 3);
   camera.fov = lerp(camera.fov, 60 + clamp(sp * 3.6 / 300, 0, 1) * 16, .05); camera.updateProjectionMatrix();
+  if (foot.on) { // over-the-shoulder view when walking; wider when fishing so you see the float
+    const F = foot, fishing = !!F.fish, d = fishing ? 6.5 : 4.4, hh = fishing ? 3 : 2.1;
+    const aim = F.h + (fishing ? .45 : 0);
+    cam.fh = cam.fh === undefined ? aim : cam.fh + angDiff(cam.fh, aim) * (1 - Math.exp(-dt * 4));
+    let ftx = F.x - Math.sin(cam.fh) * d, ftz = F.z - Math.cos(cam.fh) * d;
+    for (let s2 = 1; s2 <= 8; s2++) { const px = lerp(F.x, ftx, s2 / 8), pz = lerp(F.z, ftz, s2 / 8), pc = penOct(px, pz, .4); if (pc && pc.p > .6) { ftx = lerp(F.x, ftx, (s2 - 1) / 8); ftz = lerp(F.z, ftz, (s2 - 1) / 8); break; } }
+    cam.fx = lerp(cam.fx ?? ftx, ftx, 1 - Math.exp(-dt * 8)); cam.fz = lerp(cam.fz ?? ftz, ftz, 1 - Math.exp(-dt * 8));
+    camera.position.set(cam.fx, Math.max(F.y + hh, walkY(cam.fx, cam.fz) + 1), cam.fz);
+    const la = fishing ? 5 : 1.5;
+    camera.lookAt(F.x + Math.sin(F.h) * la, F.y + (fishing ? .6 : 1.4), F.z + Math.cos(F.h) * la);
+    camera.fov = lerp(camera.fov, 58, .1); camera.updateProjectionMatrix();
+    cam.x = cam.fx; cam.z = cam.fz;
+  } else { cam.fh = undefined; cam.fx = undefined; cam.fz = undefined; }
   if (!$('design').hidden) { // turntable view in the paint shop
     orbitA += dt * .35;
     camera.position.set(c.x + Math.sin(orbitA) * 7, gy + 2.2, c.z + Math.cos(orbitA) * 7);
@@ -2405,10 +2696,17 @@ function loop() {
 
   // HUD
   if (frame % 3 === 0) {
-    $('spd').textContent = Math.round(Math.abs(c.u) * 3.6);
+    $('spd').textContent = Math.round(Math.abs(foot.on ? foot.v : c.u) * 3.6);
     $('gear').textContent = c.gear === -1 ? 'R' : sp < .3 && !c.throttle ? 'N' : c.spec.ev ? 'D' : c.gear;
     $('rpmFill').style.width = clamp(c.rpm / c.spec.redline, 0, 1) * 100 + '%';
-    const st = streetName(c.x, c.z);
+    const st = foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
+    const F = foot.fish; $('fishing').hidden = !F;
+    if (F) {
+      $('fState').textContent = F.st === 'reel' ? `Fighting a fish: ${Math.max(0, F.D).toFixed(1)} m to go` : F.st === 'bite' ? 'Bite!' : F.st === 'wait' ? 'Float is out' : F.st === 'show' ? 'Nice catch!' : 'Ready to cast';
+      $('fTen').style.width = clamp(F.st === 'reel' ? F.tension : 0, 0, 1) * 100 + '%';
+      $('fTen').style.background = F.tension > .85 ? 'var(--bad)' : F.tension < .2 ? 'var(--muted)' : 'var(--good)';
+      $('fCount').textContent = `Catches: ${fishLog.count}`;
+    }
     $('plaque').hidden = !st; if (st) { $('plaqueT').textContent = st[0]; $('plaqueD').textContent = st[1]; }
     const wv = police.state !== 'off' || !!police.arrest;
     $('wanted').hidden = !wv;
