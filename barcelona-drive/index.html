@@ -152,6 +152,18 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 .tbar .zone{position:absolute;left:20%;width:65%;top:0;bottom:0;background:rgba(95,211,141,.25);border-left:1px solid var(--good);border-right:1px solid var(--good)}
 .tbar b{position:relative;display:block;height:100%;width:0;background:var(--good);opacity:.9}
 #fCount{font-size:12px;color:var(--muted);margin-top:6px}
+#baitBar{pointer-events:auto;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 208px);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:min(760px,calc(100vw - 32px))}
+.bb{display:flex;align-items:center;gap:6px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:5px 11px;font-size:13px;font-weight:600;backdrop-filter:blur(6px)}
+.bb i{width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,.4)}
+.bb.on{border-color:#4fd1ff;background:rgba(79,209,255,.22)}
+.bb.shopb{border-color:var(--taxi)}
+.bb kbd{font-family:var(--display);background:rgba(255,255,255,.14);border-radius:3px;padding:0 5px}
+.shopH{font-family:var(--display);font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.04em;margin:22px 0 2px;color:#4fd1ff}
+#tackle .wallet{display:inline-block;margin-left:6px;background:#23262c;border:1px solid var(--line);border-radius:5px;padding:2px 8px;color:var(--text)}
+#tackle .wallet b{color:var(--good);font-variant-numeric:tabular-nums}
+#tackle .note{background:rgba(249,200,14,.12);border:1px solid var(--taxi);border-radius:6px;padding:8px 12px;margin:8px 0}
+.card .go.poor{background:#3a3d44;color:var(--muted)}
+.card .go:disabled{background:var(--good);color:#111;opacity:.9}
 #catchBox{pointer-events:auto;left:50%;bottom:calc(env(safe-area-inset-bottom,0px) + 130px);transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);border-top:4px solid #4fd1ff;border-radius:10px;padding:14px 18px;text-align:center;min-width:280px;backdrop-filter:blur(6px)}
 #cName{font-family:var(--display);font-weight:900;font-size:34px;line-height:1;text-transform:uppercase;letter-spacing:.03em}
 #cCat{font-family:var(--serif);font-style:italic;font-size:14px;color:#9fdcff;margin-top:4px}
@@ -238,12 +250,14 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
 <div class="hud" id="sub" hidden></div>
 <div class="hud" id="drift" hidden></div>
 <button class="hud" id="prompt" hidden></button>
+<div class="hud" id="baitBar" hidden></div>
 <div class="hud" id="catchBox" hidden>
   <div id="cName"></div><div id="cCat"></div><div id="cInfo"></div>
   <div class="row"><button class="btn" id="cSell"></button><button class="btn" id="cFree"><kbd>Q</kbd>Let it go</button></div>
 </div>
 <div class="hud" id="bar">
   <button class="btn" id="bMap"><kbd>/</kbd>Map &amp; search</button>
+  <button class="btn" id="bShop"><kbd>K</kbd>Tackle shop</button>
   <button class="btn" id="bFoot"><kbd>F</kbd><span id="footT">Get out</span></button>
   <button class="btn" id="bGarage"><kbd>G</kbd>Garage</button>
   <button class="btn" id="bPaint"><kbd>P</kbd>Paint shop</button>
@@ -285,6 +299,7 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
       <kbd>P</kbd><span>Paint shop: design your own car</span>
       <kbd>O</kbd><span>Police chases on or off</span>
       <kbd>/</kbd><span>Map &amp; search: jump to any street, landmark or shop (or click the minimap)</span>
+      <kbd>K</kbd><span>Tackle shop: spend fish money on rods, reels, bait, lures and boats (B swaps bait while fishing)</span>
       <kbd>F</kbd><span>Get out of the car and walk (Shift runs, Space jumps)</span>
       <kbd>E</kbd><span>Go into shops and bars · fish at the pier railing · dive from the end of the pier</span>
       <kbd>Shift · Space</kbd><span>In the sea: dive down · swim up</span>
@@ -296,6 +311,15 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
   </div>
 </div>
 
+<div class="ov" id="tackle" hidden>
+  <div class="sheet">
+    <button class="close" data-close="tackle">Close</button>
+    <h2>Botiga de Pesca</h2>
+    <p class="lead">The tackle shop at the end of the pier. Spend the money from the fish you sell. <span class="wallet">Wallet: <b id="shopWallet">€0</b></span></p>
+    <p class="note" id="shopNote" hidden></p>
+    <div id="shopGrid"></div>
+  </div>
+</div>
 <div class="ov" id="garage" hidden>
   <div class="sheet">
     <button class="close" data-close="garage">Close</button>
@@ -1802,7 +1826,7 @@ const audio = {
     const f = s.ev ? 80 + c.rpm / s.redline * 1300 : Math.max(22, c.rpm / 60 * s.cyl / 2);
     this.o1.frequency.setTargetAtTime(f, t, .03); this.o2.frequency.setTargetAtTime(f / 2, t, .03);
     this.lp.frequency.setTargetAtTime(s.ev ? 2500 : 500 + c.throttle * 2600 + c.rpm / 5, t, .05);
-    this.eg.gain.setTargetAtTime((s.ev ? .04 + c.throttle * .05 : .06 + c.throttle * .12) * (foot.on ? .35 : 1), t, .05);
+    this.eg.gain.setTargetAtTime((s.ev ? .04 + c.throttle * .05 : .06 + c.throttle * .12) * (foot.on && !foot.boat ? .35 : 1), t, .05);
     const sl = Math.max(Math.abs(c.slipR), Math.abs(c.slipF) * .8);
     const sq = Math.hypot(c.u, c.v) > 4 ? clamp((sl - .12) * 2.5, 0, .35) + (c.wheelspin ? .12 : 0) : 0;
     this.screech.gain.setTargetAtTime(sq, t, .05);
@@ -2493,10 +2517,82 @@ const FISH_TYPES = [
   ['Grey mullet', 'Llissa', .4, 2.5, .6, '#9aa4a8', 14], ['Gilt-head bream', 'Orada', .3, 1.8, .75, '#d9d4b0', 16],
   ['Sea bass', 'Llobarro', .5, 4, .9, '#aeb8bd', 11], ['Octopus', 'Pop', .6, 3.5, .85, '#9b4f6e', 7],
   ['Old boot', 'Bota vella', .9, .9, .25, '#5a3b22', 5], ['Bluefin tuna', 'Tonyina vermella', 12, 60, 1.5, '#2c4c7a', 1.2],
+  ['Mahi-mahi', 'Llampuga', 3, 15, 1.2, '#3aa05a', 0], ['Swordfish', 'Peix espasa', 25, 120, 1.8, '#394a66', 0], // only from a boat
 ];
 let fishLog = { count: 0, best: {}, money: 0, sold: 0, released: 0 };
 try { const f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); if (f && typeof f === 'object') fishLog = { count: f.count | 0, best: f.best || {}, money: +f.money || 0, sold: f.sold | 0, released: f.released | 0 }; } catch (e) { }
 const saveFish = () => { try { localStorage.setItem('bcn-run-fish', JSON.stringify(fishLog)); } catch (e) { } };
+// the tackle shop: spend what you earn selling fish on better gear and a boat
+const GEAR = {
+  rod: [
+    { name: 'Starter rod', desc: 'The rod you started with. It does the job.', price: 0, ten: 1, cast: 10, kg: 1, col: '#1c1c1c' },
+    { name: 'Carbon rod', desc: 'Light and stiff: casts further and takes the strain better.', price: 45, ten: .85, cast: 14, kg: 1.08, col: '#4a4f58' },
+    { name: 'Surfcaster', desc: 'A long 4.5 m rod that reaches the bigger fish past the waves.', price: 160, ten: .72, cast: 18, kg: 1.18, col: '#1f4fd0' },
+    { name: 'Big-game rod', desc: 'Short and mighty, built for tuna and swordfish.', price: 650, ten: .58, cast: 22, kg: 1.3, col: '#c9a227' },
+  ],
+  reel: [
+    { name: 'Basic reel', desc: 'Winds in slowly.', price: 0, spd: 1 },
+    { name: 'Spinning reel', desc: 'Smooth and quicker to wind in.', price: 35, spd: 1.3 },
+    { name: 'Baitcaster reel', desc: 'Powerful gears for heavy fish.', price: 110, spd: 1.6 },
+    { name: 'Electric reel', desc: 'A motor does the winding. Brrrrr!', price: 400, spd: 2.1 },
+  ],
+  line: [
+    { name: 'Nylon line', desc: 'Snaps if a big fish pulls too hard.', price: 0, snap: 1 },
+    { name: 'Fluorocarbon line', desc: 'Stronger, and fish can hardly see it.', price: 25, snap: 1.15 },
+    { name: 'Braided line', desc: 'Super strong woven line.', price: 80, snap: 1.35 },
+    { name: 'Steel leader', desc: 'Nothing bites through this, not even a tuna.', price: 250, snap: 1.6 },
+  ],
+  bait: [ // bait and lures: one on the hook at a time
+    { name: 'Bread', kind: 'bait', desc: 'Free. Sardines and mullet love it.', price: 0, b: [3, 9], col: '#e9d9a8', mul: { Sardine: 1.5, 'Grey mullet': 2 } },
+    { name: 'Prawns', kind: 'bait', desc: 'Bream and sea bass can\'t resist.', price: 15, b: [2, 6], col: '#f08a6a', mul: { 'Gilt-head bream': 2.4, 'Sea bass': 1.8, 'Old boot': .5 } },
+    { name: 'Squid', kind: 'bait', desc: 'Big-fish bait: octopus, tuna and bass.', price: 40, b: [2, 5], col: '#f1e9f0', mul: { Octopus: 2.5, 'Bluefin tuna': 2, 'Sea bass': 1.5, Sardine: .4, 'Old boot': .4 } },
+    { name: 'Live sardine', kind: 'bait', desc: 'The best bait for tuna, mahi-mahi and swordfish.', price: 120, b: [1.5, 4], col: '#b8c7d1', mul: { 'Bluefin tuna': 4, 'Mahi-mahi': 3, Swordfish: 3, Sardine: .2, 'Old boot': .2 } },
+    { name: 'Spinner lure', kind: 'lure', desc: 'A flashing spinning blade. Mackerel go crazy for it.', price: 20, b: [2, 6], col: '#d9dde2', cast: 4, mul: { Mackerel: 3, 'Sea bass': 1.5, 'Grey mullet': .4 } },
+    { name: 'Soft shad', kind: 'lure', desc: 'A wobbly rubber fish. Sea bass love it.', price: 55, b: [2, 6], col: '#6fd08a', cast: 3, mul: { 'Sea bass': 3, 'Gilt-head bream': 1.5, Sardine: .5 } },
+    { name: 'Popper', kind: 'lure', desc: 'Splashes on the surface. Brings up mahi-mahi and tuna.', price: 90, b: [2.5, 6], col: '#ff6a2a', cast: 5, mul: { 'Mahi-mahi': 3, 'Bluefin tuna': 1.6, Sardine: .3, 'Old boot': .3 } },
+    { name: 'Deep diver', kind: 'lure', desc: 'Dives deep where the giants live.', price: 200, b: [2, 5.5], col: '#2a5bff', cast: 6, mul: { 'Bluefin tuna': 2.5, Swordfish: 2, 'Mahi-mahi': 2, Sardine: .2 } },
+  ],
+};
+const BOATS = [
+  { name: 'Llaüt', desc: 'A traditional Catalan wooden fishing boat. Slow and steady.', price: 300, vmax: 8, acc: 2.2, turn: .6, L: 7, B: 2.4, H: 1.1, hull: '#f4f1ea', stripe: '#1f4fd0', bottom: '#8a2a1e', cam: 11, kg: 1.05, kind: 'llaut' },
+  { name: 'Speedboat', desc: 'Fast red speedboat with a big outboard motor.', price: 1200, vmax: 22, acc: 6.5, turn: .85, L: 6.5, B: 2.3, H: .9, hull: '#c8102e', stripe: '#f4f1ea', bottom: '#1d1d1d', cam: 11, kg: 1.05, kind: 'speed' },
+  { name: 'Sport-fishing yacht', desc: 'A flybridge yacht with a fighting chair: bigger fish out at sea.', price: 5000, vmax: 15, acc: 3.6, turn: .42, L: 12, B: 3.8, H: 1.6, hull: '#f7f7f7', stripe: '#0f1f3d', bottom: '#0f1f3d', cam: 16, kg: 1.2, kind: 'yacht' },
+];
+{ // saved gear, checked so a stale save can't break anything
+  let f = null; try { f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); } catch (e) { }
+  const g = f && typeof f.gear === 'object' && f.gear || {}, o = f && typeof f.own === 'object' && f.own || {};
+  fishLog.gear = {}; fishLog.own = {};
+  for (const k in GEAR) {
+    fishLog.own[k] = [...new Set([0, ...(Array.isArray(o[k]) ? o[k] : [])].map(n => n | 0).filter(n => n >= 0 && n < GEAR[k].length))];
+    const n = g[k] | 0; fishLog.gear[k] = fishLog.own[k].includes(n) ? n : 0;
+  }
+  fishLog.own.boat = (Array.isArray(o.boat) ? o.boat : []).map(n => n | 0).filter(n => n >= 0 && n < BOATS.length);
+  fishLog.boat = f && fishLog.own.boat.includes(f.boat | 0) && f.boat != null ? f.boat | 0 : (fishLog.own.boat.length ? fishLog.own.boat[fishLog.own.boat.length - 1] : -1);
+}
+const gearOf = k => GEAR[k][fishLog.gear[k]];
+function pickFish(F) { // what bites depends on your bait or lure, your rod, and where you are
+  const bait = gearOf('bait'), deep = F.boat && F.deep;
+  const w = FISH_TYPES.map(t => {
+    let x = t[6] * (bait.mul[t[0]] || 1);
+    if (t[0] === 'Mahi-mahi') x = F.boat ? (deep ? 6 : 1.2) * (bait.mul[t[0]] || 1) : 0;
+    if (t[0] === 'Swordfish') x = deep ? 1.5 * (bait.mul[t[0]] || 1) : 0;
+    if (deep && t[0] === 'Bluefin tuna') x *= 3;
+    if (deep && (t[0] === 'Sardine' || t[0] === 'Old boot')) x *= .4;
+    if (fishLog.gear.rod === 3 && (t[0] === 'Bluefin tuna' || t[0] === 'Swordfish')) x *= 1.5;
+    return x;
+  });
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let k = 0; k < w.length; k++) { r -= w[k]; if (r <= 0) return FISH_TYPES[k]; }
+  return FISH_TYPES[0];
+}
+const biteTime = () => { const b = gearOf('bait').b; return rnd(b[0], b[1]); };
+const kgMul = () => gearOf('rod').kg * (foot.boat ? BOATS[fishLog.boat].kg : 1);
+function applyRodLook() {
+  if (!foot.rod) return;
+  foot.rod.pivot.children[0].material = flat(gearOf('rod').col);
+  const b = gearOf('bait'); foot.rod.bob.material.color.set(b.kind === 'lure' ? b.col : '#ff3b2f');
+  foot.rod.bob.scale.set(b.kind === 'lure' ? .7 : 1, b.kind === 'lure' ? .7 : 1, b.kind === 'lure' ? 1.8 : 1);
+}
 function buildWalker() {
   const p = makePerson('#c8102e', '#1d2a44', '#e8b996', { cap: '#f9c80e' });
   const pivot = new THREE.Group(); pivot.position.set(0, 1.12, .42); pivot.visible = false; p.body.add(pivot);
@@ -2507,6 +2603,7 @@ function buildWalker() {
   const lg = new THREE.BufferGeometry(); lg.setAttribute('position', new THREE.Float32BufferAttribute([0, 0, 0, 0, 0, 0], 3));
   const line = new THREE.Line(lg, new THREE.LineBasicMaterial({ color: 0xf2f2f2 })); line.frustumCulled = false; line.visible = false; scene.add(line);
   foot.p = p; foot.rod = { pivot, tip, bob, line, fishMesh: null };
+  applyRodLook();
 }
 // height of whatever you are standing on: kerbs, the promenade, the pier deck, hillsides
 function walkY(x, z) { // height of whatever you are standing on
@@ -2528,6 +2625,7 @@ function toggleFoot() {
     scene.add(foot.p.root); $('footT').textContent = 'Get in';
     cam.h = foot.h;
   } else {
+    if (foot.boat) return leaveBoat();
     if (foot.inside) return show('', 'Walk out of the building first.', 1.8);
     if (foot.swim) return show('', 'Swim back to the beach first.', 1.8);
     if (Math.hypot(foot.x - player.x, foot.z - player.z) > 4.5) return show('', 'Walk back to your car to get in.', 1.8);
@@ -2563,7 +2661,7 @@ function stopFishing() {
   foot.fish = null; $('catchBox').hidden = true;
 }
 // what a catch is worth at the fish market (€ per kg), and how each one looks
-const FISH_PRICE = { Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
+const FISH_PRICE = { 'Mahi-mahi': 12, Swordfish: 25, Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
 const catchValue = (name, kg) => name === 'Old boot' ? 0 : Math.max(.5, Math.round(kg * FISH_PRICE[name] * 2) / 2);
 // body shape (height and width as a share of length), fin colour, and how to paint the side of the fish
 const FISH_LOOK = {
@@ -2590,6 +2688,13 @@ const FISH_LOOK = {
     band(g, W, H, ['#34424c', '#566873', '#b8c2c7', '#e8ecee', '#f5f6f6']);
     g.fillStyle = 'rgba(30,38,45,.75)'; g.beginPath(); g.ellipse(W * .76, H * .38, W * .02, H * .06, 0, 0, 7); g.fill();
     g.strokeStyle = 'rgba(80,95,105,.4)'; g.lineWidth = 2; g.beginPath(); g.moveTo(W * .08, H * .45); g.quadraticCurveTo(W * .5, H * .32, W * .78, H * .38); g.stroke();
+  } },
+  'Mahi-mahi': { h: .26, w: .12, fin: '#2f8f7a', dorsal: 0, longDorsal: true, fork: 1.1, blunt: true, skin: (g, W, H) => {
+    band(g, W, H, ['#1f7a5a', '#3aa05a', '#b9c93a', '#f2d640', '#f7ecb0']);
+    g.fillStyle = 'rgba(40,120,200,.6)'; for (let k = 0; k < 60; k++) { g.beginPath(); g.arc(W * (.1 + Math.random() * .7), H * (.25 + Math.random() * .5), 2.2, 0, 7); g.fill(); }
+  } },
+  Swordfish: { h: .2, w: .16, fin: '#26324a', dorsal: 1, tallDorsal: true, fork: 1.3, lunate: true, bill: true, skin: (g, W, H) => {
+    band(g, W, H, ['#1a2338', '#2e3d5c', '#6a7890', '#b9c0c8', '#dde1e4']);
   } },
   'Bluefin tuna': { h: .27, w: .22, fin: '#1b2c4a', dorsal: 2, fork: 1.3, lunate: true, finlets: true, skin: (g, W, H) => {
     band(g, W, H, ['#0f1f3d', '#1c3766', '#5c7ea8', '#c9d3dc', '#eef1f3']);
@@ -2644,6 +2749,9 @@ function makeFishModel(name, len) {
   const d1 = L.spiny ? [[len * .12, 0], [len * .1, H * .4], [len * .04, H * .5], [-len * .02, H * .42], [-len * .08, H * .28], [-len * .1, 0]]
     : [[len * .1, 0], [len * .02, H * .55], [-len * .08, H * .35], [-len * .12, 0]];
   const df = new THREE.Mesh(finGeo(d1), finM); df.position.set(0, H * .42, L.deep ? len * .02 : len * .02); g.add(df);
+  if (L.tallDorsal) { const td = new THREE.Mesh(finGeo([[len * .06, 0], [len * .02, H * 1.1], [-len * .06, H * .7], [-len * .05, 0]]), finM); td.position.set(0, H * .4, len * .12); g.add(td); df.visible = false; }
+  if (L.longDorsal) { df.visible = false; const ld = new THREE.Mesh(finGeo([[len * .36, 0], [len * .3, H * .5], [0, H * .35], [-len * .36, H * .18], [-len * .4, 0]]), finM); ld.position.set(0, H * .4, 0); g.add(ld); }
+  if (L.bill) { const bl = new THREE.Mesh(new THREE.ConeGeometry(H * .09, len * .42, 8).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: C('#2a3346'), roughness: .5 })); bl.position.set(0, H * .02, len * .5 + len * .19); g.add(bl); }
   if (L.dorsal === 2) { const d2 = new THREE.Mesh(finGeo([[len * .05, 0], [0, H * .42], [-len * .08, H * .12], [-len * .09, 0]]), finM); d2.position.set(0, H * .34, -len * .18); g.add(d2); }
   if (L.deep) { const dl = new THREE.Mesh(finGeo([[len * .2, 0], [len * .1, H * .22], [-len * .25, H * .15], [-len * .3, 0]]), finM); dl.position.set(0, H * .4, 0); g.add(dl); }
   // anal fin, pelvic fins and pectoral fins
@@ -2719,7 +2827,7 @@ function updateFishing(dt, act, press) {
   if (F.spot) { bx = F.spot.x; bz = F.spot.z; }
   if (F.st === 'ready') {
     ang = 1 + Math.sin(now * 1.2) * .03;
-    if (press) { F.st = 'cast'; F.T = 0; const d = rnd(8, 12), s2 = rnd(-3, 3); F.spot = { x: foot.x + F.nx * d + F.tx * s2, z: foot.z + F.nz * d + F.tz * s2 }; }
+    if (press) { F.st = 'cast'; F.T = 0; const cst = gearOf('rod').cast + (gearOf('bait').cast || 0), d = rnd(cst - 2, cst + 2), s2 = rnd(-3, 3); F.spot = { x: foot.x + F.nx * d + F.tx * s2, z: foot.z + F.nz * d + F.tz * s2 }; }
     else if (input.up || input.down) return stopFishing();
   } else if (F.st === 'cast') { // back over the shoulder, whip forward, the float flies out
     const u = F.T / 1.4;
@@ -2729,7 +2837,7 @@ function updateFishing(dt, act, press) {
     if (u < .55) { bx = _tw.x; by = _tw.y; bz = _tw.z; }
     else if (u < .9) { const k = (u - .55) / .35; bx = lerp(_tw.x, F.spot.x, k); bz = lerp(_tw.z, F.spot.z, k); by = lerp(_tw.y, .07, k) + Math.sin(k * Math.PI) * 3; }
     showBob = true;
-    if (u >= 1) { F.st = 'wait'; F.T = 0; F.biteAt = rnd(3, 9); audio.plop(); }
+    if (u >= 1) { F.st = 'wait'; F.T = 0; F.biteAt = biteTime(); audio.plop(); }
   } else if (F.st === 'wait') {
     showBob = true; ang = 1 + Math.sin(now * 1.3) * .02;
     if (Math.sin(now * 6.3) > .985) by -= .09; // a nibble
@@ -2738,17 +2846,17 @@ function updateFishing(dt, act, press) {
   } else if (F.st === 'bite') { // the float is dragged under: strike now!
     showBob = true; by = -.2 + Math.sin(now * 30) * .05; ang = .95;
     if (press) {
-      let r = Math.random() * FISH_TYPES.reduce((a, t) => a + t[6], 0); let type = FISH_TYPES[0];
-      for (const t of FISH_TYPES) { r -= t[6]; if (r <= 0) { type = t; break; } }
-      F.type = type; F.kg = +(type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 1.6)).toFixed(2);
-      F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) + (type[0] === 'Bluefin tuna' ? 14 : type[4] * 4);
+      const type = pickFish(F);
+      F.type = type; F.kg = +((type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 1.6)) * (type[0] === 'Old boot' ? 1 : kgMul())).toFixed(2);
+      F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) + (type[4] >= 1.5 ? 14 + type[4] * 3 : type[4] * 4);
       F.tension = .4; F.low = 0; F.st = 'reel'; F.T = 0; audio.ding();
-    } else if (F.T > 1.1) { F.st = 'wait'; F.T = 0; F.biteAt = rnd(4, 9); show('', 'Too slow: the fish stole the bait.', 1.8); }
+    } else if (F.T > 1.1) { F.st = 'wait'; F.T = 0; F.biteAt = biteTime() + 1; show('', 'Too slow: the fish stole the bait.', 1.8); }
   } else if (F.st === 'reel') { // hold E to reel; keep the tension in the green or the line snaps
     const fight = F.type[4], surge = .55 + .45 * Math.sin(F.T * (1.7 + fight)) + .35 * Math.sin(F.T * 5.3 + 1);
-    F.tension += (act ? .5 + fight * surge * .55 : -.8) * dt + fight * surge * .05 * dt;
+    const RT = gearOf('rod').ten, SN = gearOf('line').snap;
+    F.tension += (act ? (.5 + fight * surge * .55) * RT : -.8) * dt + fight * surge * .05 * RT * dt;
     F.tension = Math.max(0, F.tension);
-    if (act && F.tension > .2 && F.tension < .85) F.D -= (3.3 - fight * .9) * dt;
+    if (act && F.tension > .2 && F.tension < .85 * SN) F.D -= (3.3 - fight * .9) * gearOf('reel').spd * dt;
     else if (!act) F.D = Math.min(F.D0 + 8, F.D + fight * .45 * dt);
     F.low = F.tension < .1 ? F.low + dt : 0;
     ang = .45 + Math.sin(now * 16) * .06 * F.tension - F.tension * .2; arm = act ? -.3 + Math.sin(now * 12) * .12 : -.1;
@@ -2758,7 +2866,7 @@ function updateFishing(dt, act, press) {
     if (!R.fishMesh && F.D < 4) { R.fishMesh = makeCatchMesh(F.type, F.kg); scene.add(R.fishMesh); }
     if (R.fishMesh) { R.fishMesh.position.set(bx, by + .02, bz); R.fishMesh.rotation.z = Math.sin(now * 5) * .25; R.fishMesh.userData.wig(now, 1); }
     showBob = !R.fishMesh;
-    if (F.tension >= 1) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Snap!', 'The line broke. Ease off when the tension bar goes red.', 2.5); }
+    if (F.tension >= SN) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Snap!', 'The line broke. Ease off when the bar goes red, or buy stronger line at the tackle shop (K).', 2.5); }
     else if (F.low > 2.2) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } show('', 'The line went slack and the fish swam off. Keep reeling!', 2.5); }
     else if (F.D <= .4) {
       F.st = 'show'; F.T = 0;
@@ -2827,11 +2935,237 @@ function updateFreed(dt) {
     }
   }
 }
+/* ---------- tackle stand at the end of the pier, and your boat's mooring ---------- */
+const KIOSK = (() => { const [x, z] = pierWorld(-PIER.headW / 2 + 6, PIER.hz + 12); return { x, z }; })();
+const DOCK = (() => { // a berth alongside the pier where it's deep enough for a boat
+  let v = 40; for (; v < 300; v += 5) { const [a, b] = pierWorld(PIER.w / 2 + 3, v), [c, d] = pierWorld(PIER.w / 2 + 8, v + 8); if (seaDist(a, b) > 3 && seaDist(c, d) > 3) break; }
+  v += 10;
+  const [x, z] = pierWorld(PIER.w / 2 + 3.4, v), [px, pz] = pierWorld(PIER.w / 2 - 1.4, v);
+  return { x, z, h: Math.atan2(PIERW.dx, PIERW.dz), px, pz, ph: Math.atan2(PIERW.dz, -PIERW.dx) };
+})();
+{ // the tackle stand: a little blue-and-white kiosk with rods on display
+  const g = new THREE.Group(), [ku, kv] = [-PIER.headW / 2 + 6, PIER.hz + 12];
+  const sign = canvasTex(512, 96, (c, w, h) => { c.fillStyle = '#123a7a'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = '800 46px Arial Narrow, Arial'; c.textAlign = 'center'; c.fillText('BOTIGA DE PESCA', w / 2, 52); c.font = '600 24px Arial'; c.fillText('Tackle · Bait · Lures · Boats', w / 2, 84); });
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.6, 3), flat('#f2efe8')); body.position.y = 1.3; g.add(body);
+  const sg = new THREE.Mesh(new THREE.PlaneGeometry(4.2, .8), new THREE.MeshStandardMaterial({ map: sign, roughness: .6 })); sg.position.set(0, 3.05, 1.52); g.add(sg);
+  for (let k = 0; k < 7; k++) { const s = new THREE.Mesh(new THREE.BoxGeometry(.64, .08, 1), flat(k % 2 ? '#f4f4f4' : '#1f4fd0')); s.position.set(-1.93 + k * .64, 2.55, 1.9); s.rotation.x = .35; g.add(s); }
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(4.4, .15, .6), flat('#8a6a44')); counter.position.set(0, 1.1, 1.7); g.add(counter);
+  const hatch = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.2), flat('#2b2d31')); hatch.position.set(0, 1.8, 1.51); g.add(hatch);
+  for (let k = 0; k < 5; k++) { const r = new THREE.Mesh(new THREE.CylinderGeometry(.015, .03, 3.2, 5), flat(GEAR.rod[k % 4].col)); r.position.set(2.3, 1.6, -1 + k * .5); r.rotation.z = -.12; g.add(r); }
+  const shopkeeper = makePerson('#1f4fd0', '#2b2d31', '#d9a883', { cap: '#f4f4f4' }); shopkeeper.root.position.set(0, 0, .6); g.add(shopkeeper.root);
+  const [x, z] = pierWorld(ku, kv); g.position.set(x, PIER.h, z); g.rotation.y = Math.atan2(PIERW.dx, PIERW.dz) + Math.PI; scene.add(g);
+}
+const nearKiosk = (x, z) => Math.hypot(x - KIOSK.x, z - KIOSK.z) < 3.6;
+const nearDock = (x, z) => Math.hypot(x - DOCK.px, z - DOCK.pz) < 4;
+
+/* ---------- boats ---------- */
+function hullTex(s) {
+  return canvasTex(64, 128, (c, w, h) => {
+    c.fillStyle = s.hull; c.fillRect(0, 0, w, h);
+    c.fillStyle = s.stripe; c.fillRect(0, 8, w, 12);
+    c.fillStyle = s.bottom; c.fillRect(0, h * .72, w, h);
+    c.fillStyle = 'rgba(0,0,0,.08)'; for (let y = 24; y < h * .72; y += 9) c.fillRect(0, y, w, 1);
+  });
+}
+function makeBoat(s) {
+  const g = new THREE.Group(), L = s.L, B = s.B, H = s.H, N = 18, P = 7, pos = [], uv = [], idx = [];
+  const beam = t => B / 2 * (t < .62 ? .82 + .18 * Math.sin(t / .62 * Math.PI / 2) : Math.pow(Math.cos((t - .62) / .38 * Math.PI / 2), .8));
+  const top = t => H * .62 + H * .3 * Math.max(0, t - .6) / .4, keel = t => -H * .38 * (t > .75 ? 1 - (t - .75) / .25 * .8 : 1);
+  const sec = [[-1, 1], [-.97, .55], [-.72, .15], [0, 0], [.72, .15], [.97, .55], [1, 1]]; // (x share of beam, height share)
+  for (let i = 0; i <= N; i++) {
+    const t = i / N, b = beam(t), tp = top(t), k = keel(t), z = (t - .5) * L;
+    sec.forEach(([sx, sy], j) => { pos.push(sx * b, lerp(k, tp, sy), z); uv.push(t, sy); });
+  }
+  for (let i = 0; i < N; i++) for (let j = 0; j < P - 1; j++) { const a = i * P + j, b = a + P; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+  const c0 = pos.length / 3; pos.push(0, lerp(keel(0), top(0), .6), -L / 2); uv.push(0, .6); // stern transom
+  for (let j = 0; j < P - 1; j++) idx.push(c0, j, j + 1);
+  const hg = new THREE.BufferGeometry(); hg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); hg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); hg.setIndex(idx); hg.computeVertexNormals();
+  const hull = new THREE.Mesh(hg, new THREE.MeshStandardMaterial({ map: hullTex(s), roughness: .45, side: THREE.DoubleSide })); hull.castShadow = true; g.add(hull);
+  const deckY = s.deck = lerp(keel(.3), top(.3), .62);
+  const ds = new THREE.Shape(); for (let i = 0; i <= N; i++) { const t = i / N; i ? ds.lineTo(beam(t) * .9, -(t - .5) * L) : ds.moveTo(beam(t) * .9, -(t - .5) * L); } for (let i = N; i >= 0; i--) { const t = i / N; ds.lineTo(-beam(t) * .9, -(t - .5) * L); }
+  const deckTex = canvasTex(128, 128, (c, w, h) => { c.fillStyle = s.kind === 'speed' ? '#e8e4dc' : '#b98a5a'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(40,25,10,.35)'; for (let x = 0; x < w; x += 12) c.fillRect(x, 0, 1.5, h); }, 1, 1);
+  deckTex.wrapS = deckTex.wrapT = THREE.RepeatWrapping; deckTex.repeat.set(B / 1.2, L / 1.2);
+  const deck = new THREE.Mesh(new THREE.ShapeGeometry(ds).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: deckTex, roughness: .8, side: THREE.DoubleSide })); deck.position.y = deckY; g.add(deck);
+  const white = flat('#f7f7f5'), dark = new THREE.MeshStandardMaterial({ color: 0x1b2430, roughness: .15, metalness: .5 }), steel = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, metalness: .8, roughness: .25 });
+  const add = (geo, mat, x, y, z) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; g.add(m); return m; };
+  if (s.kind === 'llaut') {
+    add(new THREE.BoxGeometry(1.3, 1.2, 1.4), white, 0, deckY + .6, .6);
+    add(new THREE.BoxGeometry(1.32, .35, 1.2), dark, 0, deckY + .85, .62);
+    add(new THREE.BoxGeometry(1.5, .08, 1.6), flat('#1f4fd0'), 0, deckY + 1.24, .6);
+    add(new THREE.CylinderGeometry(.06, .08, 3.6, 8), flat('#8a6a44'), 0, deckY + 1.8, 1.9);
+    add(new THREE.SphereGeometry(.1, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffe9a0 }), 0, deckY + 3.65, 1.9);
+    add(new THREE.CylinderGeometry(.05, .05, 1.2, 6), flat('#8a6a44'), 0, top(0) + .1, -L / 2 + .3).rotation.x = 1.2;
+    for (const sd of [-1, 1]) add(new THREE.TorusGeometry(.22, .06, 6, 12), flat('#f4f4f4'), sd * B * .46, top(.45) - .15, -.6).rotation.y = Math.PI / 2;
+  } else if (s.kind === 'speed') {
+    add(new THREE.BoxGeometry(1.3, .6, .5), white, 0, deckY + .3, .9);
+    const ws = add(new THREE.BoxGeometry(1.9, .5, .05), new THREE.MeshStandardMaterial({ color: 0x9fc6e0, transparent: true, opacity: .45, roughness: .05 }), 0, deckY + .85, 1.2); ws.rotation.x = -.5;
+    for (const sd of [-1, 1]) { add(new THREE.BoxGeometry(.6, .45, .6), flat('#e8e4dc'), sd * .5, deckY + .22, -.2); add(new THREE.BoxGeometry(.6, .6, .12), flat('#e8e4dc'), sd * .5, deckY + .5, -.5); }
+    add(new THREE.BoxGeometry(.5, .8, .45), flat('#161616'), 0, top(0) + .15, -L / 2 - .15);
+    add(new THREE.BoxGeometry(.15, .9, .15), flat('#161616'), 0, top(0) - .55, -L / 2 - .25);
+    add(new THREE.CylinderGeometry(.12, .12, .05, 10), steel, 0, deckY + .75, .75).rotation.x = -.9;
+  } else {
+    add(new THREE.BoxGeometry(B * .78, 1.5, L * .42), white, 0, deckY + .75, L * .05);
+    add(new THREE.BoxGeometry(B * .8, .5, L * .4), dark, 0, deckY + 1.05, L * .05);
+    add(new THREE.BoxGeometry(B * .7, .12, L * .3), white, 0, deckY + 2.55, L * .02);
+    for (const sd of [-1, 1]) for (let k = 0; k < 4; k++) add(new THREE.CylinderGeometry(.03, .03, 1, 5), steel, sd * B * .34, deckY + 2.05, L * (-.12 + k * .09));
+    add(new THREE.BoxGeometry(B * .72, .9, .2), white, 0, deckY + 1.95, L * .17);
+    add(new THREE.CylinderGeometry(.12, .12, .5, 8), steel, 0, deckY + .25, -L * .32);
+    add(new THREE.BoxGeometry(.7, .12, .6), flat('#f0e8d8'), 0, deckY + .55, -L * .32);
+    add(new THREE.BoxGeometry(.7, .7, .12), flat('#f0e8d8'), 0, deckY + .9, -L * .29);
+    for (const sd of [-1, 1]) { const o = add(new THREE.CylinderGeometry(.03, .04, 7, 5), steel, sd * B * .45, deckY + 3.2, L * .05); o.rotation.z = -sd * .9; }
+  }
+  g.traverse(o => { if (o.isMesh) o.castShadow = true; });
+  return g;
+}
+const boat = { x: DOCK.x, z: DOCK.z, h: DOCK.h, v: 0, steer: 0, t: 0, g: null, i: -2, sale: false };
+function setBoatModel() { // your boat at the berth, or one for sale if you haven't bought one yet
+  const i = fishLog.boat >= 0 ? fishLog.boat : 0, sale = fishLog.boat < 0;
+  if (boat.i === i && boat.sale === sale) return;
+  if (boat.g) scene.remove(boat.g);
+  boat.g = makeBoat(BOATS[i]); boat.g.rotation.order = 'YXZ'; boat.i = i; boat.sale = sale; boat.spec = BOATS[i];
+  if (sale) { // a "for sale" board on the cabin side
+    const t = canvasTex(256, 128, (c, w, h) => { c.fillStyle = '#f9c80e'; c.fillRect(0, 0, w, h); c.fillStyle = '#111'; c.font = '900 44px Arial'; c.textAlign = 'center'; c.fillText('ES VEN', w / 2, 52); c.font = '700 30px Arial'; c.fillText('For sale', w / 2, 96); });
+    const b = new THREE.Mesh(new THREE.PlaneGeometry(1, .5), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); b.position.set(-.67, BOATS[0].deck + .7, .6); b.rotation.y = -Math.PI / 2; boat.g.add(b);
+  }
+  scene.add(boat.g); boat.x = DOCK.x; boat.z = DOCK.z; boat.h = DOCK.h; boat.v = 0;
+}
+setBoatModel();
+const WAKE = []; { const m = new THREE.CircleGeometry(.5, 18).rotateX(-Math.PI / 2); for (let k = 0; k < 60; k++) { const w = new THREE.Mesh(m, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })); w.visible = false; w.life = 0; scene.add(w); WAKE.push(w); } }
+let wakeK = 0, wakeT = 0;
+function updateBoatIdle(dt) { // bob at the berth, and let the foam fade
+  boat.t += dt;
+  const s = boat.spec, bob = Math.sin(boat.t * 1.1) * .07 + Math.sin(boat.t * .63 + 1) * .05;
+  boat.bob = bob;
+  if (!foot.boat) { boat.g.position.set(boat.x, bob, boat.z); boat.g.rotation.set(Math.sin(boat.t * .8) * .015, boat.h, Math.sin(boat.t * .9 + 2) * .03); }
+  for (const w of WAKE) if (w.visible) { w.life -= dt; w.scale.multiplyScalar(1 + dt * .9); w.material.opacity = Math.max(0, w.life / 2.2) * .38; if (w.life <= 0) w.visible = false; }
+}
+function boatOK(x, z, h) { // hull points must all be in open water, clear of the pier
+  const s = boat.spec, fx = Math.sin(h), fz = Math.cos(h), lx = fz, lz = -fx;
+  for (const [a, b] of [[s.L / 2, 0], [-s.L / 2, 0], [0, s.B / 2], [0, -s.B / 2], [s.L * .3, s.B * .35], [s.L * .3, -s.B * .35], [-s.L * .4, s.B * .45], [-s.L * .4, -s.B * .45]]) {
+    const px = x + fx * a + lx * b, pz = z + fz * a + lz * b;
+    if (seaDist(px, pz) < 1.2 || onPier(px, pz) || Math.abs(px) > WORLD.x1 - 200 || Math.abs(pz) > WORLD.z1 - 200) return false;
+  }
+  return true;
+}
+function enterBoat() {
+  if (fishLog.boat < 0) { openShop('boats'); return; }
+  if (foot.fish) stopFishing();
+  foot.boat = { t: 0 }; boat.v = 0; boat.steer = 0; foot.v = 0;
+  cam.fh = undefined; cam.fx = undefined; cam.fz = undefined;
+  show('All aboard!', IS_TOUCH ? 'GAS and BRAKE for the throttle, arrows to steer. Stop and tap to fish.' : 'W and S for the throttle, A and D to steer. Stop and press E to fish. Come back here and press F to get off.', 4.5);
+  audio.init();
+}
+function leaveBoat(force) {
+  const d = Math.hypot(boat.x - DOCK.x, boat.z - DOCK.z);
+  if (!force && (d > 35 || Math.abs(boat.v) > 3)) return show('', 'Drive back to your berth by the pier and slow down to get off.', 2.6);
+  if (foot.fish) stopFishing();
+  foot.boat = null; boat.x = DOCK.x; boat.z = DOCK.z; boat.h = DOCK.h; boat.v = 0;
+  foot.x = DOCK.px; foot.z = DOCK.pz; foot.h = DOCK.ph; foot.y = walkY(foot.x, foot.z); foot.v = 0;
+  cam.fh = undefined; cam.fx = undefined; cam.fz = undefined; cam.fy = undefined;
+}
+function startBoatFishing() {
+  const h = boat.h;
+  foot.fish = { st: 'ready', T: 0, nx: Math.cos(h), nz: -Math.sin(h), tx: Math.sin(h), tz: Math.cos(h), spot: null, D: 0, D0: 1, tension: 0, low: 0, type: null, kg: 0, biteAt: 0, boat: true, deep: seaDist(boat.x, boat.z) > 250 };
+  foot.rod.pivot.visible = true; foot.rod.line.visible = true;
+  animPerson(foot.p, 0, 0); foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05; foot.p.arms[0].rotation.z = .25; foot.p.arms[1].rotation.z = -.25;
+  if (foot.fish.deep) show('Deep water', 'Out here you can hook tuna, mahi-mahi and even swordfish!', 3);
+  audio.init();
+}
+function updateBoat(dt, act, press) {
+  const s = boat.spec, f = foot, b = boat;
+  if (!f.fish) {
+    const th = input.up ? 1 : 0, br = input.down ? 1 : 0;
+    b.v += (th * s.acc - br * s.acc * (b.v > .3 ? 1.3 : .45)) * dt;
+    b.v -= b.v * (.12 + Math.abs(b.v) * s.acc / (s.vmax * s.vmax)) * dt;
+    b.v = clamp(b.v, -3, s.vmax * 1.02);
+    b.steer += ((input.left - input.right) - b.steer) * Math.min(1, dt * 3);
+    b.h += b.steer * s.turn * clamp(Math.abs(b.v) / 4, .18, 1) * (b.v < -.2 ? -1 : 1) * dt;
+    if (press && Math.abs(b.v) < 1.5) startBoatFishing();
+    else if (press) show('', 'Slow right down first, then press E to fish.', 1.6);
+  } else { b.v *= Math.exp(-dt * 1.5); b.steer *= Math.exp(-dt * 3); }
+  const nx = b.x + Math.sin(b.h) * b.v * dt, nz = b.z + Math.cos(b.h) * b.v * dt;
+  if (boatOK(nx, nz, b.h)) { b.x = nx; b.z = nz; }
+  else { if (Math.abs(b.v) > 3) { audio.crash(Math.abs(b.v) * .6); cam.shake = Math.min(1, Math.abs(b.v) / 15); } b.v *= -.25; }
+  // ride the swell: pitch up when you power on, lean into turns
+  const bob = b.bob, sp = b.v / s.vmax, pitch = -sp * .07 - (input.up && !f.fish ? .02 : 0) + Math.sin(b.t * .8) * .015, roll = -b.steer * sp * .12 + Math.sin(b.t * .9 + 2) * .03;
+  b.g.position.set(b.x, bob + sp * .15, b.z); b.g.rotation.set(pitch, b.h, roll);
+  // foam trail
+  wakeT += dt;
+  if (Math.abs(b.v) > 1.5 && wakeT > .045) {
+    wakeT = 0;
+    for (const sd of [-1, 1]) {
+      const w = WAKE[wakeK++ % WAKE.length], bx = -Math.sin(b.h) * s.L * .5, bz = -Math.cos(b.h) * s.L * .5;
+      w.position.set(b.x + bx + Math.cos(b.h) * sd * s.B * .3, .04, b.z + bz - Math.sin(b.h) * sd * s.B * .3);
+      w.rotation.y = b.h; w.scale.set(.9 + sp * 1.2, 1, 1.6 + sp); w.life = 2.2; w.visible = true;
+    }
+  }
+  // you: at the helm, or at the side with your rod out
+  const fx = Math.sin(b.h), fz = Math.cos(b.h), lx = fz, lz = -fx;
+  const [al, lt] = f.fish ? [0, s.B * .28] : s.kind === 'speed' ? [-.2, -.5] : s.kind === 'yacht' ? [-s.L * .32, 0] : [-s.L * .22, 0];
+  f.x = b.x + fx * al + lx * lt; f.z = b.z + fz * al + lz * lt;
+  f.y = b.g.position.y + s.deck; f.v = b.v;
+  if (f.fish) { f.fish.nx = lx; f.fish.nz = lz; f.fish.tx = fx; f.fish.tz = fz; f.h = Math.atan2(lx, lz); updateFishing(dt, act, press); }
+  else { f.h = b.h; animPerson(f.p, 0, 0); }
+  f.p.root.position.set(f.x, f.y, f.z); f.p.root.rotation.y = f.h;
+}
+const boatAudio = () => { const s = boat.spec, r = Math.abs(boat.v) / s.vmax; return { spec: { cyl: s.kind === 'yacht' ? 8 : 4, redline: 6000 }, rpm: 900 + r * 4200 + (input.up ? 600 : 0), throttle: input.up && !foot.fish ? 1 : .15, slipR: 0, slipF: 0, u: 0, v: 0, wheelspin: false }; };
+
+/* ---------- the shop panel ---------- */
+let shopNote = '';
+function openShop(scroll) { openPanel('tackle'); if (scroll) setTimeout(() => $('shop-' + scroll)?.scrollIntoView({ block: 'start' }), 0); }
+function renderShop() {
+  const money = fishLog.money;
+  $('shopWallet').textContent = '€' + money.toFixed(2);
+  $('shopNote').textContent = shopNote; $('shopNote').hidden = !shopNote;
+  const stat = (label, v, max, txt) => `<div class="stat">${label}<i style="--w:${clamp(v / max, 0, 1) * 100}%"></i><b>${txt}</b></div>`;
+  const card = (cat, k, it, stats) => {
+    const own = cat === 'boat' ? fishLog.own.boat.includes(k) : fishLog.own[cat].includes(k), using = cat === 'boat' ? fishLog.boat === k : fishLog.gear[cat] === k;
+    const btn = using ? `<button class="go" disabled>✓ Using this</button>` : own ? `<button class="go" data-buy="${cat}:${k}">Use this</button>`
+      : `<button class="go${money < it.price ? ' poor' : ''}" data-buy="${cat}:${k}">Buy · €${it.price}</button>`;
+    return `<div class="card${using ? ' sel' : ''}"><h3>${it.name}</h3><div class="tag">${it.kind === 'lure' ? 'Lure · ' : it.kind === 'bait' ? 'Bait · ' : ''}${it.desc}</div>${stats}${btn}</div>`;
+  };
+  const sec = (id, title, sub, html) => `<h3 class="shopH" id="shop-${id}">${title}</h3><p class="lead">${sub}</p><div class="grid">${html}</div>`;
+  $('shopGrid').innerHTML =
+    sec('rod', 'Rods', 'A better rod casts further, takes more strain and brings in heavier fish.', GEAR.rod.map((r, k) => card('rod', k, r, stat('Cast', r.cast, 22, r.cast + ' m') + stat('Strength', 1.05 - r.ten, .5, Math.round((1 - r.ten) * 100 + 10) + '') + stat('Fish size', r.kg - .9, .4, '×' + r.kg.toFixed(2)))).join('')) +
+    sec('reel', 'Reels', 'A faster reel winds the fish in quicker.', GEAR.reel.map((r, k) => card('reel', k, r, stat('Speed', r.spd, 2.1, '×' + r.spd))).join('')) +
+    sec('line', 'Lines', 'Stronger line lets you pull harder before it snaps.', GEAR.line.map((r, k) => card('line', k, r, stat('Strength', r.snap, 1.6, '×' + r.snap))).join('')) +
+    sec('bait', 'Bait', 'Put real bait on the hook. Each bait attracts different fish.', GEAR.bait.map((r, k) => r.kind === 'bait' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
+    sec('lure', 'Lures', 'Lures are fake fish that flash and wiggle. They cast further than bait.', GEAR.bait.map((r, k) => r.kind === 'lure' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`) + stat('Extra cast', r.cast, 6, '+' + r.cast + ' m')) : '').join('')) +
+    sec('boats', 'Boats', 'Your boat waits at a berth halfway along the pier. Drive it out to deep water for the biggest fish.', BOATS.map((b, k) => card('boat', k, b, stat('Top speed', b.vmax, 22, Math.round(b.vmax * 3.6) + ' km/h') + stat('Handling', b.turn, .85, Math.round(b.turn * 100) + '') + stat('Fish size', b.kg - 1, .2, '×' + b.kg))).join(''));
+}
+$('shopGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-buy]'); if (!b) return;
+  const [cat, ks] = b.dataset.buy.split(':'), k = +ks, it = cat === 'boat' ? BOATS[k] : GEAR[cat][k], own = cat === 'boat' ? fishLog.own.boat.includes(k) : fishLog.own[cat].includes(k);
+  shopNote = '';
+  if (!own) {
+    if (fishLog.money < it.price) { shopNote = `You need €${(it.price - fishLog.money).toFixed(2)} more for the ${it.name}. Catch and sell more fish!`; renderShop(); $('shopNote').scrollIntoView({ block: 'nearest' }); return; }
+    fishLog.money = Math.round((fishLog.money - it.price) * 100) / 100;
+    (cat === 'boat' ? fishLog.own.boat : fishLog.own[cat]).push(k);
+    shopNote = cat === 'boat' ? `You bought the ${it.name}! It's waiting at the berth halfway along the pier.` : `You bought the ${it.name}!`;
+    audio.ding(); setTimeout(() => audio.ding(), 150);
+  }
+  if (cat === 'boat') { if (foot.boat) leaveBoat(true); fishLog.boat = k; setBoatModel(); } else fishLog.gear[cat] = k;
+  saveFish(); applyRodLook(); renderBaitBar(); renderShop();
+});
+function renderBaitBar() { // swap bait or lure while you fish
+  $('baitBar').innerHTML = fishLog.own.bait.slice().sort((a, b) => a - b).map(k => { const it = GEAR.bait[k]; return `<button class="bb${fishLog.gear.bait === k ? ' on' : ''}" data-bait="${k}"><i style="background:${it.col}"></i>${it.name}</button>`; }).join('') + `<button class="bb shopb" data-shop="1"><kbd>K</kbd>Tackle shop</button>`;
+}
+function setBait(k) {
+  if (!fishLog.own.bait.includes(k) || fishLog.gear.bait === k) return;
+  fishLog.gear.bait = k; saveFish(); applyRodLook(); renderBaitBar();
+  const F = foot.fish, it = GEAR.bait[k];
+  if (F && (F.st === 'wait' || F.st === 'bite')) { F.st = 'ready'; F.T = 0; F.spot = null; }
+  show('', `${it.kind === 'lure' ? 'Lure' : 'Bait'}: ${it.name}${F && F.st === 'ready' ? ' · cast again!' : ''}`, 1.8);
+}
+$('baitBar').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.shop) openShop('bait'); else setBait(+b.dataset.bait); });
+renderBaitBar();
+
 function nearCounter() { return room && room.counter && room.info.buy && Math.hypot(foot.x - room.counter.x, foot.z - room.counter.z) < 2; }
 function updateFoot(dt) {
   const f = foot, act = !!(input.act || (IS_TOUCH && input.hand)), press = act && !f.prevAct;
   f.prevAct = act;
   if (freed.length) updateFreed(dt);
+  if (f.boat) { updateBoat(dt, act, press); return; }
   if (f.swim) { updateSwim(dt); return; }
   if (f.fish) { updateFishing(dt, act, press); f.y = walkY(f.x, f.z); }
   else {
@@ -2849,6 +3183,7 @@ function updateFoot(dt) {
         if (pa > 0 && pl > 0) { if (pa < pl) { f.x += cfx * pa * Math.sign(al); f.z += cfz * pa * Math.sign(al); } else { f.x += cfz * pl * Math.sign(lt); f.z -= cfx * pl * Math.sign(lt); } }
       }
       for (const a of agents) { const dx = f.x - a.x, dz = f.z - a.z, d = Math.hypot(dx, dz); if (d < 2.3 && d > .01) { f.x = a.x + dx / d * 2.3; f.z = a.z + dz / d * 2.3; } }
+      { const dx = f.x - KIOSK.x, dz = f.z - KIOSK.z, d = Math.hypot(dx, dz); if (d < 2.2 && d > .01) { f.x = KIOSK.x + dx / d * 2.2; f.z = KIOSK.z + dz / d * 2.2; } } // the tackle stand
     }
     const gy = f.inside ? room.heightAt(f.x, f.z) : walkY(f.x, f.z);
     if (!IS_TOUCH && input.hand && f.y <= gy + .02) f.jv = 4.3;
@@ -2862,7 +3197,9 @@ function updateFoot(dt) {
     } else if (seaDist(f.x, f.z) > .7 && !onPier(f.x, f.z)) { startSwim(); f.y = -.35; }
     else if (press) {
       const dp = divePlatform(f.x, f.z);
-      if (dp) { f.x = dp.x; f.z = dp.z; f.y = -.35; f.h = Math.atan2(dp.nx, dp.nz); startSwim(); f.swim.vy = -1; show('Splash!', 'Hold Shift to dive down to the reef.', 2.5); }
+      if (nearKiosk(f.x, f.z)) openShop();
+      else if (nearDock(f.x, f.z)) enterBoat();
+      else if (dp) { f.x = dp.x; f.z = dp.z; f.y = -.35; f.h = Math.atan2(dp.nx, dp.nz); startSwim(); f.swim.vy = -1; show('Splash!', 'Hold Shift to dive down to the reef.', 2.5); }
       else if (railNear(f.x, f.z)) startFishing();
       else { const d = nearDoor(f.x, f.z); if (d) enterDoor(d); }
     }
@@ -2880,6 +3217,9 @@ function footPrompt() {
     const st = foot.fish.st;
     return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in' : 'Hold E to reel in') : '';
   }
+  if (foot.boat) return Math.hypot(boat.x - DOCK.x, boat.z - DOCK.z) < 35 && Math.abs(boat.v) < 3 ? (IS_TOUCH ? 'Tap here to get off at the pier' : 'Press F to get off at the pier · E to fish') : Math.abs(boat.v) < 1.5 ? (IS_TOUCH ? 'Tap here to fish off the side' : 'Press E to fish off the side') : '';
+  if (nearKiosk(foot.x, foot.z)) return IS_TOUCH ? 'Tap here for the tackle shop' : 'Press E for the tackle shop (rods, bait, lures, boats)';
+  if (nearDock(foot.x, foot.z)) return fishLog.boat >= 0 ? (IS_TOUCH ? 'Tap here to get in your boat' : 'Press E to get in your boat') : (IS_TOUCH ? 'Boat for sale! Tap to see the boats' : 'Boat for sale! Press E to see the boats');
   if (divePlatform(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to jump in and go scuba diving' : 'Press E to jump in and go scuba diving';
   if (railNear(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fish' : 'Press E to fish';
   const d = nearDoor(foot.x, foot.z);
@@ -3538,8 +3878,8 @@ function openDesign() {
 let paused = true, camMode = 0;
 let msgT = 0;
 function show(big, sub, t) { $('msg').textContent = big; $('msg').hidden = !big; $('sub').textContent = sub; $('sub').hidden = !sub; msgT = t; }
-function closeAll() { for (const id of ['garage', 'missions', 'result', 'design', 'bigmap']) $(id).hidden = true; paused = false; camera.clearViewOffset(); document.body.classList.remove('designing'); }
-function openPanel(id) { closeAll(); $(id).hidden = false; paused = true; if (id === 'garage') renderGarage(); if (id === 'missions') renderMissions(); }
+function closeAll() { for (const id of ['garage', 'missions', 'result', 'design', 'bigmap', 'tackle']) $(id).hidden = true; paused = false; camera.clearViewOffset(); document.body.classList.remove('designing'); }
+function openPanel(id) { closeAll(); $(id).hidden = false; paused = true; if (id === 'garage') renderGarage(); if (id === 'missions') renderMissions(); if (id === 'tackle') { shopNote = ''; renderShop(); $('tackle').scrollTop = 0; } }
 function renderGarage() {
   const mx = { hp: 1000, grip: 1.35, mass: 2200 };
   $('garageGrid').innerHTML = CARS.map((c, k) => `
@@ -3570,6 +3910,7 @@ $('bMissions').onclick = () => openPanel('missions');
 $('bCam').onclick = () => camMode = (camMode + 1) % 3;
 $('bPolice').onclick = () => setPolice(!police.on);
 $('bFoot').onclick = toggleFoot;
+$('bShop').onclick = () => openShop();
 $('bReset').onclick = resetCar;
 $('bSound').onclick = () => audio.toggle();
 $('bStart').disabled = false; $('bStart').textContent = 'Start driving';
@@ -3583,6 +3924,9 @@ $('prompt').onclick = () => {
   if (foot.on) {
     if (foot.inside) { if (nearCounter()) { show(room.info.label, `You bought ${room.info.buy}.`, 2.8); audio.ding(); } }
     else if (foot.fish) { if (['ready', 'bite'].includes(foot.fish.st)) { input.act = 1; setTimeout(() => input.act = 0, 120); } }
+    else if (foot.boat) { if (Math.hypot(boat.x - DOCK.x, boat.z - DOCK.z) < 35 && Math.abs(boat.v) < 3) leaveBoat(); else if (Math.abs(boat.v) < 1.5) startBoatFishing(); }
+    else if (nearKiosk(foot.x, foot.z)) openShop();
+    else if (nearDock(foot.x, foot.z)) enterBoat();
     else if (divePlatform(foot.x, foot.z)) { input.act = 1; setTimeout(() => input.act = 0, 120); }
     else if (railNear(foot.x, foot.z)) startFishing();
     else if (nearDoor(foot.x, foot.z)) enterDoor(nearDoor(foot.x, foot.z));
@@ -3615,6 +3959,8 @@ addEventListener('keydown', e => {
   if (e.repeat) return;
   if (!$('start').hidden) { if (e.code === 'Enter') $('bStart').click(); return; }
   if (e.code === 'Slash' || e.code === 'Tab') { e.preventDefault(); $('bigmap').hidden ? openMap(true) : closeAll(); return; }
+  if (e.code === 'KeyK') { $('tackle').hidden ? openShop() : closeAll(); }
+  if (e.code === 'KeyB' && foot.fish && !paused) { const o = fishLog.own.bait.slice().sort((a, b) => a - b); setBait(o[(o.indexOf(fishLog.gear.bait) + 1) % o.length]); }
   if (e.code === 'KeyP') $('design').hidden ? openDesign() : closeAll();
   if (e.code === 'KeyG') $('garage').hidden ? openPanel('garage') : closeAll();
   if (e.code === 'KeyM') $('missions').hidden ? openPanel('missions') : closeAll();
@@ -3699,6 +4045,7 @@ function drawMap() {
   for (const a of agents) if (a.police) dot(a.x, a.z, Math.floor(performance.now() / 250) % 2 ? '#ff3030' : '#2a5bff', 8);
   if (heli.g.visible) dot(heli.x, heli.z, '#f4f4f4', 6);
   if (foot.on) dot(player.x, player.z, '#c8102e', 7);
+  if (!foot.boat && fishLog.boat >= 0) dot(boat.x, boat.z, '#4fd1ff', 6);
   const t = missionTarget(); if (t) dot(t.x, t.z, '#4fd1ff', 11);
   g.save(); g.translate(S / 2, S / 2); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 3;
   g.beginPath(); g.moveTo(0, -16); g.lineTo(11, 12); g.lineTo(0, 6); g.lineTo(-11, 12); g.closePath(); g.fill(); g.stroke(); g.restore();
@@ -3766,6 +4113,15 @@ const PLACES = [
     footTo(mx - r.nx * .9, mz - r.nz * .9, Math.atan2(r.nx, r.nz));
     return 'Press E at the railing to jump in and dive to the reef.';
   }, 'scuba dive diving reef coral fish sea underwater swim'],
+  ['Tackle shop (Botiga de Pesca)', 'Rods, reels, bait, lures and boats at the end of the pier', [KIOSK.x, KIOSK.z], () => {
+    const st = onStreet([PIERW.x, PIERW.z]); carTo(st.x, st.z, st.h);
+    const [x, z] = pierWorld(-PIER.headW / 2 + 6, PIER.hz + 8.6); footTo(x, z, Math.atan2(KIOSK.x - x, KIOSK.z - z));
+    return 'Press E at the counter to shop.';
+  }, 'tackle fishing shop bait lure rod reel botiga pesca'],
+  ['Boat berth', 'Where your boat is moored', [DOCK.x, DOCK.z], () => {
+    const st = onStreet([PIERW.x, PIERW.z]); carTo(st.x, st.z, st.h); footTo(DOCK.px, DOCK.pz, DOCK.ph);
+    return fishLog.boat >= 0 ? 'Press E to get in your boat.' : 'Press E to see the boats for sale.';
+  }, 'boat yacht speedboat marina berth llaut'],
   ['Tibidabo', 'Mountain top with the ferris wheel', [PLAZA.x, PLAZA.z], () => {
     const n = MR.length, a = MR[n - 4], b = MR[n - 1]; carTo(b.x, b.z, Math.atan2(b.x - a.x, b.z - a.z));
   }, 'mountain top summit ferris wheel theme park collserola'],
@@ -3836,6 +4192,7 @@ function teleport(go, label, sub) {
   if (foot.inside) exitDoor();
   if (foot.fish) stopFishing();
   if (foot.swim) endSwim();
+  if (foot.boat) leaveBoat(true);
   if (foot.on) { foot.on = false; scene.remove(foot.p.root); $('footT').textContent = 'Get out'; }
   closeAll(); document.activeElement?.blur?.(); // hand the keys back to the game
   const tip = go();
@@ -4005,6 +4362,7 @@ function loop() {
   if (!paused) {
     const frozen = (M && M.count > 0) || !!police.arrest;
     const inp = frozen ? { up: 0, down: 0, left: 0, right: 0, hand: 1 } : input;
+    updateBoatIdle(dt);
     if (foot.on) updateFoot(dt); else {
     { // terrain grade under the car (for gravity and body tilt)
       const e = 1.6, sf = Math.sin(c.h), cf = Math.cos(c.h);
@@ -4132,7 +4490,7 @@ function loop() {
   camera.lookAt(c.x + fx * 3, gy + 1.1 + (camMode === 2 ? .2 : 0), c.z + fz * 3);
   camera.fov = lerp(camera.fov, 60 + clamp(sp * 3.6 / 300, 0, 1) * 16, .05); camera.updateProjectionMatrix();
   if (foot.on) { // over-the-shoulder view when walking; wider when fishing so you see the float
-    const F = foot, fishing = !!F.fish, d = F.swim ? 5 : fishing ? 6.5 : 4.4, hh = fishing ? 3 : 2.1;
+    const F = foot, fishing = !!F.fish, d = F.swim ? 5 : F.boat && !fishing ? boat.spec.cam : fishing ? 6.5 : 4.4, hh = F.boat && !fishing ? boat.spec.cam * .32 : fishing ? 3 : 2.1;
     const aim = F.h + (fishing ? .45 : 0);
     cam.fh = cam.fh === undefined ? aim : cam.fh + angDiff(cam.fh, aim) * (1 - Math.exp(-dt * 4));
     let ftx = F.x - Math.sin(cam.fh) * (F.inside ? 3.2 : d), ftz = F.z - Math.cos(cam.fh) * (F.inside ? 3.2 : d);
@@ -4143,7 +4501,7 @@ function loop() {
     const camYf = F.swim ? (F.y < -1 ? clamp(F.y + 1.3, seabedY(cam.fx, cam.fz) + .5, -.45) : .9) : F.inside ? Math.min(F.y + 2, room.H - .3) : Math.max(F.y + hh, walkY(cam.fx, cam.fz) + 1);
     cam.fy = F.swim ? lerp(cam.fy ?? camYf, camYf, 1 - Math.exp(-dt * 6)) : camYf;
     camera.position.set(cam.fx, cam.fy, cam.fz);
-    const la = F.swim ? 2.5 : fishing ? 5 : 1.5;
+    const la = F.swim ? 2.5 : fishing ? 5 : F.boat ? 6 : 1.5;
     camera.lookAt(F.x + Math.sin(F.h) * la, F.y + (F.swim ? (F.y < -1 ? 0 : -.2) : fishing ? .6 : 1.4), F.z + Math.cos(F.h) * la);
     const FM = fishing && F.fish.st === 'show' && F.rod.fishMesh;
     if (FM) { // close-up of your catch, from along the railing
@@ -4173,12 +4531,13 @@ function loop() {
     const st = foot.inside ? [foot.inside.name || room.info.label, district(foot.inside.x, foot.inside.z)] : foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
     const SW = foot.swim; $('scuba').hidden = !SW;
     if (SW) { $('sDepth').textContent = (-Math.min(0, foot.y + .35)).toFixed(1) + ' m'; $('sAir').textContent = Math.round(SW.air) + '%'; $('sAir').style.color = SW.air < 25 ? 'var(--bad)' : ''; $('sSpot').textContent = `${spotted.size}/${Object.keys(SPECIES).length}`; }
-    const F = foot.fish; $('fishing').hidden = !F;
+    const F = foot.fish; $('fishing').hidden = !F; $('baitBar').hidden = !F || F.st === 'show' || F.st === 'reel';
     if (F) {
       $('fState').textContent = F.st === 'reel' ? `Fighting a fish: ${Math.max(0, F.D).toFixed(1)} m to go` : F.st === 'bite' ? 'Bite!' : F.st === 'wait' ? 'Float is out' : F.st === 'show' ? 'Nice catch!' : 'Ready to cast';
-      $('fTen').style.width = clamp(F.st === 'reel' ? F.tension : 0, 0, 1) * 100 + '%';
-      $('fTen').style.background = F.tension > .85 ? 'var(--bad)' : F.tension < .2 ? 'var(--muted)' : 'var(--good)';
-      $('fCount').textContent = `Catches: ${fishLog.count} · Wallet: €${fishLog.money.toFixed(2)}`;
+      const SN = gearOf('line').snap;
+      $('fTen').style.width = clamp(F.st === 'reel' ? F.tension / SN : 0, 0, 1) * 100 + '%';
+      $('fTen').style.background = F.tension > .85 * SN ? 'var(--bad)' : F.tension < .2 ? 'var(--muted)' : 'var(--good)';
+      $('fCount').textContent = `${gearOf('bait').kind === 'lure' ? 'Lure' : 'Bait'}: ${gearOf('bait').name} · Catches: ${fishLog.count} · Wallet: €${fishLog.money.toFixed(2)}`;
     }
     $('plaque').hidden = !st; if (st) { $('plaqueT').textContent = st[0]; $('plaqueD').textContent = st[1]; }
     const wv = police.state !== 'off' || !!police.arrest;
@@ -4193,12 +4552,12 @@ function loop() {
   if (frame % 2 === 0) drawMap();
   if (frame % 15 === 0) updateTiles();
   if (msgT > 0) { msgT -= dt; if (msgT <= 0) { $('msg').hidden = true; $('sub').hidden = true; } }
-  audio.update(c, police.state === 'hunt' ? police.dmin : 1e9, heli.g.visible ? Math.hypot(heli.x - c.x, heli.y - (c.gy || 0), heli.z - c.z) : 1e9);
+  audio.update(foot.boat ? boatAudio() : c, police.state === 'hunt' ? police.dmin : 1e9, heli.g.visible ? Math.hypot(heli.x - c.x, heli.y - (c.gy || 0), heli.z - c.z) : 1e9);
   if (window.__cam) { camera.clearViewOffset(); camera.position.set(...window.__cam.p); camera.lookAt(...window.__cam.t); camera.fov = window.__cam.fov || 60; camera.updateProjectionMatrix(); if (frame % 15 === 1) updateTiles(); } // test hook
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
