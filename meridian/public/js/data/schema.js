@@ -13,7 +13,11 @@
 //              stages: [{ s: 'deep'|'light'|'rem'|'awake', min }], spo2Min?, breathingRate? } | null,
 //     rhr, hrv?, steps, stress, spo2?, skinTemp?, weight?, activeKcal?
 //   }],                                   // oldest → newest, one per calendar day
-//   workouts: [{ id, type, start: ISO, durationS, distanceM, avgHr, maxHr, kcal, zones: [s×5] }],
+//   workouts: [{ id, type, start: ISO, durationS, distanceM, avgHr, maxHr, kcal, zones: [s×5], elevationM?,
+//     // Runs only, all optional: running form, a 30-second series, and post-run heart rate.
+//     dynamics?: { cadence, strideM, gctMs, voCm, vertRatio, balanceL },
+//     series?: [{ t, hr, pace (s/km), elev, cadence, vo, gct, bal }],
+//     recovery?: { hrEnd, hr60, hr120 } }],
 //   vo2max: [{ date, value }],
 //   hrToday: [{ t: minutesSinceMidnight, bpm }],
 //   checks: [{ kind: 'ecg'|'pwa'|'arterial', at: ISO, result, detail }]

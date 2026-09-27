@@ -6,6 +6,10 @@ A companion app for the **Huawei Watch GT 6 Pro**. It takes the data the watch a
 |---|---|---|---|
 | ![](docs/today.png) | ![](docs/sleep.png) | ![](docs/insights.png) | ![](docs/readiness.png) |
 
+| Run analysis | Body check-in | Training plan |
+|---|---|---|
+| ![](docs/run.png) | ![](docs/body.png) | ![](docs/plan.png) |
+
 ## Design principles
 
 - **One answer first.** Each screen leads with a single decision: readiness, tonight's bedtime, or this week's biggest issue. The detail sits one tap away in a sheet.
@@ -29,6 +33,11 @@ A companion app for the **Huawei Watch GT 6 Pro**. It takes the data the watch a
 | **Sleep coaching** | 14-night sleep debt, a regularity score, weekend "social jet lag", and a suggested lights-out time for tonight. |
 | **Honest weight trend** | A smoothed trend line instead of daily noise. It also checks the watch's calorie "deficit" against what the scale actually did. |
 | **Plain-English heart checks** | ECG, arrhythmia screening and arterial stiffness results explained, with sensible next steps. |
+| **Run comparison** | Every run against your last 10: effort-adjusted pace, heart rate, aerobic efficiency, cadence, stride, ground contact, vertical oscillation, vertical ratio, left/right balance and 1-minute HR recovery. It also shows how your form holds from start to finish. |
+| **Recovery, explained** | How far your heart rate drops in the first minute, ranked against all your runs and normalised for how hard you finished. It then says *why*: a climb at the end, heart-rate drift, a lopsided stride, a poor night or low HRV. Hill finishes are compared with your other hill finishes, and it shows how your HRV looked the next morning. |
+| **What affected a run** | Automatic context (sleep, morning HRV, stress, days since the last run, time of day, climbing) plus your own tags and notes ("new shoes", "hot", "sore back"). |
+| **Body check-in** | Type "I have a sore back". Meridian finds the changes in your running that fit, for example *"You're favouring your left side: 50.3% → 52.3% L since 11 Sept"*, explains why, gives a short action list and names the warning signs that need a physio or doctor. It's clear that the data can't tell cause from effect. |
+| **Goals & plan** | Set a race goal. You get today's predicted time, what's realistic by race day, your training paces and heart rates, a base → build → peak → taper plan, and this week's sessions. The plan adapts automatically to low readiness or a reported symptom, and suggests strength and form work based on your own form data. Built on Jack Daniels' VDOT model. |
 | **Ask about your data** | Optional. Ask questions in plain language, for example *"why was my deep sleep low on Tuesday?"*, answered by Claude using your last 30 days. |
 
 ## Run it
@@ -45,6 +54,10 @@ It opens with demo data built around your real readings from 27 September (sleep
 **Put it on your phone:** deploy the `meridian/` folder to any Node host (Railway, Render, Fly.io, or a Raspberry Pi at home). Open the URL in Chrome on your phone, then go to **⋮ → Add to Home screen**. It installs like an app, full screen and offline-capable.
 
 Tap your avatar on the Today screen to set your **age, sex, height and sleep need**. The peer comparisons, heart rate zones and fitness age all depend on them. The demo assumes a 35-year-old man until you change it.
+
+## Running form data
+
+The GT 6 Pro measures running form on the wrist: cadence, stride length, ground contact time and vertical oscillation. Left/right balance normally needs a foot pod or chest strap, so Meridian shows it only when it's in your data. Huawei Health Kit's running-form fields haven't been verified against a live account, so check `/api/huawei/raw?kind=activity` once you're connected. Any run that includes `dynamics`, `series` and `recovery` fields (see `public/js/data/schema.js`) gets the full analysis, whichever source it comes from.
 
 ## Connecting your GT 6 Pro
 

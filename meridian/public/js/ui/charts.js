@@ -112,3 +112,26 @@ export function intraday(points, { w = 340, h = 110, color = 'var(--mint)' } = {
     <polygon points="${x(points[0].t)},${h} ${pts} ${x(points.at(-1).t)},${h}" fill="url(#ig${gid})"/>
     <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.6" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
 }
+
+// Run profile: elevation as a soft area along the bottom, heart rate as a line above it,
+// and the final 15% of the run shaded so a hilly or fast finish is easy to spot.
+export function runProfile(series, { w = 340, h = 150 } = {}) {
+  const n = series.length;
+  if (n < 3) return '';
+  const x = (i) => esc((i / (n - 1)) * w);
+  const el = series.map((p) => p.elev), hr = series.map((p) => p.hr);
+  const eLo = Math.min(...el), eHi = Math.max(...el), eSpan = Math.max(20, eHi - eLo);
+  const ey = (e) => esc(h - 4 - ((e - eLo) / eSpan) * h * 0.38);
+  const hLo = Math.min(...hr) - 4, hHi = Math.max(...hr) + 4;
+  const hy = (v) => esc(6 + (1 - (v - hLo) / (hHi - hLo)) * h * 0.62);
+  const id = `rp${++gid}`;
+  const area = `0,${h} ${el.map((e, i) => `${x(i)},${ey(e)}`).join(' ')} ${w},${h}`;
+  const line = hr.map((v, i) => `${x(i)},${hy(v)}`).join(' ');
+  const tailX = esc(w * 0.85);
+  return `<svg class="chart" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" role="img" aria-label="Heart rate and elevation through the run" style="height:${h}px">
+    <defs><linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--label2)" stop-opacity=".28"/><stop offset="1" stop-color="var(--label2)" stop-opacity=".02"/></linearGradient></defs>
+    <rect x="${tailX}" y="0" width="${esc(w * 0.15)}" height="${h}" fill="var(--mint)" opacity=".05"/>
+    <line x1="${tailX}" x2="${tailX}" y1="0" y2="${h}" stroke="var(--label3)" stroke-dasharray="2 4" vector-effect="non-scaling-stroke"/>
+    <polygon points="${area}" fill="url(#${id})"/>
+    <polyline points="${line}" fill="none" stroke="var(--mint)" stroke-width="1.8" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+}

@@ -7,6 +7,7 @@
 // so swapping this for live Huawei Health Kit data needs no UI changes.
 
 import { rng, clamp } from '../analysis/stats.js';
+import { addRunDetail } from './demo-runs.js';
 
 const DAYS = 120;
 const ANCHOR = '2026-09-27';
@@ -202,6 +203,8 @@ export function buildDemo() {
       intakeKcal: null,
     });
   }
+
+  addRunDetail(workouts, 58);
 
   // Today's intraday heart rate in 10-minute buckets up to ~15:00, as on the watch.
   const hrToday = [];

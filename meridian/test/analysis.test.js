@@ -60,3 +60,50 @@ test('zones are estimated from average HR when missing', () => {
   const z = zonesOf({ avgHr: 150, durationS: 1800, zones: [0, 0, 0, 0, 0] }, { restHr: 60, maxHeart: 184 });
   assert.deepEqual(z, [0, 0, 1800, 0, 0]);
 });
+
+import { runsOf, compareRun, recovery, formTrend } from '../public/js/analysis/runs.js';
+import { parseSymptoms, explainSymptom } from '../public/js/analysis/body.js';
+import { vdotFromRace, predictSeconds, paceAt, assessGoal, weekPlan, currentVdot } from '../public/js/analysis/plan.js';
+
+test('runs: comparison, recovery and form trend find the demo story', () => {
+  const d = buildDemo();
+  const runs = runsOf(d);
+  const last = runs.at(-1);
+  assert.equal(last.start.slice(0, 10), '2026-09-22');
+  const bal = compareRun(last, runs).find((m) => m.key === 'balanceL');
+  assert.ok(bal.value > 51.5 && bal.typical < 51 && bal.tone === 'down');
+  const rec = recovery(last, runs, d);
+  assert.equal(rec.verdict, 'Slower than usual');
+  assert.ok(rec.reasons[0].text.includes('climb'), 'the hill finish is the lead reason');
+  const ft = formTrend(runs);
+  assert.ok(ft.balanceL.delta > 1 && ft.voCm.delta > 0.5 && ft.cadence.delta < -3);
+});
+
+test('body: symptoms are parsed and explained from running data', () => {
+  assert.deepEqual(parseSymptoms('I have a sore lower back'), ['back']);
+  assert.deepEqual(parseSymptoms('pain in the back of thigh'), ['hamstring']);
+  assert.deepEqual(parseSymptoms('had a great run'), []);
+  const d = buildDemo();
+  const a = analyse(d);
+  const x = explainSymptom('back', d, a.training, a.sleep);
+  assert.ok(x.findings.some((f) => f.metric === 'Left / right balance'));
+  assert.ok(x.redFlags.length >= 3);
+  assert.ok(explainSymptom('back', d, a.training, a.sleep, 'severe').actions[0].startsWith('Stop running'));
+});
+
+test('plan: VDOT maths matches Daniels tables and plans adapt to symptoms', () => {
+  assert.ok(Math.abs(vdotFromRace(10000, 50 * 60) - 40) < 0.2); // Daniels: VDOT 40 ≈ 50:03 10K
+  assert.ok(Math.abs(predictSeconds(50, 5000) - (19 * 60 + 57)) < 20); // VDOT 50 ≈ 19:57 5K
+  assert.ok(paceAt(40, 0.65) > paceAt(40, 0.88)); // easy is slower than threshold
+  const d = buildDemo();
+  const a = analyse(d);
+  const v = currentVdot(d, a.training);
+  const goal = { distance: 10000, targetS: 3000, date: '2026-12-13' };
+  assert.ok(['Realistic', 'Ambitious', 'Stretch', 'Already in reach'].includes(assessGoal(goal, v.vdot, d.today).label));
+  const base = { data: d, training: a.training, readiness: a.readiness, goal, vdot: v.vdot, form: false };
+  const clean = weekPlan({ ...base, symptoms: [] });
+  const sore = weekPlan({ ...base, symptoms: [{ areas: ['back'], severity: 'mild' }] });
+  assert.equal(clean.days.length, 7);
+  assert.ok(sore.days.some((x) => x.adjusted === 'Sore back'));
+  assert.ok(!sore.days.some((x) => /Threshold|Intervals/.test(x.title)));
+});
