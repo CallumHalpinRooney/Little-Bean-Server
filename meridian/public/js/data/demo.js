@@ -214,7 +214,7 @@ export function buildDemo() {
   return {
     source: 'demo',
     device: { model: 'HUAWEI WATCH GT 6 Pro', battery: 51, lastSync: `${ANCHOR}T15:47:00` },
-    profile: { name: 'Callum', age: 35, sex: 'male', heightCm: 182, weightKg: 88.9, sleepNeedH: 7.5, isDefault: true },
+    profile: { name: '', age: 35, sex: 'male', heightCm: 182, weightKg: 88.9, sleepNeedH: 7.5, isDefault: true },
     today: ANCHOR,
     reportedDeficitKcal: 1783,
     days,

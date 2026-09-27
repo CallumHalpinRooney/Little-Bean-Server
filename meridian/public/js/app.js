@@ -24,7 +24,7 @@ async function boot() {
   window.addEventListener('hashchange', render);
   document.addEventListener('click', onClick);
   render();
-  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('/sw.js').catch(() => {});
+  if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
 async function reload() {
@@ -377,7 +377,7 @@ function wireAsk() {
     out.textContent = 'Thinking…';
     form.querySelector('button').disabled = true;
     try {
-      const res = await fetch('/api/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: q, context: askContext() }) });
+      const res = await fetch('api/ask', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ question: q, context: askContext() }) });
       if (!res.ok || !res.body) throw new Error((await res.text()) || res.statusText);
       out.textContent = '';
       const reader = res.body.getReader(), dec = new TextDecoder();
@@ -494,7 +494,7 @@ const SHEETS = {
         ${hw.configured
           ? hw.connected
             ? `<button class="btn secondary" data-action="sync">Sync now</button><button class="btn secondary" data-action="disconnect">Disconnect Huawei Health</button>`
-            : `<a class="btn" href="/api/huawei/login" style="text-decoration:none">Connect Huawei Health</a>`
+            : `<a class="btn" href="api/huawei/login" style="text-decoration:none">Connect Huawei Health</a>`
           : `<div class="card"><h3>Connect Huawei Health</h3><p class="sub" style="margin:6px 0 0;line-height:1.45">${STATUS.server === false ? 'Run the Meridian server to connect your watch.' : 'Add your Huawei Health Kit app credentials to the server (HUAWEI_CLIENT_ID and HUAWEI_CLIENT_SECRET).'} See the README for the 10-minute setup.</p></div>`}
         <label class="btn secondary" style="cursor:pointer;margin-top:10px">Import data file<input type="file" accept="application/json,.json" data-action="import" hidden></label>
         <button class="btn secondary" data-action="use-demo">Use demo data</button>
@@ -544,8 +544,8 @@ async function onClick(e) {
     el.parentElement.querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', b === el));
   }
   if (a === 'use-demo') { clearImport(); setSource('demo'); closeSheet(); reload(); }
-  if (a === 'sync') { await fetch('/api/huawei/sync', { method: 'POST' }); setSource('auto'); closeSheet(); reload(); }
-  if (a === 'disconnect') { await fetch('/api/huawei/logout', { method: 'POST' }); STATUS = await serverStatus(); closeSheet(); reload(); }
+  if (a === 'sync') { await fetch('api/huawei/sync', { method: 'POST' }); setSource('auto'); closeSheet(); reload(); }
+  if (a === 'disconnect') { await fetch('api/huawei/logout', { method: 'POST' }); STATUS = await serverStatus(); closeSheet(); reload(); }
   if (a === 'start-exp') {
     const list = getExperiments();
     list.push({ templateId: el.dataset.id, startDate: A.data.today, lengthDays: 14 });

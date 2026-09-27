@@ -15,7 +15,7 @@ const write = (k, v) => {
 
 export async function serverStatus() {
   try {
-    const r = await fetch('/api/status', { cache: 'no-store' });
+    const r = await fetch('api/status', { cache: 'no-store' });
     return r.ok ? await r.json() : { server: false };
   } catch {
     return { server: false };
@@ -30,7 +30,7 @@ export async function loadData() {
     const status = await serverStatus();
     if (status.huawei?.connected) {
       try {
-        const r = await fetch('/api/huawei/data?days=120', { cache: 'no-store' });
+        const r = await fetch('api/huawei/data?days=120', { cache: 'no-store' });
         if (r.ok) data = await r.json();
       } catch { /* fall through to other sources */ }
     }
