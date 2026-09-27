@@ -266,8 +266,8 @@ button.row:active, a.row:active { background: var(--fill); }
 /* ——— Floating tab bar ——— */
 nav.tabs {
   position: fixed; left: 50%; transform: translateX(-50%); bottom: calc(12px + env(safe-area-inset-bottom)); z-index: 20;
-  width: min(320px, calc(100% - 32px));
-  display: grid; grid-template-columns: repeat(3, 1fr); padding: 8px;
+  width: min(448px, calc(100% - 32px));
+  display: grid; grid-template-columns: repeat(5, 1fr); padding: 8px;
   background: rgba(17, 22, 19, .82); border: 1px solid var(--border-strong); border-radius: 30px;
   backdrop-filter: saturate(160%) blur(24px); -webkit-backdrop-filter: saturate(160%) blur(24px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, .5);
@@ -356,3 +356,17 @@ body[data-route="coach"] .app { padding-bottom: calc(210px + env(safe-area-inset
 .tags { display: flex; flex-wrap: wrap; gap: 8px; }
 textarea#run-note { width: 100%; margin-top: 12px; background: var(--bg-elev); border: 1px solid var(--border); border-radius: 14px; padding: 12px; color: var(--label); font: inherit; font-size: 14px; resize: vertical; }
 .card.mint.focus { display: grid; }
+
+/* ——— Coach button: on every screen, one tap from the conversation ——— */
+.fab {
+  position: fixed; z-index: 21; right: max(16px, calc(50% - 224px));
+  bottom: calc(96px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 8px; padding: 12px 18px 12px 14px; border-radius: 99px;
+  background: linear-gradient(160deg, #a6efbd, var(--mint) 60%); color: var(--on-mint);
+  font-size: 14px; font-weight: 500; box-shadow: 0 10px 30px rgba(0, 0, 0, .5), 0 0 0 1px rgba(143, 229, 170, .3);
+  transition: transform .2s ease;
+}
+.fab:active { transform: scale(.95); }
+.fab svg { width: 18px; height: 18px; }
+body:not([data-route="coach"]) .app { padding-bottom: calc(170px + env(safe-area-inset-bottom)); }
+.coach-card { background: linear-gradient(170deg, rgba(143, 229, 170, .08), var(--bg-card) 55%); border-color: rgba(143, 229, 170, .2); }

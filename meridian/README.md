@@ -2,7 +2,7 @@
 
 A personal running coach that knows everything your **Huawei Watch GT 6 Pro** records. You talk to it. It looks up whatever it needs in your data *at that moment*, then decides what you should do.
 
-| Setup | First assessment | Asking about a run | A run's data |
+| Coach setup | First assessment | Asking about a run | A run's data |
 |---|---|---|---|
 | ![](docs/setup.png) | ![](docs/coach.png) | ![](docs/answer.png) | ![](docs/run.png) |
 
@@ -36,9 +36,13 @@ You ask ──▶ Coach (Claude) ──decides what to look up──▶ Tools (M
 
 ### The app
 
-| Coach | Runs | You |
-|---|---|---|
-| Three live numbers (readiness, sleep, HRV; tap one to ask about it), the daily briefing, and the conversation | Your measured data only: every run, with the HR/elevation profile, comparison with your usual, form through the run and recovery. **Ask the coach about this run** hands it straight to the coach | Your setup answers (editable), goal, what the coach remembers, watch connection |
+Five tabs of dashboards, plus the coach:
+
+| Today | Sleep | Heart | Training | Insights |
+|---|---|---|---|---|
+| Readiness with 14-day chart, HRV and resting HR tiles, today's focus, vitals, a discovered pattern | Hypnogram, stages, tonight's lights-out time, debt, regularity, 14 nights | HRV and resting HR against your normal range, intraday heart rate, ECG and other checks | **Overview** (VO₂ max, load, 80/20, volume) · **Runs** (body check-in, form trend, every run with full analysis) · **Plan** (goal, predictions, this week, paces) | Weekly review, you vs peers, patterns, experiments |
+
+**Coach** is one section: the round **Coach** button on every screen, and **Ask the coach** buttons on each run, each body check-in and in Insights, which carry that context into the conversation. Its first visit runs the setup questions. Coach settings (passcode, remembered facts, redo setup, clear conversation) are in the profile sheet.
 
 ## Two ways to run the coach
 
