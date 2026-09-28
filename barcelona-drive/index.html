@@ -152,11 +152,12 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 .tbar .zone{position:absolute;left:20%;width:65%;top:0;bottom:0;background:rgba(95,211,141,.25);border-left:1px solid var(--good);border-right:1px solid var(--good)}
 .tbar b{position:relative;display:block;height:100%;width:0;background:var(--good);opacity:.9}
 #fCount{font-size:12px;color:var(--muted);margin-top:6px}
-#baitBar{pointer-events:auto;left:50%;transform:translateX(-50%);bottom:calc(env(safe-area-inset-bottom,0px) + 208px);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:min(760px,calc(100vw - 32px))}
+#baitBar{pointer-events:auto;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top,0px) + 62px);display:flex;gap:6px;flex-wrap:wrap;justify-content:center;max-width:min(760px,calc(100vw - 32px))}
 .bb{display:flex;align-items:center;gap:6px;background:var(--panel);color:var(--text);border:1px solid var(--line);border-radius:16px;padding:5px 11px;font-size:13px;font-weight:600;backdrop-filter:blur(6px)}
 .bb i{width:12px;height:12px;border-radius:50%;border:1px solid rgba(0,0,0,.4)}
 .bb.on{border-color:#4fd1ff;background:rgba(79,209,255,.22)}
 .bb.shopb{border-color:var(--taxi)}
+.bb.camb{border-color:#4fd1ff}
 .bb kbd{font-family:var(--display);background:rgba(255,255,255,.14);border-radius:3px;padding:0 5px}
 .shopH{font-family:var(--display);font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.04em;margin:22px 0 2px;color:#4fd1ff}
 #tackle .wallet{display:inline-block;margin-left:6px;background:#23262c;border:1px solid var(--line);border-radius:5px;padding:2px 8px;color:var(--text)}
@@ -2825,6 +2826,7 @@ function stopFishing() {
   const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false;
   if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
   foot.p.arms[0].rotation.z = foot.p.arms[1].rotation.z = 0;
+  clearUnder(foot.fish); fishCam = false; renderBaitBar();
   foot.fish = null; $('catchBox').hidden = true;
 }
 // what a catch is worth at the fish market (€ per kg), and how each one looks
@@ -3026,11 +3028,11 @@ function updateFishing(dt, act, press) {
   } else if (F.st === 'bite') { // the float is dragged under: strike now!
     showBob = true; by = -.2 + Math.sin(now * 30) * .05; ang = .95;
     if (press) {
-      const type = pickFish(F);
-      F.type = type; F.kg = +((type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 1.6)) * (type[0] === 'Old boot' ? 1 : kgMul())).toFixed(2);
+      const nx = F.next || (() => { const t = pickFish(F); return { type: t, kg: rollKg(t) }; })(), type = nx.type; F.next = null;
+      F.type = type; F.kg = nx.kg;
       F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) + (type[4] >= 1.5 ? 14 + type[4] * 3 : type[4] * 4);
       F.tension = .4; F.low = 0; F.st = 'reel'; F.T = 0; audio.ding();
-    } else if (F.T > 1.1) { F.st = 'wait'; F.T = 0; F.biteAt = biteTime() + 1; show('', 'Too slow: the fish stole the bait.', 1.8); }
+    } else if (F.T > 1.1) { F.st = 'wait'; F.T = 0; F.biteAt = biteTime() + 1; F.next = null; if (F.visM) F.leaving = true; show('', 'Too slow: the fish stole the bait.', 1.8); }
   } else if (F.st === 'reel') { // hold E to reel; keep the tension in the green or the line snaps
     const fight = F.type[4], surge = .55 + .45 * Math.sin(F.T * (1.7 + fight)) + .35 * Math.sin(F.T * 5.3 + 1);
     const RT = gearOf('rod').ten, SN = gearOf('line').snap;
@@ -3094,6 +3096,7 @@ function updateFishing(dt, act, press) {
     if (R.fishMesh) { R.fishMesh.position.set(_tw.x, _tw.y - .5, _tw.z); R.fishMesh.rotation.z = Math.sin(now * 2.2) * .12; R.fishMesh.rotation.y = Math.atan2(-(F.tz * .8 - F.nz * .55), F.tx * .8 - F.nx * .55) + Math.sin(now * .7) * .45; /* turns on the line, side-on to the camera */ R.fishMesh.userData.wig(now, Math.sin(now * 1.3) > .4 ? 1 : .15); }
     if (press && F.T > .5) sellCatch(); // Q lets it go
   }
+  updateUnderBait(F, bx, by, bz, now, dt);
   R.pivot.rotation.x = ang;
   foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05 + arm;
   R.bob.visible = showBob; R.bob.position.set(bx, by, bz);
@@ -3114,6 +3117,87 @@ function makeRigMesh(hooked) { // the sabiki line with a little fish (or a pink 
   }
   g.userData = { len: gap * n + .3, fish, wig: (t, a) => fish.forEach((m, i) => { m.userData.wig(t + i * .7, a); m.rotation.z = Math.sin(t * 5 + i) * .25 * a; }) };
   return g;
+}
+
+/* ---------- the underwater bait camera: watch the fish come to your hook ---------- */
+let fishCam = false;
+const rollKg = type => +((type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 1.6)) * (type[0] === 'Old boot' ? 1 : kgMul())).toFixed(2);
+function makeSwimmer(type, kg) { // a free-swimming fish (nose along +z), or null for the old boot
+  const name = type[0], len = clamp(.16 * Math.cbrt(kg / .1), .12, 2.1);
+  if (name === 'Old boot') return null;
+  const m = name === 'Octopus' ? makeOctopus(len) : makeFishModel(name, len);
+  m.userData.len = len; m.traverse(o => { if (o.isMesh) o.castShadow = false; }); return m;
+}
+function toggleFishCam() {
+  if (!foot.fish) return;
+  fishCam = !fishCam; renderBaitBar();
+  show('', fishCam ? 'Underwater view: watch the fish find your bait! (V to go back)' : 'Back to the normal view.', 2);
+}
+function clearUnder(F) {
+  if (!F) return;
+  for (const k of ['ug', 'visM', 'rigM']) if (F[k]) { F[k].parent && F[k].parent.remove(F[k]); F[k] = null; }
+  if (F.amb) { F.amb.forEach(a => a.m.parent && a.m.parent.remove(a.m)); F.amb = null; }
+}
+function updateUnderBait(F, bx, by, bz, now, dt) {
+  const inWater = ['wait', 'bite', 'reel', 'jig'].includes(F.st);
+  if (!F.ug) { // float line, hook and bait (or lure) hanging under the float
+    F.ug = new THREE.Group(); scene.add(F.ug);
+    F.ug.add(new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, 1, 4).translate(0, -.5, 0), new THREE.MeshBasicMaterial({ color: 0xe8e8e8 })));
+    const b = gearOf('bait'), bait = b.kind === 'bait' ? new THREE.Mesh(new THREE.SphereGeometry(.035, 10, 8), flat(b.col)) : new THREE.Mesh(new THREE.ConeGeometry(.03, .14, 8).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: C(b.col), metalness: .6, roughness: .3 }));
+    bait.name = 'bait'; F.ug.add(bait);
+    const hook = new THREE.Mesh(new THREE.TorusGeometry(.025, .004, 5, 12, Math.PI * 1.3), new THREE.MeshStandardMaterial({ color: 0xc9ced4, metalness: .9, roughness: .2 })); hook.position.y = -.03; F.ug.add(hook);
+    F.hookPos = new THREE.Vector3();
+  }
+  F.ug.visible = inWater;
+  if (!inWater) { if (F.visM) { scene.remove(F.visM); F.visM = null; } F.leaving = false; F.leaveT = 0; if (F.rigM) { scene.remove(F.rigM); F.rigM = null; } return; }
+  // where the hook sits: under the float, or wherever the fish drags it
+  const floor = seabedY(bx, bz), depth = F.st === 'jig' ? Math.max(floor + .5, -2.4) : Math.max(floor + .6, -1.7);
+  F.hookPos.set(bx, depth, bz);
+  const L = F.ug.children[0]; F.ug.position.set(bx, Math.min(by, 0), bz); L.scale.y = Math.max(.05, Math.min(by, 0) - depth); F.ug.children[1].position.y = F.ug.children[2].position.y = depth - Math.min(by, 0);
+  F.ug.children[1].visible = F.st !== 'jig';
+  // sabiki: show the rig with whatever has already bitten
+  if (F.st === 'jig') {
+    if (!F.rigM || F.rigM.n !== F.hooked.length) { if (F.rigM) scene.remove(F.rigM); F.rigM = makeRigMesh(F.hooked); F.rigM.n = F.hooked.length; scene.add(F.rigM); }
+    F.rigM.visible = fishCam; F.rigM.position.set(bx, Math.min(by, 0) - .1, bz); F.rigM.userData.wig(now, .6);
+    F.hookPos.set(bx, Math.min(by, 0) - 1.3, bz);
+  } else if (F.rigM) { scene.remove(F.rigM); F.rigM = null; }
+  // the next fish is chosen as soon as the bait is in the water, so you can watch it come in
+  if (F.st === 'wait' && !F.next && !F.rig) { const type = pickFish(F); F.next = { type, kg: rollKg(type) }; }
+  if (F.next && !F.visM && F.st === 'wait') { F.visM = makeSwimmer(F.next.type, F.next.kg); if (F.visM) { F.visM.rotation.order = 'YXZ'; scene.add(F.visM); F.visA = Math.random() * 6; } }
+  const V = F.visM, H = F.hookPos;
+  if (V) {
+    const len = V.userData.len; V.visible = true; V.userData.wig(now * (F.st === 'reel' ? 2 : 1), F.st === 'wait' ? .6 : 1);
+    if (F.leaving) { // missed it: it swims off
+      V.position.x += Math.sin(V.rotation.y) * 3 * dt; V.position.z += Math.cos(V.rotation.y) * 3 * dt; V.position.y -= dt * .4; F.leaveT = (F.leaveT || 0) + dt;
+      if (F.leaveT > 2.5) { scene.remove(V); F.visM = null; F.leaving = false; F.leaveT = 0; }
+    } else if (F.st === 'wait') { // circling closer and closer as the bite gets near
+      const k = clamp((F.T - F.biteAt + 4) / 4, 0, 1), r = lerp(3.2, .5 + len * .6, k) + len * .5;
+      F.visA += dt * (.5 + k * .7) / Math.max(.6, r * .5);
+      const x = H.x + Math.cos(F.visA) * r, z = H.z + Math.sin(F.visA) * r, y = H.y - .15 + Math.sin(F.visA * 1.7) * .2;
+      V.rotation.y = Math.atan2(x - V.position.x, z - V.position.z) || V.rotation.y; V.rotation.x = 0;
+      V.position.set(x, y, z);
+    } else if (F.st === 'bite') { // it lunges and grabs the bait
+      const dx = H.x - V.position.x, dz = H.z - V.position.z, d = Math.hypot(dx, dz) || 1, head = Math.atan2(dx, dz);
+      V.rotation.y = head + Math.sin(now * 25) * .12;
+      const tx = H.x - Math.sin(head) * len * .5, tz = H.z - Math.cos(head) * len * .5;
+      V.position.x = lerp(V.position.x, tx, Math.min(1, dt * 8)); V.position.z = lerp(V.position.z, tz, Math.min(1, dt * 8)); V.position.y = lerp(V.position.y, H.y, Math.min(1, dt * 8));
+    } else if (F.st === 'reel') { // fighting on the line: nose to the hook, thrashing
+      if (foot.rod.fishMesh) { V.visible = false; } else {
+        const tp = Math.atan2(foot.x - H.x, foot.z - H.z), head = tp + Math.sin(now * 3.2) * .9;
+        V.rotation.y = head; V.position.set(H.x - Math.sin(head) * len * .5, H.y + Math.sin(now * 5) * .1, H.z - Math.cos(head) * len * .5);
+      }
+    }
+  }
+  // a few little fish always hang about near the bait when you're watching
+  if (fishCam && !F.amb) {
+    F.amb = [];
+    for (let i = 0; i < 6; i++) { const t = FISH_TYPES[i % 3 === 0 ? 1 : 0], m = makeSwimmer(t, rnd(.05, .12)); m.rotation.order = 'YXZ'; scene.add(m); F.amb.push({ m, a: Math.random() * 6, r: rnd(1.5, 4), y: rnd(-.8, .5), s: rnd(.5, 1.1) * (Math.random() < .5 ? -1 : 1) }); }
+  }
+  if (F.amb) for (const a of F.amb) {
+    a.m.visible = fishCam; a.a += dt * a.s / a.r * 1.4;
+    const x = H.x + Math.cos(a.a) * a.r, z = H.z + Math.sin(a.a) * a.r, y = H.y + a.y + Math.sin(a.a * 2) * .15;
+    a.m.rotation.y = Math.atan2(x - a.m.position.x, z - a.m.position.z) || 0; a.m.position.set(x, y, z); a.m.userData.wig(now * 1.5 + a.r, .8);
+  }
 }
 function sellCatch() {
   const F = foot.fish, R = foot.rod; if (!F || F.st !== 'show') return;
@@ -3437,16 +3521,17 @@ $('shopGrid').addEventListener('click', e => {
   saveFish(); applyRodLook(); renderBaitBar(); renderShop();
 });
 function renderBaitBar() { // swap bait or lure while you fish
-  $('baitBar').innerHTML = fishLog.own.bait.slice().sort((a, b) => a - b).map(k => { const it = GEAR.bait[k]; return `<button class="bb${fishLog.gear.bait === k ? ' on' : ''}" data-bait="${k}"><i style="background:${it.col}"></i>${it.name}</button>`; }).join('') + `<button class="bb shopb" data-shop="1"><kbd>K</kbd>Tackle shop</button>`;
+  $('baitBar').innerHTML = `<button class="bb camb${fishCam ? ' on' : ''}" data-cam="1">👁 ${fishCam ? 'Normal view' : 'Look under water'} <kbd>V</kbd></button>` + fishLog.own.bait.slice().sort((a, b) => a - b).map(k => { const it = GEAR.bait[k]; return `<button class="bb${fishLog.gear.bait === k ? ' on' : ''}" data-bait="${k}"><i style="background:${it.col}"></i>${it.name}</button>`; }).join('') + `<button class="bb shopb" data-shop="1"><kbd>K</kbd>Tackle shop</button>`;
 }
 function setBait(k) {
   if (!fishLog.own.bait.includes(k) || fishLog.gear.bait === k) return;
   fishLog.gear.bait = k; saveFish(); applyRodLook(); renderBaitBar();
+  if (foot.fish && foot.fish.ug) { scene.remove(foot.fish.ug); foot.fish.ug = null; } // new bait on the hook
   const F = foot.fish, it = GEAR.bait[k];
   if (F && (F.st === 'wait' || F.st === 'bite' || F.st === 'jig')) { F.st = 'ready'; F.T = 0; F.spot = null; }
   show('', `${it.kind === 'lure' ? 'Lure' : 'Bait'}: ${it.name}${F && F.st === 'ready' ? ' · cast again!' : ''}`, 1.8);
 }
-$('baitBar').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.shop) openShop('bait'); else setBait(+b.dataset.bait); });
+$('baitBar').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.cam) toggleFishCam(); else if (b.dataset.shop) openShop('bait'); else setBait(+b.dataset.bait); });
 renderBaitBar();
 
 function nearCounter() { return room && room.counter && room.info.buy && Math.hypot(foot.x - room.counter.x, foot.z - room.counter.z) < 2; }
@@ -4261,6 +4346,7 @@ addEventListener('keydown', e => {
   if (e.code === 'Slash' || e.code === 'Tab') { e.preventDefault(); $('bigmap').hidden ? openMap(true) : closeAll(); return; }
   if (e.code === 'KeyJ') { $('airport').hidden ? openAirport() : closeAll(); }
   if (e.code === 'KeyK') { $('tackle').hidden ? openShop() : closeAll(); }
+  if (e.code === 'KeyV' && foot.fish && !paused) toggleFishCam();
   if (e.code === 'KeyB' && foot.fish && !paused) { const o = fishLog.own.bait.slice().sort((a, b) => a - b); setBait(o[(o.indexOf(fishLog.gear.bait) + 1) % o.length]); }
   if (e.code === 'KeyP') $('design').hidden ? openDesign() : closeAll();
   if (e.code === 'KeyG') $('garage').hidden ? openPanel('garage') : closeAll();
@@ -5741,6 +5827,13 @@ function loop() {
       cam.cu[0] = lerp(cam.cu[0], tx, kz); cam.cu[1] = lerp(cam.cu[1], cy + .12, kz); cam.cu[2] = lerp(cam.cu[2], tz, kz);
       camera.position.set(cam.cu[0], cam.cu[1], cam.cu[2]); camera.lookAt(FM.position.x, cy - dd * .26, FM.position.z);
     } else cam.cu = null;
+    const UF = fishing && fishCam && F.fish.st !== 'show' && F.fish.st !== 'ready' && F.fish.st !== 'cast' && F.fish.hookPos;
+    if (UF) { // underwater, a couple of metres from the hook, looking at it
+      const Fi = F.fish, H = Fi.hookPos, tx = H.x + Fi.tx * 1.5 - Fi.nx * .9, tz = H.z + Fi.tz * 1.5 - Fi.nz * .9, ty = Math.min(H.y + .2, -.4);
+      const kz = 1 - Math.exp(-dt * 5); cam.uw = cam.uw || [tx, ty, tz];
+      cam.uw[0] = lerp(cam.uw[0], tx, kz); cam.uw[1] = lerp(cam.uw[1], ty, kz); cam.uw[2] = lerp(cam.uw[2], tz, kz);
+      camera.position.set(cam.uw[0], cam.uw[1], cam.uw[2]); camera.lookAt(H.x, H.y - .15, H.z); // hook just above the middle, clear of the buttons
+    } else cam.uw = null;
     camera.fov = lerp(camera.fov, 58, .1); camera.updateProjectionMatrix();
     cam.x = cam.fx; cam.z = cam.fz;
   } else { cam.fh = undefined; cam.fx = undefined; cam.fz = undefined; cam.fy = undefined; }
@@ -5763,7 +5856,7 @@ function loop() {
     const st = plane.on ? streetName(plane.x, plane.z) : foot.inside ? [foot.inside.name || room.info.label, district(foot.inside.x, foot.inside.z)] : foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
     const SW = foot.swim; $('scuba').hidden = !SW;
     if (SW) { $('sDepth').textContent = (-Math.min(0, foot.y + .35)).toFixed(1) + ' m'; $('sAir').textContent = Math.round(SW.air) + '%'; $('sAir').style.color = SW.air < 25 ? 'var(--bad)' : ''; $('sSpot').textContent = `${spotted.size}/${Object.keys(SPECIES).length}`; }
-    const F = foot.fish; $('fishing').hidden = !F; $('baitBar').hidden = !F || F.st === 'show' || F.st === 'reel';
+    const F = foot.fish; $('fishing').hidden = !F; $('baitBar').hidden = !F || F.st === 'show';
     if (F) {
       $('fState').textContent = F.st === 'reel' ? `Fighting a fish: ${Math.max(0, F.D).toFixed(1)} m to go` : F.st === 'bite' ? 'Bite!' : F.st === 'wait' ? 'Float is out' : F.st === 'show' ? 'Nice catch!' : 'Ready to cast';
       const SN = gearOf('line').snap;
@@ -5792,7 +5885,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
