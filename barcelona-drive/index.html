@@ -159,6 +159,7 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 .bb.shopb{border-color:var(--taxi)}
 .bb.camb{border-color:#4fd1ff}
 .bb kbd{font-family:var(--display);background:rgba(255,255,255,.14);border-radius:3px;padding:0 5px}
+.rodCols{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 4px}.rodCols button{width:40px;height:40px;border-radius:50%;border:3px solid rgba(255,255,255,.25);cursor:pointer;padding:0;font:700 12px Arial;color:#fff}.rodCols button.sel{border-color:#fff;box-shadow:0 0 0 3px #4fd1ff}
 .shopH{font-family:var(--display);font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.04em;margin:22px 0 2px;color:#4fd1ff}
 #tackle .wallet{display:inline-block;margin-left:6px;background:#23262c;border:1px solid var(--line);border-radius:5px;padding:2px 8px;color:var(--text)}
 #tackle .wallet b{color:var(--good);font-variant-numeric:tabular-nums}
@@ -584,7 +585,7 @@ const CIRC = { x: 6500, z: -5200 };
 const AIRPORT = { x: -6200, z: 2650, len: 2400, w: 45 }; // El Prat: runway on the flat land south-west of the city
 // lakes out in the countryside: slightly wobbly ellipses, each with a wooden fishing jetty
 const LAKES = [
-  { id: 'valles', name: 'Estany del Vallès', x: 4750, z: -3950, rx: 260, rz: 185, rot: .4, depth: 7, ja: 2.6, mul: { Pike: 1.6, Carp: 1.4, 'Brown trout': .5 } },
+  { id: 'valles', name: 'Estany del Vallès', x: 4750, z: -3950, rx: 260, rz: 185, rot: .4, depth: 7, ja: 2.6, mul: { Pike: 1.6, Carp: 1.4, 'Wels catfish': 1.6, 'Brown trout': .5 } },
   { id: 'cugat', name: 'Llac de Sant Cugat', x: -6800, z: -1950, rx: 230, rz: 165, rot: -.3, depth: 9, ja: -1.4, mul: { 'Brown trout': 2, Perch: 1.3, Carp: .6 } },
 ];
 const lakeLocal = (L, x, z) => { const dx = x - L.x, dz = z - L.z, c = Math.cos(L.rot), s = Math.sin(L.rot); return [dx * c - dz * s, dx * s + dz * c]; };
@@ -2696,7 +2697,8 @@ const FISH_TYPES = [
   ['Old boot', 'Bota vella', .9, .9, .25, '#5a3b22', 5], ['Bluefin tuna', 'Tonyina vermella', 12, 60, 1.5, '#2c4c7a', 1.2],
   ['Mahi-mahi', 'Llampuga', 3, 15, 1.2, '#3aa05a', 0], ['Swordfish', 'Peix espasa', 25, 120, 1.8, '#394a66', 0], // only from a boat
   ['Blue marlin', 'Marlí blau', 100, 300, 2, '#1f3f8a', 0], ['Dusky grouper', 'Nero', 5, 35, 1.3, '#5a4630', 0],
-  ['Pike', 'Lluç de riu', 1, 12, 1.2, '#5a6b2e', 0], ['Brown trout', 'Truita de riu', .3, 3, 1, '#8a6a3a', 0], ['Perch', 'Perca', .1, 1.5, .55, '#7a8a3a', 0], ['Roach', 'Gardí', .05, .6, .35, '#b8c0c6', 0], ['Carp', 'Carpa', 2, 18, 1.1, '#a07a3a', 0], // lakes only
+  ['Pike', 'Lluç de riu', 1, 20, 1.2, '#5a6b2e', 0], ['Brown trout', 'Truita de riu', .3, 3, 1, '#8a6a3a', 0], ['Perch', 'Perca', .1, 1.5, .55, '#7a8a3a', 0], ['Roach', 'Gardí', .05, .6, .35, '#b8c0c6', 0], ['Carp', 'Carpa', 2, 30, 1.1, '#a07a3a', 0], // lakes only
+  ['Wels catfish', 'Silur', 8, 140, 1.6, '#3a3a2e', 0], // a freshwater monster: lakes only
 ];
 let fishLog = { count: 0, best: {}, money: 0, sold: 0, released: 0 };
 try { const f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); if (f && typeof f === 'object') fishLog = { count: f.count | 0, best: f.best || {}, money: +f.money || 0, sold: f.sold | 0, released: f.released | 0 }; } catch (e) { }
@@ -2704,11 +2706,11 @@ const saveFish = () => { try { localStorage.setItem('bcn-run-fish', JSON.stringi
 // the tackle shop: spend what you earn selling fish on better gear and a boat
 const GEAR = {
   rod: [
-    { name: 'Starter rod', desc: 'The rod you started with. It does the job.', price: 0, ten: 1, cast: 10, kg: 1, col: '#1c1c1c' },
-    { name: 'Carbon rod', desc: 'Light and stiff: casts further and takes the strain better.', price: 45, ten: .85, cast: 14, kg: 1.08, col: '#4a4f58' },
-    { name: 'Surfcaster', desc: 'A long 4.5 m rod that reaches the bigger fish past the waves.', price: 160, ten: .72, cast: 18, kg: 1.18, col: '#1f4fd0' },
-    { name: 'Big-game rod', desc: 'Short and mighty, built for tuna and swordfish.', price: 650, ten: .58, cast: 22, kg: 1.3, col: '#c9a227' },
-    { name: 'Legendary rod', desc: 'A glowing purple rod of legend: casts miles, bends but never breaks, and lands monster fish.', price: 2500, ten: .45, cast: 27, kg: 1.45, col: '#7b2cbf' },
+    { name: 'Starter rod', desc: 'The rod you started with. It does the job.', price: 0, ten: 1, cast: 20, kg: 1, col: '#1c1c1c' },
+    { name: 'Carbon rod', desc: 'Light and stiff: casts further and takes the strain better.', price: 45, ten: .85, cast: 28, kg: 1.08, col: '#4a4f58' },
+    { name: 'Surfcaster', desc: 'A long 4.5 m rod that reaches the bigger fish past the waves.', price: 160, ten: .72, cast: 36, kg: 1.18, col: '#1f4fd0' },
+    { name: 'Big-game rod', desc: 'Short and mighty, built for tuna and swordfish.', price: 650, ten: .58, cast: 45, kg: 1.3, col: '#c9a227' },
+    { name: 'Legendary rod', desc: 'A glowing purple rod of legend: casts miles, bends but never breaks, and lands monster fish.', price: 2500, ten: .45, cast: 55, kg: 1.45, col: '#7b2cbf' },
   ],
   reel: [
     { name: 'Basic reel', desc: 'Winds in slowly.', price: 0, spd: 1 },
@@ -2735,13 +2737,22 @@ const GEAR = {
     { name: 'Deep diver', kind: 'lure', desc: 'Dives deep where the giants live.', price: 200, b: [2, 5.5], col: '#2a5bff', cast: 6, mul: { 'Bluefin tuna': 2.5, Swordfish: 2, 'Mahi-mahi': 2, Sardine: .2 } },
     { name: 'Golden lure', kind: 'lure', desc: 'A shining golden lure the biggest fish in the sea cannot resist.', price: 800, b: [1, 3], col: '#f2c230', cast: 7, mul: { 'Bluefin tuna': 3, Swordfish: 3, 'Mahi-mahi': 3, 'Blue marlin': 4, 'Dusky grouper': 3, Octopus: 2, Sardine: .2, 'Old boot': .1 } },
     { name: 'Sabiki rig', kind: 'rig', desc: 'Seven tiny shiny hooks on one line. Cast it out, reel it in slowly and catch lots of little fish at once!', price: 60, b: [1, 2], col: '#ff5fa2', cast: 3, mul: {} },
-    { name: 'Worms', kind: 'bait', water: 'lake', desc: 'Wriggly worms under a float: every lake fish loves them, especially perch and roach.', price: 5, b: [2, 6], col: '#c96a6a', mul: {}, lakeMul: { Roach: 1.6, Perch: 1.5, 'Brown trout': 1.2, Carp: 1.2, Pike: .2 } },
-    { name: 'Sweetcorn', kind: 'bait', water: 'lake', desc: 'Sweet yellow corn. Carp and roach go mad for it.', price: 8, b: [3, 7], col: '#f2d04a', mul: {}, lakeMul: { Carp: 3, Roach: 1.8, Perch: .3, Pike: .05, 'Brown trout': .3 } },
-    { name: 'Spoon', kind: 'lure', water: 'lake', desc: 'A wobbling, flashing metal spoon. Pike and perch attack it.', price: 25, b: [2, 5], col: '#d9dde2', cast: 5, attract: .8, mul: {}, lakeMul: { Pike: 2.5, Perch: 1.6, 'Brown trout': 1, Roach: .2, Carp: .05 } },
-    { name: 'Inline spinner', kind: 'lure', water: 'lake', desc: 'A little spinning blade that trout cannot resist.', price: 20, b: [2, 5], col: '#f2c230', cast: 4, attract: .8, mul: {}, lakeMul: { 'Brown trout': 3, Perch: 1.8, Pike: .8, Roach: .3, Carp: .05 } },
-    { name: 'Jerkbait', kind: 'lure', water: 'lake', desc: 'A big twitchy fake fish for monster pike.', price: 60, b: [2, 6], col: '#ff7a1a', cast: 6, attract: .75, mul: {}, lakeMul: { Pike: 4, Perch: .8, 'Brown trout': .4, Roach: 0, Carp: 0 } },
-    { name: 'Soft frog', kind: 'lure', water: 'lake', desc: 'A rubber frog that splashes across the top. Pike leap out of the water for it!', price: 45, b: [2, 6], col: '#4fbf4a', cast: 5, attract: .7, mul: {}, lakeMul: { Pike: 3.5, Perch: .5, 'Brown trout': .3, Roach: 0, Carp: 0 } },
-    { name: 'Dry fly', kind: 'lure', water: 'lake', desc: 'A tiny feathery fly that floats. The best trout lure there is.', price: 30, b: [2, 5], col: '#b8864f', cast: 3, attract: .85, mul: {}, lakeMul: { 'Brown trout': 4, Roach: .8, Perch: .4, Pike: .1, Carp: .1 } },
+    { name: 'Worms', kind: 'bait', water: 'lake', desc: 'Wriggly worms under a float: every lake fish loves them, especially perch and roach.', price: 5, b: [2, 6], col: '#c96a6a', mul: {}, lakeMul: { 'Wels catfish': 1.2, Roach: 1.6, Perch: 1.5, 'Brown trout': 1.2, Carp: 1.2, Pike: .2 } },
+    { name: 'Sweetcorn', kind: 'bait', water: 'lake', desc: 'Sweet yellow corn. Carp and roach go mad for it.', price: 8, b: [3, 7], col: '#f2d04a', mul: {}, lakeMul: { 'Wels catfish': .4, Carp: 3, Roach: 1.8, Perch: .3, Pike: .05, 'Brown trout': .3 } },
+    { name: 'Spoon', kind: 'lure', water: 'lake', desc: 'A wobbling, flashing metal spoon. Pike and perch attack it.', price: 25, b: [2, 5], col: '#d9dde2', cast: 5, attract: .8, mul: {}, lakeMul: { 'Wels catfish': .4, Pike: 2.5, Perch: 1.6, 'Brown trout': 1, Roach: .2, Carp: .05 } },
+    { name: 'Inline spinner', kind: 'lure', water: 'lake', desc: 'A little spinning blade that trout cannot resist.', price: 20, b: [2, 5], col: '#f2c230', cast: 4, attract: .8, mul: {}, lakeMul: { 'Wels catfish': .1, 'Brown trout': 3, Perch: 1.8, Pike: .8, Roach: .3, Carp: .05 } },
+    { name: 'Jerkbait', kind: 'lure', water: 'lake', desc: 'A big twitchy fake fish for monster pike.', price: 60, b: [2, 6], col: '#ff7a1a', cast: 6, attract: .75, mul: {}, lakeMul: { 'Wels catfish': 1.8, Pike: 4, Perch: .8, 'Brown trout': .4, Roach: 0, Carp: 0 } },
+    { name: 'Soft frog', kind: 'lure', water: 'lake', desc: 'A rubber frog that splashes across the top. Pike leap out of the water for it!', price: 45, b: [2, 6], col: '#4fbf4a', cast: 5, attract: .7, mul: {}, lakeMul: { 'Wels catfish': .4, Pike: 3.5, Perch: .5, 'Brown trout': .3, Roach: 0, Carp: 0 } },
+    { name: 'Dry fly', kind: 'lure', water: 'lake', desc: 'A tiny feathery fly that floats. The best trout lure there is.', price: 30, b: [2, 5], col: '#b8864f', cast: 3, attract: .85, mul: {}, lakeMul: { 'Wels catfish': .1, 'Brown trout': 4, Roach: .8, Perch: .4, Pike: .1, Carp: .1 } },
+    // cheap lake tackle: pocket money prices
+    { name: 'Maggots', kind: 'bait', water: 'lake', desc: 'A tub of wriggly maggots for €2. Roach and perch bite fast on them.', price: 2, b: [1.5, 4.5], col: '#f1e8cf', mul: {}, lakeMul: { 'Wels catfish': .1, Roach: 2, Perch: 1.4, 'Brown trout': .9, Carp: .6, Pike: .1 } },
+    { name: 'Bread flake', kind: 'bait', water: 'lake', desc: 'Just €1: a pinch of soft bread. Roach and carp love it.', price: 1, b: [2.5, 6], col: '#f4ecd6', mul: {}, lakeMul: { 'Wels catfish': .1, Roach: 2, Carp: 2, Perch: .3, Pike: .05, 'Brown trout': .4 } },
+    { name: 'Wet fly', kind: 'lure', water: 'lake', desc: 'A little sinking fly for €4. Trout gulp it down.', price: 4, b: [2, 5], col: '#3a3a2a', cast: 2, attract: .75, mul: {}, lakeMul: { 'Wels catfish': .1, 'Brown trout': 3, Roach: 1, Perch: .6, Pike: .1, Carp: .1 } },
+    { name: 'Rubber worm', kind: 'lure', water: 'lake', desc: 'A bendy purple rubber worm for €5. Perch love wiggly things.', price: 5, b: [2, 5], col: '#7b2cbf', cast: 3, attract: .75, mul: {}, lakeMul: { 'Wels catfish': .1, Perch: 2.6, Pike: .8, 'Brown trout': .6, Roach: .2, Carp: .2 } },
+    { name: 'Micro spinner', kind: 'lure', water: 'lake', desc: 'A tiny flashing spinner for €6. Perch and trout chase it.', price: 6, b: [2, 5], col: '#c0c6cc', cast: 3, attract: .78, mul: {}, lakeMul: { 'Wels catfish': .1, Perch: 2.2, 'Brown trout': 2, Roach: .5, Pike: .5, Carp: .05 } },
+    { name: 'Mini crankbait', kind: 'lure', water: 'lake', desc: 'A small plastic fish with a diving lip, €10. Catches almost everything.', price: 10, b: [2, 5], col: '#9acd32', cast: 4, attract: .78, mul: {}, lakeMul: { 'Wels catfish': .4, Perch: 2, Pike: 1.6, 'Brown trout': 1, Roach: .3, Carp: .1 } },
+    { name: 'Catfish pellets', kind: 'bait', water: 'lake', desc: 'Big smelly fish-oil pellets for €15. The only bait that really brings up the giant wels catfish!', price: 15, b: [3, 8], col: '#6a4a2a', mul: {}, lakeMul: { 'Wels catfish': 6, Carp: 2, Roach: .2, Perch: .1, Pike: .2, 'Brown trout': .1 } },
+    { name: 'Paddle-tail shad', kind: 'lure', water: 'lake', desc: 'A soft rubber fish with a kicking tail for €12. Pike can\'t say no.', price: 12, b: [2, 5.5], col: '#e8e0c8', cast: 4, attract: .75, mul: {}, lakeMul: { 'Wels catfish': 1.5, Pike: 2.4, Perch: 2, 'Brown trout': .5, Roach: .1, Carp: 0 } },
   ],
 };
 const BOATS = [
@@ -2760,15 +2771,16 @@ const BOATS = [
     const n = g[k] | 0; fishLog.gear[k] = fishLog.own[k].includes(n) ? n : 0;
   }
   fishLog.own.boat = (Array.isArray(o.boat) ? o.boat : []).map(n => n | 0).filter(n => n >= 0 && n < BOATS.length);
+  fishLog.rodCol = f && typeof f.rodCol === 'string' && /^#[0-9a-f]{6}$/i.test(f.rodCol) ? f.rodCol : '';
   fishLog.boat = f && fishLog.own.boat.includes(f.boat | 0) && f.boat != null ? f.boat | 0 : (fishLog.own.boat.length ? fishLog.own.boat[fishLog.own.boat.length - 1] : -1);
 }
 const gearOf = k => GEAR[k][fishLog.gear[k]];
-const LAKE_BASE = { Roach: 30, Perch: 24, 'Brown trout': 14, Pike: 9, Carp: 11, 'Old boot': 3 };
+const LAKE_BASE = { Roach: 30, Perch: 24, 'Brown trout': 14, Pike: 9, Carp: 11, 'Wels catfish': 3, 'Old boot': 3 };
 function pickFish(F) { // what bites depends on your bait or lure, your rod, and where you are
   const bait = gearOf('bait'), deep = F.boat && F.deep;
   if (F.lake) { // freshwater: pike, trout, perch, roach and carp
     const w = FISH_TYPES.map(t => { const b = LAKE_BASE[t[0]]; if (!b) return 0; if (t[0] === 'Old boot') return b * (bait.water === 'lake' ? .5 : 1); return b * (bait.lakeMul ? (bait.lakeMul[t[0]] ?? 1) : .5) * (F.lake.mul[t[0]] || 1); });
-    let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let k = 0; k < w.length; k++) { r -= w[k]; if (r <= 0) return FISH_TYPES[k]; } return FISH_TYPES[0];
+    let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let k = 0; k < w.length; k++) { r -= w[k]; if (r <= 0) return FISH_TYPES[k]; } return FISH_TYPES.find(t => t[0] === 'Roach');
   }
   const w = FISH_TYPES.map(t => {
     let x = t[6] * (bait.mul[t[0]] || 1);
@@ -2793,9 +2805,10 @@ const GADGETS = [
 { let f = null; try { f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); } catch (e) { } const g = f && typeof f.gadgets === 'object' && f.gadgets || {}; fishLog.gadgets = {}; for (const G2 of GADGETS) if (g[G2.id] === true) fishLog.gadgets[G2.id] = true; }
 const biteTime = () => { const b = gearOf('bait').b, F = foot.fish, wrong = F && (F.lake ? gearOf('bait').water !== 'lake' : gearOf('bait').water === 'lake'); return rnd(b[0], b[1]) * (fishLog.gadgets.sonar ? .6 : 1) * (wrong ? 1.7 : 1); };
 const kgMul = () => gearOf('rod').kg * (foot.boat ? BOATS[fishLog.boat].kg : 1);
+const ROD_COLS = ['#e63946', '#ff7a1a', '#f9c80e', '#2ecc71', '#00b4d8', '#1f4fd0', '#7b2cbf', '#ff5fa2', '#f4f4f4', '#1c1c1c', '#c9a227', '#8b5a2b'];
 function applyRodLook() {
   if (!foot.rod) return;
-  foot.rod.pivot.children[0].material = flat(gearOf('rod').col);
+  foot.rod.pivot.children[0].material = flat(fishLog.rodCol || gearOf('rod').col);
   const b = gearOf('bait'); foot.rod.bob.material.color.set(b.kind !== 'bait' ? b.col : '#ff3b2f');
   foot.rod.bob.scale.set(b.kind === 'lure' ? .7 : 1, b.kind === 'lure' ? .7 : 1, b.kind === 'lure' ? 1.8 : 1);
 }
@@ -2889,7 +2902,7 @@ function stopFishing() {
   foot.fish = null; $('catchBox').hidden = true;
 }
 // what a catch is worth at the fish market (€ per kg), and how each one looks
-const FISH_PRICE = { Pike: 9, 'Brown trout': 16, Perch: 10, Roach: 6, Carp: 5, 'Blue marlin': 30, 'Dusky grouper': 18, 'Mahi-mahi': 12, Swordfish: 25, Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
+const FISH_PRICE = { 'Wels catfish': 4, Pike: 9, 'Brown trout': 16, Perch: 10, Roach: 6, Carp: 5, 'Blue marlin': 30, 'Dusky grouper': 18, 'Mahi-mahi': 12, Swordfish: 25, Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
 const catchValue = (name, kg) => name === 'Old boot' ? 0 : Math.max(.5, Math.round(kg * FISH_PRICE[name] * (fishLog.gadgets.icebox ? 1.25 : 1) * 2) / 2);
 // body shape (height and width as a share of length), fin colour, and how to paint the side of the fish
 const FISH_LOOK = {
@@ -2938,6 +2951,10 @@ const FISH_LOOK = {
     g.fillStyle = 'rgba(30,35,15,.65)'; for (let k = 0; k < 6; k++) { const x = W * (.2 + k * .1); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 12, 0); g.lineTo(x + 6, H * .62); g.lineTo(x - 2, H * .62); g.fill(); }
   } },
   Roach: { h: .3, w: .11, fin: '#c8402e', dorsal: 1, fork: .7, skin: (g, W, H) => { band(g, W, H, ['#3a4a5a', '#6a7f8f', '#c9d2d8', '#eef1f3', '#f7f8f8']); } },
+  'Wels catfish': { h: .15, w: .17, fin: '#2e2c24', dorsal: 0, fork: 0, blunt: true, matte: true, whiskers: true, longAnal: true, skin: (g, W, H) => {
+    band(g, W, H, ['#16160f', '#24251c', '#33342a', '#4a4a3a', '#8a8670']);
+    g.fillStyle = 'rgba(8,8,4,.55)'; for (let k = 0; k < 120; k++) { g.beginPath(); g.ellipse(W * Math.random(), H * (.1 + Math.random() * .75), 4 + Math.random() * 9, 3 + Math.random() * 5, Math.random() * 3, 0, 7); g.fill(); }
+  } },
   Carp: { h: .33, w: .17, fin: '#8a5a2a', dorsal: 0, longDorsal: true, fork: .5, blunt: true, skin: (g, W, H) => {
     band(g, W, H, ['#4a3a1a', '#8a6a2a', '#c9a24a', '#e0c890', '#f0e4c0']);
     g.strokeStyle = 'rgba(60,40,10,.45)'; g.lineWidth = 2; for (let y = 8; y < H * .8; y += 13) for (let x = ((y / 13) % 2) * 8; x < W * .8; x += 16) { g.beginPath(); g.arc(x, y, 8, Math.PI * .1, Math.PI * .9); g.stroke(); }
@@ -2991,7 +3008,7 @@ function makeFishModel(name, len) {
     uv.setXY(k, t, clamp(up / H + .5, 0, 1));
   }
   geo.computeVertexNormals();
-  const skin = new THREE.MeshStandardMaterial({ map: fishTex(name), metalness: .45, roughness: .32 });
+  const skin = new THREE.MeshStandardMaterial({ map: fishTex(name), metalness: L.matte ? .05 : .45, roughness: L.matte ? .55 : .32 }); // catfish are slimy, not shiny
   const finM = new THREE.MeshStandardMaterial({ color: C(L.fin), roughness: .5, metalness: .2, side: THREE.DoubleSide, transparent: true, opacity: .88 });
   const g = new THREE.Group(), body = new THREE.Mesh(geo, skin); g.add(body);
   const z0 = -len / 2;
@@ -3007,6 +3024,10 @@ function makeFishModel(name, len) {
   if (L.longDorsal) { df.visible = false; const ld = new THREE.Mesh(finGeo([[len * .36, 0], [len * .3, H * .5], [0, H * .35], [-len * .36, H * .18], [-len * .4, 0]]), finM); ld.position.set(0, H * .4, 0); g.add(ld); }
   if (L.sail) { df.visible = false; const sl = new THREE.Mesh(finGeo([[len * .3, 0], [len * .22, H * 1.7], [-len * .05, H * 1.35], [-len * .3, H * .4], [-len * .34, 0]]), finM); sl.position.set(0, H * .4, 0); g.add(sl); }
   if (L.bill) { const bl = new THREE.Mesh(new THREE.ConeGeometry(H * .09, len * .42, 8).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ color: C('#2a3346'), roughness: .5 })); bl.position.set(0, H * .02, len * .5 + len * .19); g.add(bl); }
+  if (L.whiskers) { const wm = new THREE.MeshStandardMaterial({ color: C('#2a281e'), roughness: .7 }); // two long whiskers and four short ones
+    for (const sd of [-1, 1]) { const w1 = new THREE.Mesh(new THREE.CylinderGeometry(len * .003, len * .008, len * .38, 5).translate(0, -len * .19, 0), wm); w1.position.set(sd * Wd * .3, H * .08, len * .5); w1.rotation.set(-1.9, 0, sd * -.9); g.add(w1);
+      for (const o of [.12, .25]) { const w2 = new THREE.Mesh(new THREE.CylinderGeometry(len * .002, len * .004, len * .09, 4).translate(0, -len * .045, 0), wm); w2.position.set(sd * Wd * o, -H * .3, len * .47); w2.rotation.set(-.6, 0, sd * .3); g.add(w2); } } }
+  if (L.longAnal) { const la = new THREE.Mesh(finGeo([[len * .05, 0], [0, -H * .3], [-len * .45, -H * .25], [-len * .48, 0]]), finM); la.position.set(0, -H * .3, 0); g.add(la); df.scale.setScalar(.4); }
   if (L.dorsal === 2) { const d2 = new THREE.Mesh(finGeo([[len * .05, 0], [0, H * .42], [-len * .08, H * .12], [-len * .09, 0]]), finM); d2.position.set(0, H * .34, -len * .18); g.add(d2); }
   if (L.deep) { const dl = new THREE.Mesh(finGeo([[len * .2, 0], [len * .1, H * .22], [-len * .25, H * .15], [-len * .3, 0]]), finM); dl.position.set(0, H * .4, 0); g.add(dl); }
   // anal fin, pelvic fins and pectoral fins
@@ -3085,9 +3106,9 @@ function updateFishing(dt, act, press) {
   AIM.visible = F.st === 'ready';
   if (F.st === 'ready') { // aim: A/D left and right, W/S nearer and further, E to cast there
     ang = 1 + Math.sin(now * 1.2) * .03;
-    const maxC = gearOf('rod').cast + (gearOf('bait').cast || 0) + 2;
-    if (!F.aim) F.aim = { a: 0, d: Math.min(12, maxC * .7) };
-    F.aim.a = clamp(F.aim.a + (input.left - input.right) * 1.1 * dt, -1.1, 1.1); F.aim.d = clamp(F.aim.d + (input.up - input.down) * 9 * dt, 4, maxC);
+    const maxC = gearOf('rod').cast + (gearOf('bait').cast || 0) * 2 + 4;
+    if (!F.aim) F.aim = { a: 0, d: Math.min(20, maxC * .7) };
+    F.aim.a = clamp(F.aim.a + (input.left - input.right) * 1.1 * dt, -1.1, 1.1); F.aim.d = clamp(F.aim.d + (input.up - input.down) * (10 + maxC * .3) * dt, 4, maxC);
     const ca = Math.cos(F.aim.a), sa = Math.sin(F.aim.a), dx = F.nx * ca + F.nz * sa, dz = F.nz * ca - F.nx * sa;
     const tx = foot.x + dx * F.aim.d, tz = foot.z + dz * F.aim.d;
     AIM.position.set(tx, F.lake ? .14 : .08, tz); AIM.scale.setScalar(1 + Math.sin(now * 5) * .08);
@@ -3099,7 +3120,7 @@ function updateFishing(dt, act, press) {
     arm = u < .4 ? -smooth01(u / .4) * .9 : u < .55 ? -.9 + (u - .4) / .15 * 1.1 : .2 * (1 - (u - .55) / .45);
     R.tip.getWorldPosition(_tw);
     if (u < .55) { bx = _tw.x; by = _tw.y; bz = _tw.z; }
-    else if (u < .9) { const k = (u - .55) / .35; bx = lerp(_tw.x, F.spot.x, k); bz = lerp(_tw.z, F.spot.z, k); by = lerp(_tw.y, .07, k) + Math.sin(k * Math.PI) * 3; }
+    else if (u < .9) { const k = (u - .55) / .35; bx = lerp(_tw.x, F.spot.x, k); bz = lerp(_tw.z, F.spot.z, k); by = lerp(_tw.y, .07, k) + Math.sin(k * Math.PI) * (3 + F.aim.d * .12); }
     showBob = true;
     if (u >= 1) {
       F.rig = gearOf('bait').kind === 'rig'; F.lure = gearOf('bait').kind === 'lure'; audio.plop();
@@ -3118,7 +3139,7 @@ function updateFishing(dt, act, press) {
     if (F.T > F.biteAt) { F.st = 'bite'; F.T = 0; audio.plop(); }
   } else if (F.st === 'retrieve') { // winding the lure back: hold E to reel, let go to pause
     showBob = true;
-    if (act) { F.D -= 2.2 * gearOf('reel').spd * dt; F.RT += dt; }
+    if (act) { F.D -= 2.2 * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 35) * dt; F.RT += dt; }
     ang = act ? .7 + Math.sin(now * 14) * .05 : .9; arm = act ? -.3 + Math.sin(now * 12) * .12 : 0;
     bx = foot.x + F.cdx * Math.max(F.D, .8); bz = foot.z + F.cdz * Math.max(F.D, .8); by = (F.lake ? .1 : .04) + (act ? Math.sin(now * 18) * .03 : 0);
     F.spot = { x: bx, z: bz };
@@ -3137,7 +3158,7 @@ function updateFishing(dt, act, press) {
     const RT = gearOf('rod').ten, SN = gearOf('line').snap;
     F.tension += (act ? (.5 + fight * surge * .55) * RT : -.8) * dt + fight * surge * .05 * RT * dt;
     F.tension = Math.max(0, F.tension);
-    if (act && F.tension > .2 && F.tension < .85 * SN) F.D -= (3.3 - fight * .9) * gearOf('reel').spd * dt;
+    if (act && F.tension > .2 && F.tension < .85 * SN) F.D -= (3.3 - fight * .9) * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 35) * dt;
     else if (!act) F.D = Math.min(F.D0 + 8, F.D + fight * .45 * dt);
     F.low = F.tension < .1 ? F.low + dt : 0;
     ang = .45 + Math.sin(now * 16) * .06 * F.tension - F.tension * .2; arm = act ? -.3 + Math.sin(now * 12) * .12 : -.1;
@@ -3162,13 +3183,13 @@ function updateFishing(dt, act, press) {
     }
   } else if (F.st === 'jig') { // sabiki: reel slowly, little fish grab the hooks one by one
     showBob = true; ang = act ? .75 + Math.sin(now * 14) * .04 : .95 + Math.sin(now * 3) * .12; arm = act ? -.3 + Math.sin(now * 12) * .1 : Math.sin(now * 3) * .15;
-    if (act) F.D -= 1.5 * gearOf('reel').spd * dt;
+    if (act) F.D -= 1.5 * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 45) * dt;
     F.biteT -= dt;
     if (F.biteT <= 0) {
       F.biteT = rnd(.5, 1.3);
       if (F.hooked.length < 7 && Math.random() < (act ? .4 : .75) * (fishLog.gadgets.sonar ? 1.4 : 1)) {
         let r = Math.random() * 100, type = FISH_TYPES[0];
-        for (const [n, w] of [['Sardine', 55], ['Mackerel', 32], ['Gilt-head bream', 7], ['Grey mullet', 6]]) { r -= w; if (r <= 0) { type = FISH_TYPES.find(t => t[0] === n); break; } }
+        for (const [n, w] of F.lake ? [['Roach', 55], ['Perch', 35], ['Brown trout', 6], ['Carp', 4]] : [['Sardine', 55], ['Mackerel', 32], ['Gilt-head bream', 7], ['Grey mullet', 6]]) { r -= w; if (r <= 0) { type = FISH_TYPES.find(t => t[0] === n); break; } }
         const kg = +(type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 2) * .45).toFixed(2);
         F.hooked.push({ type, kg }); audio.plop();
         show('', `+1 ${type[0].toLowerCase()} on the rig! (${F.hooked.length}/7)`, 1.2);
@@ -3294,7 +3315,9 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
   // a few little fish always hang about near the bait when you're watching
   if (fishCam && !F.amb) {
     F.amb = [];
-    for (let i = 0; i < 6; i++) { const t = FISH_TYPES[i % 3 === 0 ? 1 : 0], m = makeSwimmer(t, rnd(.05, .12)); m.rotation.order = 'YXZ'; scene.add(m); F.amb.push({ m, a: Math.random() * 6, r: rnd(1.5, 4), y: rnd(-.8, .5), s: rnd(.5, 1.1) * (Math.random() < .5 ? -1 : 1) }); }
+    const ambT = F.lake ? ['Roach', 'Roach', 'Perch', 'Roach', 'Perch', 'Brown trout'].map(n => FISH_TYPES.find(t => t[0] === n)) : null;
+    for (let i = 0; i < 6; i++) { const t = ambT ? ambT[i] : FISH_TYPES[i % 3 === 0 ? 1 : 0], m = makeSwimmer(t, rnd(.05, .12)); m.rotation.order = 'YXZ'; scene.add(m); F.amb.push({ m, a: Math.random() * 6, r: rnd(1.5, 4), y: rnd(-.8, .5), s: rnd(.5, 1.1) * (Math.random() < .5 ? -1 : 1) }); }
+    if (ambT) { const big = makeSwimmer(FISH_TYPES.find(t => t[0] === (Math.random() < .5 ? 'Wels catfish' : 'Carp')), rnd(40, 90)); big.rotation.order = 'YXZ'; scene.add(big); F.amb.push({ m: big, a: Math.random() * 6, r: rnd(5, 7), y: -.6, s: .7 }); }
   }
   if (F.amb) for (const a of F.amb) {
     a.m.visible = fishCam; a.a += dt * a.s / a.r * 1.4;
@@ -3399,37 +3422,91 @@ const nearClub = (x, z) => Math.hypot(x - CLUB.x, z - CLUB.z) < 6;
   for (const [x, col] of [[-12, '#c8102e'], [-8, '#f9c80e'], [8, '#1f4fd0'], [12, '#f4f4f4']]) { const fp = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 9, 6), flat('#dddddd')); fp.position.set(x, 4.5, 9.5); club.add(fp); const fl = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1), new THREE.MeshStandardMaterial({ color: C(col), side: THREE.DoubleSide })); fl.position.set(x + .8, 8.4, 9.5); club.add(fl); }
   for (let k = -2; k <= 2; k++) { const [x, z] = marWorld(cu + k * 7, cv); addCircle(x, z, 5.5); }
 }
-{ // the lakes: water, a muddy bottom, reeds, lily pads, willows, a jetty, a sign and ducks
-  const lt = SEA.mesh.material.normalMap.clone(); lt.repeat.set(24, 24); lt.needsUpdate = true;
-  const waterM = new THREE.MeshStandardMaterial({ color: C('#2a5650'), roughness: .16, metalness: 0, envMapIntensity: .35, normalMap: lt, normalScale: new THREE.Vector2(.3, .3), transparent: true, opacity: .9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 });
-  ANIM.push(dt => { lt.offset.x += dt * .01; lt.offset.y += dt * .007; });
+{ // the lakes: deep green water, a muddy bottom with swaying weed beds, reeds and bulrushes, lily pads and flowers, rocks, logs, willows, a jetty and ducks
+  const lt = SEA.mesh.material.normalMap.clone(); lt.repeat.set(1, 1); lt.needsUpdate = true;
+  const waterM = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .12, metalness: 0, envMapIntensity: .4, normalMap: lt, normalScale: new THREE.Vector2(.07, .07), transparent: true, opacity: .9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 });
+  ANIM.push(dt => { lt.offset.x += dt * .006; lt.offset.y += dt * .004; });
+  // water weed bends in the current: the top of each strand sways, the root stays put
+  const weedT = { value: 0 }; ANIM.push(dt => { weedT.value += dt; });
+  const swayM = (o, amp) => { const m = new THREE.MeshStandardMaterial(o); m.customProgramCacheKey = () => 'sway' + amp; m.onBeforeCompile = sh => { sh.uniforms.uT = weedT; sh.vertexShader = 'uniform float uT;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float ph = instanceMatrix[3].x * .7 + instanceMatrix[3].z * .53, hy = max(position.y, 0.);
+      transformed.x += sin(uT * 1.1 + ph + hy * 1.8) * hy * hy * ${amp}; transformed.z += cos(uT * .8 + ph * 1.3 + hy) * hy * hy * ${amp * .7};`); }; return m; };
+  const merge = gs => { const pos = [], nor = []; for (const g of gs) { const n = g.index ? g.toNonIndexed() : g; pos.push(...n.attributes.position.array); nor.push(...n.attributes.normal.array); } const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); return g; };
+  const ribbon = () => { const g = new THREE.PlaneGeometry(.09, 1, 1, 8).translate(0, .5, 0), p = g.attributes.position; for (let k = 0; k < p.count; k++) { const y = p.getY(k); p.setX(k, p.getX(k) * (1.1 - y * .7)); } g.computeVertexNormals(); return g; };
+  const weedGeo = merge([ribbon(), ribbon().rotateY(Math.PI / 2), ribbon().rotateY(.8).translate(.05, 0, .03).scale(1, .8, 1)]);
+  const bushGeo = new THREE.IcosahedronGeometry(.5, 1).translate(0, .35, 0); { const p = bushGeo.attributes.position; for (let k = 0; k < p.count; k++) p.setXYZ(k, p.getX(k) * rnd(.7, 1.2), p.getY(k) * rnd(.8, 1.3), p.getZ(k) * rnd(.7, 1.2)); bushGeo.computeVertexNormals(); }
+  const duckweedT = canvasTex(256, 256, (cx, w, h) => { cx.clearRect(0, 0, w, h); for (let i = 0; i < 2600; i++) { const a = Math.random() * 6.28, r = Math.pow(Math.random(), .7) * w * .48; cx.fillStyle = `hsl(${85 + Math.random() * 20},${55 + Math.random() * 20}%,${30 + Math.random() * 18}%)`; cx.beginPath(); cx.ellipse(w / 2 + Math.cos(a) * r, h / 2 + Math.sin(a) * r, 2 + Math.random() * 3, 1.5 + Math.random() * 2, Math.random() * 3, 0, 6.28); cx.fill(); } }, 1, 1);
+  const cols = ['#2f5a24', '#3d6b2a', '#4a7a2e', '#5b7f30', '#3a5a2e', '#6b7a34'], pick = a => a[Math.random() * a.length | 0], c = new THREE.Color();
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3(), sc = new THREE.Vector3(), tv = new THREE.Vector3();
+  const tilt = amt => q.setFromAxisAngle(tv.set(Math.random() - .5, 0, Math.random() - .5).normalize(), rnd(0, amt));
+  const inst = (geo, mat, list, put, cast) => { // one instanced mesh per colour
+    const groups = new Map(); for (const it of list) { const k = it.col || ''; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(it); }
+    for (const [col, arr] of groups) {
+      let mm = mat; if (col) { mm = mat.clone(); mm.color.set(col); mm.onBeforeCompile = mat.onBeforeCompile; mm.customProgramCacheKey = mat.customProgramCacheKey; }
+      const m = new THREE.InstancedMesh(geo, mm, arr.length); arr.forEach((it, k) => { put(it, k); m.setMatrixAt(k, m4); }); if (cast) m.castShadow = true; m.frustumCulled = false; scene.add(m); // spread over the whole lake, so don't cull by the first one's box
+    }
+  };
   for (const L of LAKES) {
     const ring = k => { const sh = new THREE.Shape(); for (let i = 0; i <= 64; i++) { const [x, z] = lakeEdge(L, i / 64 * Math.PI * 2, k); i ? sh.lineTo(x - L.x, -(z - L.z)) : sh.moveTo(x - L.x, -(z - L.z)); } return new THREE.ShapeGeometry(sh, 2).rotateX(-Math.PI / 2); };
-    const bank = new THREE.Mesh(ring(1.025), new THREE.MeshStandardMaterial({ color: C('#7d7050'), roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 })); bank.position.set(L.x, .02, L.z); bank.receiveShadow = true; scene.add(bank);
-    const water = new THREE.Mesh(ring(1), waterM); water.position.set(L.x, .12, L.z); scene.add(water);
-    // the bottom of the lake, for the underwater camera
-    const N = 44, bg = new THREE.PlaneGeometry((L.rx + 30) * 2, (L.rx + 30) * 2, N, N).rotateX(-Math.PI / 2), bp = bg.attributes.position, cols = new Float32Array(bp.count * 3), c = new THREE.Color();
-    for (let k = 0; k < bp.count; k++) { const x = bp.getX(k) + L.x, z = bp.getZ(k) + L.z, inside = lakeE(L, x, z) < 1.02; bp.setY(k, inside ? lakeBed(L, x, z) : -.4); c.set(Math.random() < .25 ? '#3f5a2a' : '#5e5a3e'); cols.set([c.r, c.g, c.b], k * 3); }
-    bg.computeVertexNormals(); bg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    const bank = new THREE.Mesh(ring(1.018), new THREE.MeshStandardMaterial({ color: C('#6b5a3c'), roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 })); bank.position.set(L.x, .02, L.z); bank.receiveShadow = true; scene.add(bank);
+    // the water: pale muddy green in the shallows, dark and deep in the middle
+    { const S = 96, Rn = 14, pos = [0, 0, 0], col = [], uv = [0, 0], idx = [], deep = C('#12302a'), mid = C('#1a4034'), shal = C('#4a5f36');
+      col.push(deep.r, deep.g, deep.b);
+      for (let j = 1; j <= Rn; j++) for (let i = 0; i < S; i++) { const k = j / Rn, [x, z] = lakeEdge(L, i / S * Math.PI * 2, k), dx = x - L.x, dz = z - L.z; pos.push(dx, 0, dz); uv.push(dx / 5, dz / 5); const t = Math.pow(k, 4); c.copy(deep).lerp(mid, Math.min(1, k * 1.4)).lerp(shal, t); col.push(c.r, c.g, c.b); }
+      for (let i = 0; i < S; i++) idx.push(0, 1 + (i + 1) % S, 1 + i);
+      for (let j = 1; j < Rn; j++) for (let i = 0; i < S; i++) { const a = 1 + (j - 1) * S + i, b = 1 + (j - 1) * S + (i + 1) % S, a2 = a + S, b2 = b + S; idx.push(a, b, a2, b, b2, a2); }
+      const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx);
+      const nr = new Float32Array(pos.length); for (let k = 1; k < nr.length; k += 3) nr[k] = 1; g.setAttribute('normal', new THREE.BufferAttribute(nr, 3));
+      const water = new THREE.Mesh(g, waterM); water.position.set(L.x, .12, L.z); scene.add(water); }
+    // the bottom of the lake: mud, silt and gravel
+    const N = 48, bg = new THREE.PlaneGeometry((L.rx + 30) * 2, (L.rx + 30) * 2, N, N).rotateX(-Math.PI / 2), bp = bg.attributes.position, bcol = new Float32Array(bp.count * 3);
+    for (let k = 0; k < bp.count; k++) { const x = bp.getX(k) + L.x, z = bp.getZ(k) + L.z, inside = lakeE(L, x, z) < 1.02; bp.setY(k, inside ? lakeBed(L, x, z) + rnd(-.15, .15) : -.4); c.set(pick(['#3b3524', '#4a4630', '#2f3d22', '#564e36', '#45402a'])); bcol.set([c.r, c.g, c.b], k * 3); }
+    bg.computeVertexNormals(); bg.setAttribute('color', new THREE.BufferAttribute(bcol, 3));
     const bed = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })); bed.position.set(L.x, 0, L.z); scene.add(bed);
-    // reeds round the edge, lily pads on the water, willow trees on the bank
-    const reeds = [], pads = [], trees = [];
-    for (let i = 0; i < 700; i++) { const th = Math.random() * Math.PI * 2, [x, z] = lakeEdge(L, th, rnd(.97, 1.04)); if (Math.abs(th - L.ja) < .12) continue; reeds.push([x, z]); }
-    for (let i = 0; i < 90; i++) { const th = Math.random() * Math.PI * 2, [x, z] = lakeEdge(L, th, rnd(.78, .95)); pads.push([x, z]); }
-    for (let i = 0; i < 26; i++) { const th = Math.random() * Math.PI * 2, [x, z] = lakeEdge(L, th, rnd(1.12, 1.3)); if (Math.abs(th - L.ja) < .25) continue; trees.push([x, z]); addCircle(x, z, 1); }
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
-    const reedM = new THREE.InstancedMesh(new THREE.ConeGeometry(.05, 2.2, 4).translate(0, 1.1, 0), new THREE.MeshStandardMaterial({ color: C('#6f7f3a'), roughness: .9 }), reeds.length);
-    reeds.forEach(([x, z], k) => { q.setFromAxisAngle(new THREE.Vector3(Math.random() - .5, 0, Math.random() - .5).normalize(), rnd(0, .25)); m4.compose(v3.set(x, 0, z), q, sc.set(1, rnd(.6, 1.2), 1)); reedM.setMatrixAt(k, m4); }); scene.add(reedM);
-    const padM = new THREE.InstancedMesh(new THREE.CircleGeometry(.5, 10, .3, Math.PI * 1.85).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: C('#3f7a2e'), roughness: .6, side: THREE.DoubleSide }), pads.length);
-    pads.forEach(([x, z], k) => { q.setFromAxisAngle(up, Math.random() * 6); m4.compose(v3.set(x, .14, z), q, sc.setScalar(rnd(.6, 1.3))); padM.setMatrixAt(k, m4); }); scene.add(padM);
+    // weed beds under the water: thickest round the jetty and along the shallows, where the fish hide
+    const J = L.jet, tipX = J.x + J.dx * J.len, tipZ = J.z + J.dz * J.len, strands = [], bushes = [], stones = [];
+    const inWater = (x, z, e0 = .15, e1 = .97) => { const e = lakeE(L, x, z); return e > e0 && e < e1 && Math.hypot(x - tipX, z - tipZ) > 1.5; };
+    for (let p = 0; p < 70; p++) {
+      let cx0, cz0; if (p < 34) { const a = Math.random() * 6.28, r = rnd(4, 70); cx0 = tipX + Math.cos(a) * r; cz0 = tipZ + Math.sin(a) * r; } else [cx0, cz0] = lakeEdge(L, Math.random() * 6.28, rnd(.55, .95));
+      if (!inWater(cx0, cz0)) continue;
+      const green = pick(cols), sp = rnd(2, 5);
+      for (let i = 0; i < 26; i++) { const x = cx0 + rnd(-sp, sp), z = cz0 + rnd(-sp, sp); if (!inWater(x, z)) continue; const y = lakeBed(L, x, z), room = .02 - y; strands.push({ x, y, z, h: Math.min(room * rnd(.35, .92), 4.5), col: Math.random() < .7 ? green : pick(cols) }); }
+      for (let i = 0; i < 5; i++) { const x = cx0 + rnd(-sp, sp), z = cz0 + rnd(-sp, sp); if (!inWater(x, z)) continue; bushes.push({ x, y: lakeBed(L, x, z), z, s: rnd(.6, 1.7), col: pick(['#2c4a1e', '#34521f', '#44602a', '#3c4a22']) }); }
+    }
+    for (let i = 0; i < 160; i++) { const a = Math.random() * 6.28, r = rnd(2, 45), x = tipX + Math.cos(a) * r, z = tipZ + Math.sin(a) * r; if (!inWater(x, z)) continue; stones.push({ x, y: lakeBed(L, x, z), z, s: rnd(.1, .45), col: pick(['#6a665c', '#57534a', '#7a7466', '#4a4a44']) }); }
+    const weedMat = swayM({ color: 0xffffff, roughness: .75, side: THREE.DoubleSide }, .3);
+    inst(weedGeo, weedMat, strands, w => { q.setFromAxisAngle(up, Math.random() * 6.28); m4.compose(v3.set(w.x, w.y, w.z), q, sc.set(rnd(.8, 1.4), w.h, rnd(.8, 1.4))); });
+    inst(bushGeo, swayM({ color: 0xffffff, roughness: .9, flatShading: true }, .12), bushes, b => { q.setFromAxisAngle(up, Math.random() * 6.28); m4.compose(v3.set(b.x, b.y, b.z), q, sc.set(b.s, b.s * rnd(.6, 1.1), b.s)); });
+    inst(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, flatShading: true }), stones, s => { tilt(1.5); m4.compose(v3.set(s.x, s.y, s.z), q, sc.set(s.s, s.s * .55, s.s * rnd(.8, 1.3))); });
+    // duckweed and pondweed floating in the calm corners
+    const mats = []; for (let i = 0; i < 26; i++) { const th = Math.random() * 6.28; if (Math.abs(th - L.ja) < .1) continue; const [x, z] = lakeEdge(L, th, rnd(.9, .985)); mats.push({ x, z, s: rnd(2, 7) }); }
+    inst(new THREE.CircleGeometry(1, 20).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ map: duckweedT, alphaTest: .5, roughness: .7, polygonOffset: true, polygonOffsetFactor: -5, polygonOffsetUnits: -16 }), mats, d => { q.setFromAxisAngle(up, Math.random() * 6.28); m4.compose(v3.set(d.x, .135, d.z), q, sc.set(d.s, 1, d.s * rnd(.5, 1))); });
+    // reeds and bulrushes growing in clumps along the edge, some with brown fluffy heads
+    const reeds = [], heads = [], grass = [], pads = [], flowers = [], trees = [], rocks = [];
+    for (let k = 0; k < 170; k++) { const th = Math.random() * Math.PI * 2; if (Math.abs(th - L.ja) < .12) continue; const [x0, z0] = lakeEdge(L, th, rnd(.96, 1.03)), n = 8 + Math.random() * 16 | 0, sp = rnd(.8, 2.2), green = pick(['#4a5a26', '#55662c', '#3f5222', '#5a6a30']);
+      for (let i = 0; i < n; i++) { const x = x0 + rnd(-sp, sp), z = z0 + rnd(-sp, sp), h = rnd(.6, 1.25); reeds.push({ x, z, h, col: Math.random() < .12 ? '#8a7f48' : green }); if (Math.random() < .3) heads.push({ x, z, h }); } }
+    for (let i = 0; i < 1400; i++) { const th = Math.random() * Math.PI * 2; if (Math.abs(th - L.ja) < .1) continue; const [x, z] = lakeEdge(L, th, rnd(1.015, 1.07)); grass.push({ x, z, col: pick(['#35501c', '#3f5a22', '#4a6224', '#56602a']) }); }
+    for (let i = 0; i < 140; i++) { const th = Math.random() * Math.PI * 2; if (Math.abs(th - L.ja) < .12) continue; const [x, z] = lakeEdge(L, th, rnd(.8, .96)); for (let j = 0; j < 4; j++) { const px = x + rnd(-1.5, 1.5), pz = z + rnd(-1.5, 1.5); pads.push({ x: px, z: pz, col: pick(['#3f7a2e', '#4a8636', '#35692a', '#5a8a3a']) }); if (Math.random() < .12) flowers.push({ x: px + .15, z: pz, col: Math.random() < .5 ? '#fbf7f2' : '#f4a6c8' }); } }
+    for (let i = 0; i < 26; i++) { const th = Math.random() * Math.PI * 2, [x, z] = lakeEdge(L, th, rnd(1.12, 1.3)); if (Math.abs(th - L.ja) < .25) continue; trees.push({ x, z }); addCircle(x, z, 1); }
+    for (let i = 0; i < 70; i++) { const th = Math.random() * Math.PI * 2; if (Math.abs(th - L.ja) < .1) continue; const [x, z] = lakeEdge(L, th, rnd(.99, 1.06)); rocks.push({ x, z, s: rnd(.25, .8), col: pick(['#8a8478', '#6f6a60', '#9a9384', '#5e5a52']) }); }
+    const reedGeo = new THREE.ConeGeometry(.05, 2.4, 4).translate(0, 1.2, 0);
+    inst(reedGeo, swayM({ color: 0xffffff, roughness: .85 }, .04), reeds, r => { tilt(.2); m4.compose(v3.set(r.x, 0, r.z), q, sc.set(1, r.h, 1)); });
+    inst(new THREE.CylinderGeometry(.065, .06, .38, 7), flat('#5a3a1e'), heads, r => { tilt(.08); tv.set(0, 2.4 * r.h * .86, 0).applyQuaternion(q); m4.compose(v3.set(r.x + tv.x, tv.y, r.z + tv.z), q, sc.set(1, 1, 1)); });
+    inst(weedGeo, new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 1, side: THREE.DoubleSide }), grass, g => { q.setFromAxisAngle(up, Math.random() * 6.28); m4.compose(v3.set(g.x, 0, g.z), q, sc.set(rnd(2.5, 4), rnd(.4, .9), rnd(2.5, 4))); });
+    inst(new THREE.CircleGeometry(.5, 12, .3, Math.PI * 1.85).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .5, side: THREE.DoubleSide }), pads, p => { q.setFromAxisAngle(up, Math.random() * 6); m4.compose(v3.set(p.x, .14, p.z), q, sc.setScalar(rnd(.5, 1.3))); });
+    inst(new THREE.ConeGeometry(.13, .14, 8, 1, true).rotateX(Math.PI).translate(0, .07, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .6, side: THREE.DoubleSide, emissive: C('#332222') }), flowers, f => { q.setFromAxisAngle(up, Math.random() * 6); m4.compose(v3.set(f.x, .14, f.z), q, sc.setScalar(rnd(.8, 1.2))); });
+    inst(new THREE.SphereGeometry(.035, 6, 5), flat('#f2c230'), flowers.map(f => ({ x: f.x, z: f.z })), f => { m4.compose(v3.set(f.x, .2, f.z), q.identity(), sc.setScalar(1)); });
+    inst(new THREE.DodecahedronGeometry(1, 0), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: .95, flatShading: true }), rocks, r => { tilt(1); m4.compose(v3.set(r.x, .02, r.z), q, sc.set(r.s * rnd(.9, 1.5), r.s * .6, r.s)); }, true);
+    // old fallen logs, half in the water
+    for (let i = 0; i < 4; i++) { const th = Math.random() * Math.PI * 2; if (Math.abs(th - L.ja) < .3) continue; const [x, z] = lakeEdge(L, th, 1), len = rnd(3.5, 6); const lg = new THREE.Mesh(new THREE.CylinderGeometry(.22, .28, len, 8).rotateZ(Math.PI / 2), flat('#4e3c28')); lg.position.set(x, .12, z); lg.rotation.y = th + rnd(-.6, .6); lg.castShadow = true; scene.add(lg); }
     const trunkM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.25, .4, 4, 6).translate(0, 2, 0), flat('#6a5238'), trees.length), crownM = new THREE.InstancedMesh(new THREE.SphereGeometry(3.2, 9, 7).scale(1, .8, 1).translate(0, 5, 0), flat('#6f8f3a'), trees.length);
-    trees.forEach(([x, z], k) => { q.setFromAxisAngle(up, Math.random() * 6); m4.compose(v3.set(x, 0, z), q, sc.setScalar(rnd(.8, 1.3))); trunkM.setMatrixAt(k, m4); crownM.setMatrixAt(k, m4); }); trunkM.castShadow = crownM.castShadow = true; scene.add(trunkM, crownM);
+    trees.forEach(({ x, z }, k) => { q.setFromAxisAngle(up, Math.random() * 6); m4.compose(v3.set(x, 0, z), q, sc.setScalar(rnd(.8, 1.3))); trunkM.setMatrixAt(k, m4); crownM.setMatrixAt(k, m4); }); trunkM.castShadow = crownM.castShadow = true; scene.add(trunkM, crownM);
     // wooden jetty on posts
-    const J = L.jet, jg = new THREE.Group(); jg.position.set(J.x, 0, J.z); jg.rotation.y = Math.atan2(J.dx, J.dz); scene.add(jg);
+    const jg = new THREE.Group(); jg.position.set(J.x, 0, J.z); jg.rotation.y = Math.atan2(J.dx, J.dz); scene.add(jg);
     const deck = new THREE.Mesh(new THREE.BoxGeometry(2.4, .15, J.len + 2), new THREE.MeshStandardMaterial({ map: canvasTex(64, 256, (cx, w, h) => { for (let y = 0; y < h; y += 16) { const v = 130 + Math.random() * 40 | 0; cx.fillStyle = `rgb(${v},${v * .76 | 0},${v * .52 | 0})`; cx.fillRect(0, y, w, 15); } }, 1, 8), roughness: .85 }));
     deck.position.set(0, .42, J.len / 2 - 1); deck.receiveShadow = deck.castShadow = true; jg.add(deck);
     for (let a = 0; a <= J.len; a += 4) for (const sd of [-1, 1]) { const po = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, 2.2, 6), flat('#5a4630')); po.position.set(sd * 1.1, -.6, a); jg.add(po); }
-    const sgT = canvasTex(256, 128, (cx, w, h) => { cx.fillStyle = '#2f4a26'; cx.fillRect(0, 0, w, h); cx.fillStyle = '#f4efe0'; cx.font = '800 24px Arial'; cx.textAlign = 'center'; cx.fillText(L.name.toUpperCase(), w / 2, 40); cx.font = '600 16px Arial'; cx.fillText('Pesca: lluç de riu · truita', w / 2, 72); cx.fillText('perca · gardí · carpa', w / 2, 96); }, 1, 1);
+    const sgT = canvasTex(256, 128, (cx, w, h) => { cx.fillStyle = '#2f4a26'; cx.fillRect(0, 0, w, h); cx.fillStyle = '#f4efe0'; cx.font = '800 24px Arial'; cx.textAlign = 'center'; cx.fillText(L.name.toUpperCase(), w / 2, 40); cx.font = '600 16px Arial'; cx.fillText('Pesca: lluç de riu · truita', w / 2, 72); cx.fillText('perca · gardí · carpa · silur', w / 2, 96); }, 1, 1);
     const sg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), new THREE.MeshStandardMaterial({ map: sgT, side: THREE.DoubleSide })); sg.position.set(2.2, 1.8, -4); sg.rotation.y = Math.PI; jg.add(sg);
     const sp = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 1.8, 6), flat('#5a4630')); sp.position.set(2.2, .9, -4); jg.add(sp);
     // ducks paddling about
@@ -3639,16 +3716,19 @@ function renderShop() {
   };
   const sec = (id, title, sub, html) => `<h3 class="shopH" id="shop-${id}">${title}</h3><p class="lead">${sub}</p><div class="grid">${html}</div>`;
   $('shopGrid').innerHTML =
-    sec('rod', 'Rods', 'A better rod casts further, takes more strain and brings in heavier fish.', GEAR.rod.map((r, k) => card('rod', k, r, stat('Cast', r.cast, 27, r.cast + ' m') + stat('Strength', 1.05 - r.ten, .5, Math.round((1 - r.ten) * 100 + 10) + '') + stat('Fish size', r.kg - .9, .4, '×' + r.kg.toFixed(2)))).join('')) +
+    sec('rod', 'Rods', 'A better rod casts further, takes more strain and brings in heavier fish.', GEAR.rod.map((r, k) => card('rod', k, r, stat('Cast', r.cast, 55, r.cast + ' m') + stat('Strength', 1.05 - r.ten, .5, Math.round((1 - r.ten) * 100 + 10) + '') + stat('Fish size', r.kg - .9, .4, '×' + r.kg.toFixed(2)))).join('')) +
+    `<h3 class="shopH" id="shop-rodcol">Rod colour 🎨</h3><p class="lead">Paint your rod any colour you like. It's free!</p><div class="rodCols">${['', ...ROD_COLS].map(cl => `<button data-rodcol="${cl}" class="${(fishLog.rodCol || '') === cl ? 'sel' : ''}" title="${cl ? cl : 'The rod\'s own colour'}" style="background:${cl || gearOf('rod').col}">${cl ? '' : '↺'}</button>`).join('')}</div>` +
     sec('reel', 'Reels', 'A faster reel winds the fish in quicker.', GEAR.reel.map((r, k) => card('reel', k, r, stat('Speed', r.spd, 2.8, '×' + r.spd))).join('')) +
     sec('line', 'Lines', 'Stronger line lets you pull harder before it snaps.', GEAR.line.map((r, k) => card('line', k, r, stat('Strength', r.snap, 2, '×' + r.snap))).join('')) +
     sec('bait', 'Sea bait', 'Put real bait on the hook. Each bait attracts different fish.', GEAR.bait.map((r, k) => r.kind === 'bait' && r.water !== 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
-    sec('lake', 'Lake lures and bait', 'For the lakes: pike, trout, perch, roach and carp. Cast a lure and reel it back to make fish chase it!', GEAR.bait.map((r, k) => r.water === 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
+    sec('lake', 'Lake lures and bait', 'For the lakes: pike, trout, perch, roach, carp and the giant wels catfish. Cast a lure and reel it back to make fish chase it!', GEAR.bait.map((r, k) => r.water === 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
     sec('lure', 'Sea lures and rigs', 'Lures are fake fish that flash and wiggle. Cast them out and reel them back in. A sabiki rig catches lots of little fish at once.', GEAR.bait.map((r, k) => r.kind !== 'bait' && r.water !== 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`) + stat('Extra cast', r.cast, 6, '+' + r.cast + ' m')) : '').join('')) +
     sec('gadgets', 'Gadgets', 'Handy extras: once you buy one it works all the time.', GADGETS.map((gd, k) => `<div class="card${fishLog.gadgets[gd.id] ? ' sel' : ''}"><img class="pic" src="${itemPic('gadget', k)}" alt=""><h3>${gd.name}</h3><div class="tag">${gd.desc}</div>${fishLog.gadgets[gd.id] ? '<button class="go" disabled>✓ You have this</button>' : `<button class="go${money < gd.price ? ' poor' : ''}" data-gadget="${k}">Buy · €${gd.price}</button>`}</div>`).join('')) +
     sec('boats', 'Boats & yachts', 'Small boats wait halfway along the pier; the big yachts moor at the Port Olímpic marina (search "marina"). Drive out to deep water for the biggest fish.', BOATS.map((b, k) => card('boat', k, b, stat('Top speed', b.vmax, 22, Math.round(b.vmax * 3.6) + ' km/h') + stat('Handling', b.turn, .85, Math.round(b.turn * 100) + '') + stat('Fish size', b.kg - 1, .2, '×' + b.kg))).join(''));
 }
 $('shopGrid').addEventListener('click', e => {
+  const rc = e.target.closest('[data-rodcol]');
+  if (rc) { fishLog.rodCol = rc.dataset.rodcol; saveFish(); applyRodLook(); shopNote = fishLog.rodCol ? 'Your rod has a fresh coat of paint!' : 'Your rod is back to its own colour.'; audio.ding(); return renderShop(); }
   const gb = e.target.closest('[data-gadget]');
   if (gb) {
     const gd = GADGETS[+gb.dataset.gadget]; shopNote = '';
@@ -4291,10 +4371,13 @@ function updateUnderwaterFx(dt, diver) {
 const HEMI = scene.children.find(o => o.isHemisphereLight);
 const ABOVE = { fogCol: scene.fog.color.clone(), fogD: scene.fog.density, bg: scene.background.clone(), sun: sun.intensity, sunCol: sun.color.clone(), hemi: HEMI.intensity, hemiSky: HEMI.color.clone(), hemiGround: HEMI.groundColor.clone() };
 const UWCOL = C('#0d5b6b');
+const LAKECOL = C('#4b6b3a');
 let wasUnder = false;
-function setUnderwater(under) {
-  if (under === wasUnder) return; wasUnder = under;
-  if (under) { scene.fog.color.copy(UWCOL); scene.fog.density = .045; scene.background = UWCOL.clone(); sun.intensity = .7; sun.color.set(C('#9fe8ff')); HEMI.intensity = .55; HEMI.color.set(C('#7fd6e6')); HEMI.groundColor.set(C('#23404a')); sky.visible = false; }
+function setUnderwater(under, lake) {
+  const mode = under ? (lake ? 'lake' : 'sea') : false;
+  if (mode === wasUnder) return; wasUnder = mode;
+  if (mode === 'lake') { scene.fog.color.copy(LAKECOL); scene.fog.density = .11; scene.background = LAKECOL.clone(); sun.intensity = .8; sun.color.set(C('#d8f0a0')); HEMI.intensity = .6; HEMI.color.set(C('#b4d88a')); HEMI.groundColor.set(C('#2e3a1c')); sky.visible = false; }
+  else if (under) { scene.fog.color.copy(UWCOL); scene.fog.density = .045; scene.background = UWCOL.clone(); sun.intensity = .7; sun.color.set(C('#9fe8ff')); HEMI.intensity = .55; HEMI.color.set(C('#7fd6e6')); HEMI.groundColor.set(C('#23404a')); sky.visible = false; }
   else { scene.fog.color.copy(ABOVE.fogCol); scene.fog.density = ABOVE.fogD; scene.background = ABOVE.bg.clone(); sun.intensity = ABOVE.sun; sun.color.copy(ABOVE.sunCol); HEMI.intensity = ABOVE.hemi; HEMI.color.copy(ABOVE.hemiSky); HEMI.groundColor.copy(ABOVE.hemiGround); sky.visible = true; }
 }
 // ---------- the diver ----------
@@ -4725,6 +4808,34 @@ const PIC_DRAW = {
       for (const sd of [-1, 1]) { g.fillStyle = '#4fbf4a'; g.beginPath(); g.arc(cx + sd * 22, cy - 28, 11, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(cx + sd * 22, cy - 30, 7, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(cx + sd * 22, cy - 30, 3.5, 0, 7); g.fill();
         g.strokeStyle = '#3f9f3a'; g.lineWidth = 7; g.beginPath(); g.moveTo(cx + sd * 30, cy + 20); g.quadraticCurveTo(cx + sd * 70, cy + 30, cx + sd * 80, cy + 50); g.stroke(); }
       g.strokeStyle = '#c9ced4'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx - 10, cy - 32); g.quadraticCurveTo(cx, cy - 50, cx + 10, cy - 32); g.stroke();
+    } else if (it.name === 'Catfish pellets') {
+      g.fillStyle = '#3a2a18'; for (let i = 0; i < 22; i++) { const x = cx - 70 + Math.random() * 140, y = cy - 30 + Math.random() * 64; g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill(); g.fillStyle = 'rgba(255,220,160,.25)'; g.beginPath(); g.arc(x - 3, y - 4, 4, 0, 7); g.fill(); g.fillStyle = i % 3 ? '#5a3e22' : '#6a4a2a'; }
+    } else if (it.name === 'Maggots') {
+      g.fillStyle = '#d9d2c0'; g.beginPath(); g.ellipse(cx, cy + 34, 80, 16, 0, 0, 7); g.fill();
+      for (let i = 0; i < 26; i++) { const x = cx - 64 + Math.random() * 128, y = cy - 30 + Math.random() * 60, a = Math.random() * 3; g.fillStyle = i % 4 ? '#f3ead2' : '#e8cfa8'; g.beginPath(); g.ellipse(x, y, 11, 5, a, 0, 7); g.fill(); g.fillStyle = '#6a4a2a'; g.beginPath(); g.arc(x + Math.cos(a) * 9, y + Math.sin(a) * 9, 1.6, 0, 7); g.fill(); }
+    } else if (it.name === 'Bread flake') {
+      g.fillStyle = '#f4ecd6'; g.beginPath(); for (let i = 0; i < 14; i++) { const a = i / 14 * Math.PI * 2, r = 40 + Math.random() * 14; g.lineTo(cx + Math.cos(a) * r, cy + Math.sin(a) * r * .7); } g.closePath(); g.fill();
+      g.fillStyle = 'rgba(180,140,80,.3)'; for (let i = 0; i < 30; i++) { g.beginPath(); g.arc(cx - 34 + Math.random() * 68, cy - 22 + Math.random() * 44, 1 + Math.random() * 2, 0, 7); g.fill(); }
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(cx + 20, cy - 70); g.lineTo(cx + 20, cy + 10); g.arc(cx + 10, cy + 10, 10, 0, Math.PI); g.stroke();
+    } else if (it.name === 'Wet fly') {
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(cx - 40, cy); g.lineTo(cx + 40, cy); g.quadraticCurveTo(cx + 55, cy + 26, cx + 30, cy + 28); g.stroke();
+      g.fillStyle = '#3a3a2a'; g.fillRect(cx - 30, cy - 7, 56, 14); g.fillStyle = '#d4a73a'; for (let i = 0; i < 5; i++) g.fillRect(cx - 26 + i * 11, cy - 7, 3, 14);
+      g.fillStyle = '#8a7a5a'; g.beginPath(); g.moveTo(cx - 28, cy - 6); g.quadraticCurveTo(cx + 10, cy - 34, cx + 44, cy - 14); g.lineTo(cx - 20, cy); g.fill();
+    } else if (it.name === 'Rubber worm') {
+      g.strokeStyle = '#7b2cbf'; g.lineWidth = 14; g.lineCap = 'round'; g.beginPath(); for (let i = 0; i <= 30; i++) { const x = cx - 90 + i * 6, y = cy + Math.sin(i * .45) * 18; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.25)'; g.lineWidth = 3; g.stroke(); g.lineCap = 'butt';
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(cx - 90, cy - 30); g.lineTo(cx - 80, cy); g.stroke();
+    } else if (it.name === 'Micro spinner') {
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(cx - 80, cy); g.lineTo(cx + 30, cy); g.stroke();
+      const gr = g.createLinearGradient(cx - 50, cy - 20, cx - 20, cy + 14); gr.addColorStop(0, '#ffffff'); gr.addColorStop(1, '#9aa2aa'); g.fillStyle = gr; g.beginPath(); g.ellipse(cx - 34, cy - 4, 20, 11, -.35, 0, 7); g.fill();
+      g.fillStyle = '#1d1d1d'; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(cx - 6 + i * 9, cy, 4, 0, 7); g.fill(); } treble(g, cx + 34, cy, 1);
+    } else if (it.name === 'Mini crankbait') {
+      fishShape(g, cx, cy, 110, 40, '#3f8a1a', '#f2e87a'); g.fillStyle = 'rgba(0,0,0,.35)'; for (let i = 0; i < 4; i++) { g.fillRect(cx - 24 + i * 14, cy - 18, 5, 16); }
+      g.fillStyle = 'rgba(220,240,255,.6)'; g.beginPath(); g.moveTo(cx + 48, cy + 6); g.lineTo(cx + 78, cy + 22); g.lineTo(cx + 68, cy + 28); g.lineTo(cx + 44, cy + 14); g.closePath(); g.fill(); treble(g, cx, cy + 18, 1);
+    } else if (it.name === 'Paddle-tail shad') {
+      fishShape(g, cx + 6, cy, 120, 38, '#8a8470', '#f4efe0'); g.fillStyle = '#e8e0c8'; g.beginPath(); g.ellipse(cx - 62, cy, 7, 18, 0, 0, 7); g.fill();
+      g.fillStyle = '#c8102e'; g.beginPath(); g.arc(cx + 58, cy, 10, 0, 7); g.fill();
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx + 54, cy + 4); g.quadraticCurveTo(cx + 20, cy - 32, cx + 10, cy - 14); g.stroke();
     } else if (it.name === 'Dry fly') {
       g.strokeStyle = '#c9ced4'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(cx - 30, cy - 10); g.lineTo(cx + 40, cy - 10); g.quadraticCurveTo(cx + 55, cy + 20, cx + 30, cy + 22); g.stroke();
       g.fillStyle = '#8a6a3a'; g.fillRect(cx - 20, cy - 16, 40, 12);
@@ -5948,7 +6059,8 @@ function loop() {
   }
   if (!paused && !plane.on) updatePeds(dt, false);
   if (room) updateRoom(dt);
-  { const under = camera.position.y < -.15 && !foot.inside; setUnderwater(under); UW.visible = !!foot.swim || under;
+  { const cp = camera.position; SEA.mesh.visible = !LAKES.some(L => Math.abs(cp.x - L.x) < L.rx + 400 && Math.abs(cp.z - L.z) < L.rx + 400); // the sea's waves would poke up through the lakes
+    const under = camera.position.y < -.15 && !foot.inside, inLake = under && !!lakeAt(camera.position.x, camera.position.z, 5); setUnderwater(under, inLake); UW.visible = !!foot.swim || under && !inLake;
     if (UW.visible) { updateSea(dt, foot.swim ? foot : null); updateUnderwaterFx(dt, foot.swim ? foot : null); } }
   // skids and smoke
   const fx = Math.sin(c.h), fz = Math.cos(c.h), lx = Math.cos(c.h), lz = -Math.sin(c.h);
