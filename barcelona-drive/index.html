@@ -582,6 +582,25 @@ const nodePos = n => ({ x: nodeX(n), z: nodeZ(n) });
 const MOFF = { x: -3860, z: -1605 };            // the Collserola ridge sits where the real Tibidabo is
 const CIRC = { x: 6500, z: -5200 };
 const AIRPORT = { x: -6200, z: 2650, len: 2400, w: 45 }; // El Prat: runway on the flat land south-west of the city
+// lakes out in the countryside: slightly wobbly ellipses, each with a wooden fishing jetty
+const LAKES = [
+  { id: 'valles', name: 'Estany del Vallès', x: 4750, z: -3950, rx: 260, rz: 185, rot: .4, depth: 7, ja: 2.6, mul: { Pike: 1.6, Carp: 1.4, 'Brown trout': .5 } },
+  { id: 'cugat', name: 'Llac de Sant Cugat', x: -6800, z: -1950, rx: 230, rz: 165, rot: -.3, depth: 9, ja: -1.4, mul: { 'Brown trout': 2, Perch: 1.3, Carp: .6 } },
+];
+const lakeLocal = (L, x, z) => { const dx = x - L.x, dz = z - L.z, c = Math.cos(L.rot), s = Math.sin(L.rot); return [dx * c - dz * s, dx * s + dz * c]; };
+const lakeWorld = (L, u, v) => { const c = Math.cos(L.rot), s = Math.sin(L.rot); return [L.x + u * c + v * s, L.z - u * s + v * c]; };
+const lakeW = th => 1 + .08 * Math.sin(3 * th) + .05 * Math.sin(5 * th + 1);
+const lakeE = (L, x, z) => { const [u, v] = lakeLocal(L, x, z), a = u / L.rx, b = v / L.rz; return (a * a + b * b) * lakeW(Math.atan2(b, a)); }; // < 1 is water
+const lakeEdge = (L, th, k = 1) => lakeWorld(L, L.rx * Math.cos(th) * k / Math.sqrt(lakeW(th)), L.rz * Math.sin(th) * k / Math.sqrt(lakeW(th)));
+const lakeAt = (x, z, pad = 0) => LAKES.find(L => Math.abs(x - L.x) < L.rx + 60 + pad && Math.abs(z - L.z) < L.rx + 60 + pad && lakeE(L, x, z) < 1);
+const lakeBed = (L, x, z) => -.3 - L.depth * Math.pow(Math.max(0, 1 - lakeE(L, x, z)), .6);
+function placeJetty(L, P) { // the jetty faces the road: it runs from the bank 24 m out over the water
+  const [u, v] = lakeLocal(L, P[0], P[1]); L.ja = Math.atan2(v / L.rz, u / L.rx);
+  const [sx, sz] = lakeEdge(L, L.ja, 1.03), dx = L.x - sx, dz = L.z - sz, d = Math.hypot(dx, dz);
+  L.jet = { x: sx, z: sz, dx: dx / d, dz: dz / d, len: 24 };
+  L.base = { x: sx - dx / d * 30, z: sz - dz / d * 30 }; // where the lane from the road ends
+}
+const onJetty = (x, z) => LAKES.some(L => { const J = L.jet; if (!J) return false; const px = x - J.x, pz = z - J.z, a = px * J.dx + pz * J.dz, b = px * J.dz - pz * J.dx; return a > -2 && a < J.len && Math.abs(b) < 1.3; });
 const inAirport = (x, z, m = 0) => Math.abs(x - AIRPORT.x) < AIRPORT.len / 2 + 250 + m && z > AIRPORT.z - 560 - m && z < AIRPORT.z + 250 + m;              // a race circuit out in the Vallès, north-east of the city
 const CAMP = { x: LM.campnou[0], z: LM.campnou[1] };
 const ROADS = [];
@@ -672,6 +691,12 @@ function nearMR(x, z) {
   const n5 = nearestNode(BX0 + 20, 1300);
   road(nodeX(n5), nodeZ(n5), AIRPORT.x + 800, AIRPORT.z - 475, 20, "Autovia de l'Aeroport", { lines: 1 });
   road(AIRPORT.x - AIRPORT.len / 2, AIRPORT.z, AIRPORT.x + AIRPORT.len / 2, AIRPORT.z, AIRPORT.w, "Pista de l'aeroport", { runway: 1 });
+  for (const L of LAKES) { // a lane from the nearest main road to each lake
+    let best = null, bd = 1e9; for (const r of ROADS) { if (r.runway || r.track) continue; const { d, t } = segDist(r, L.x, L.z); if (d < bd) { bd = d; best = [r.ax + (r.bx - r.ax) * t, r.az + (r.bz - r.az) * t]; } }
+    placeJetty(L, best); bd = Math.hypot(L.base.x - best[0], L.base.z - best[1]);
+    road(best[0], best[1], L.base.x, L.base.z, 7, "Camí de l'estany");
+    L.car = { x: L.base.x - (L.base.x - best[0]) / (bd || 1) * 12, z: L.base.z - (L.base.z - best[1]) / (bd || 1) * 12, h: Math.atan2(L.base.x - best[0], L.base.z - best[1]) };
+  }
 }
 
 /* ---------- a wooden fishing pier off Barceloneta beach (built in its own local frame) ---------- */
@@ -725,6 +750,7 @@ function pierConstrain(px, pz, rad) { // keep things between the railings (worke
 
 /* ---------- height of the ground anywhere ---------- */
 function groundH(x, z) {
+  if (onJetty(x, z)) return .5; // lake jetties
   { const [mu, mv] = marLocal(x, z); if (mv > -13 && mv < 207 && Math.abs(mu) < 59 && onMarinaL(mu, mv)) return mv < 0 ? MAR_H * clamp((mv + 12) / 12, 0, 1) : MAR_H; } // marina pontoons
   const [u, v] = pierLocal(x, z);
   if (v > -2 && v < PIER.z1 + 2 && Math.abs(u) < PIER.headW / 2 + 2) return onPierL(u, v) ? PIER.h * clamp(v / 16, 0, 1) : 0;
@@ -1393,7 +1419,7 @@ const HOTEL = { x: LM.wvela[0], z: LM.wvela[1] };
   for (let x = -305; x <= 5; x += 10) addCircle(CIRC.x + x, CIRC.z + 226, 7);
 }
 { // countryside: umbrella pines and stone farmhouses (masies)
-  const clearOf = (x, z, m) => !inBox(x, z, 80) && !inAirport(x, z, m) && coastSide(x, z) < -60 && !onRoad(x, z, m) && !inMtn(x, z, 40) &&
+  const clearOf = (x, z, m) => !inBox(x, z, 80) && !inAirport(x, z, m) && !LAKES.some(L => Math.hypot(x - L.x, z - L.z) < L.rx + 45 + m) && coastSide(x, z) < -60 && !onRoad(x, z, m) && !inMtn(x, z, 40) &&
     !bigCircles.some(c => Math.hypot(x - c.x, z - c.z) < c.r + m);
   const pines = [];
   for (let n = 0; n < 30000 && pines.length < 2600; n++) {
@@ -2670,6 +2696,7 @@ const FISH_TYPES = [
   ['Old boot', 'Bota vella', .9, .9, .25, '#5a3b22', 5], ['Bluefin tuna', 'Tonyina vermella', 12, 60, 1.5, '#2c4c7a', 1.2],
   ['Mahi-mahi', 'Llampuga', 3, 15, 1.2, '#3aa05a', 0], ['Swordfish', 'Peix espasa', 25, 120, 1.8, '#394a66', 0], // only from a boat
   ['Blue marlin', 'Marlí blau', 100, 300, 2, '#1f3f8a', 0], ['Dusky grouper', 'Nero', 5, 35, 1.3, '#5a4630', 0],
+  ['Pike', 'Lluç de riu', 1, 12, 1.2, '#5a6b2e', 0], ['Brown trout', 'Truita de riu', .3, 3, 1, '#8a6a3a', 0], ['Perch', 'Perca', .1, 1.5, .55, '#7a8a3a', 0], ['Roach', 'Gardí', .05, .6, .35, '#b8c0c6', 0], ['Carp', 'Carpa', 2, 18, 1.1, '#a07a3a', 0], // lakes only
 ];
 let fishLog = { count: 0, best: {}, money: 0, sold: 0, released: 0 };
 try { const f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); if (f && typeof f === 'object') fishLog = { count: f.count | 0, best: f.best || {}, money: +f.money || 0, sold: f.sold | 0, released: f.released | 0 }; } catch (e) { }
@@ -2708,6 +2735,13 @@ const GEAR = {
     { name: 'Deep diver', kind: 'lure', desc: 'Dives deep where the giants live.', price: 200, b: [2, 5.5], col: '#2a5bff', cast: 6, mul: { 'Bluefin tuna': 2.5, Swordfish: 2, 'Mahi-mahi': 2, Sardine: .2 } },
     { name: 'Golden lure', kind: 'lure', desc: 'A shining golden lure the biggest fish in the sea cannot resist.', price: 800, b: [1, 3], col: '#f2c230', cast: 7, mul: { 'Bluefin tuna': 3, Swordfish: 3, 'Mahi-mahi': 3, 'Blue marlin': 4, 'Dusky grouper': 3, Octopus: 2, Sardine: .2, 'Old boot': .1 } },
     { name: 'Sabiki rig', kind: 'rig', desc: 'Seven tiny shiny hooks on one line. Cast it out, reel it in slowly and catch lots of little fish at once!', price: 60, b: [1, 2], col: '#ff5fa2', cast: 3, mul: {} },
+    { name: 'Worms', kind: 'bait', water: 'lake', desc: 'Wriggly worms under a float: every lake fish loves them, especially perch and roach.', price: 5, b: [2, 6], col: '#c96a6a', mul: {}, lakeMul: { Roach: 1.6, Perch: 1.5, 'Brown trout': 1.2, Carp: 1.2, Pike: .2 } },
+    { name: 'Sweetcorn', kind: 'bait', water: 'lake', desc: 'Sweet yellow corn. Carp and roach go mad for it.', price: 8, b: [3, 7], col: '#f2d04a', mul: {}, lakeMul: { Carp: 3, Roach: 1.8, Perch: .3, Pike: .05, 'Brown trout': .3 } },
+    { name: 'Spoon', kind: 'lure', water: 'lake', desc: 'A wobbling, flashing metal spoon. Pike and perch attack it.', price: 25, b: [2, 5], col: '#d9dde2', cast: 5, attract: .8, mul: {}, lakeMul: { Pike: 2.5, Perch: 1.6, 'Brown trout': 1, Roach: .2, Carp: .05 } },
+    { name: 'Inline spinner', kind: 'lure', water: 'lake', desc: 'A little spinning blade that trout cannot resist.', price: 20, b: [2, 5], col: '#f2c230', cast: 4, attract: .8, mul: {}, lakeMul: { 'Brown trout': 3, Perch: 1.8, Pike: .8, Roach: .3, Carp: .05 } },
+    { name: 'Jerkbait', kind: 'lure', water: 'lake', desc: 'A big twitchy fake fish for monster pike.', price: 60, b: [2, 6], col: '#ff7a1a', cast: 6, attract: .75, mul: {}, lakeMul: { Pike: 4, Perch: .8, 'Brown trout': .4, Roach: 0, Carp: 0 } },
+    { name: 'Soft frog', kind: 'lure', water: 'lake', desc: 'A rubber frog that splashes across the top. Pike leap out of the water for it!', price: 45, b: [2, 6], col: '#4fbf4a', cast: 5, attract: .7, mul: {}, lakeMul: { Pike: 3.5, Perch: .5, 'Brown trout': .3, Roach: 0, Carp: 0 } },
+    { name: 'Dry fly', kind: 'lure', water: 'lake', desc: 'A tiny feathery fly that floats. The best trout lure there is.', price: 30, b: [2, 5], col: '#b8864f', cast: 3, attract: .85, mul: {}, lakeMul: { 'Brown trout': 4, Roach: .8, Perch: .4, Pike: .1, Carp: .1 } },
   ],
 };
 const BOATS = [
@@ -2729,8 +2763,13 @@ const BOATS = [
   fishLog.boat = f && fishLog.own.boat.includes(f.boat | 0) && f.boat != null ? f.boat | 0 : (fishLog.own.boat.length ? fishLog.own.boat[fishLog.own.boat.length - 1] : -1);
 }
 const gearOf = k => GEAR[k][fishLog.gear[k]];
+const LAKE_BASE = { Roach: 30, Perch: 24, 'Brown trout': 14, Pike: 9, Carp: 11, 'Old boot': 3 };
 function pickFish(F) { // what bites depends on your bait or lure, your rod, and where you are
   const bait = gearOf('bait'), deep = F.boat && F.deep;
+  if (F.lake) { // freshwater: pike, trout, perch, roach and carp
+    const w = FISH_TYPES.map(t => { const b = LAKE_BASE[t[0]]; if (!b) return 0; if (t[0] === 'Old boot') return b * (bait.water === 'lake' ? .5 : 1); return b * (bait.lakeMul ? (bait.lakeMul[t[0]] ?? 1) : .5) * (F.lake.mul[t[0]] || 1); });
+    let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let k = 0; k < w.length; k++) { r -= w[k]; if (r <= 0) return FISH_TYPES[k]; } return FISH_TYPES[0];
+  }
   const w = FISH_TYPES.map(t => {
     let x = t[6] * (bait.mul[t[0]] || 1);
     if (t[0] === 'Mahi-mahi') x = F.boat ? (deep ? 6 : 1.2) * (bait.mul[t[0]] || 1) : 0;
@@ -2752,7 +2791,7 @@ const GADGETS = [
   { id: 'net', name: 'Landing net', desc: 'Scoop up your catch: a slack line hardly ever loses the fish.', price: 200 },
 ];
 { let f = null; try { f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); } catch (e) { } const g = f && typeof f.gadgets === 'object' && f.gadgets || {}; fishLog.gadgets = {}; for (const G2 of GADGETS) if (g[G2.id] === true) fishLog.gadgets[G2.id] = true; }
-const biteTime = () => { const b = gearOf('bait').b; return rnd(b[0], b[1]) * (fishLog.gadgets.sonar ? .6 : 1); };
+const biteTime = () => { const b = gearOf('bait').b, F = foot.fish, wrong = F && (F.lake ? gearOf('bait').water !== 'lake' : gearOf('bait').water === 'lake'); return rnd(b[0], b[1]) * (fishLog.gadgets.sonar ? .6 : 1) * (wrong ? 1.7 : 1); };
 const kgMul = () => gearOf('rod').kg * (foot.boat ? BOATS[fishLog.boat].kg : 1);
 function applyRodLook() {
   if (!foot.rod) return;
@@ -2793,6 +2832,7 @@ function toggleFoot() {
     scene.add(foot.p.root); $('footT').textContent = 'Get in';
     cam.h = foot.h;
   } else {
+    if (foot.fish && !foot.boat) return stopFishing();
     if (foot.boat) return leaveBoat();
     if (foot.inside) return show('', 'Walk out of the building first.', 1.8);
     if (foot.swim) return show('', 'Swim back to the beach first.', 1.8);
@@ -2813,6 +2853,25 @@ function railNear(x, z) {
   for (const r of RAILS) { const { d, t } = segDist(r, x, z); if (d < 1.7 && (!best || d < best.d)) best = { r, d, t }; }
   return best;
 }
+function lakeNear(x, z) { // on the bank or at the end of the jetty, close to the water
+  for (const L of LAKES) {
+    if (Math.abs(x - L.x) > L.rx + 80 || Math.abs(z - L.z) > L.rx + 80) continue;
+    const J = L.jet, a = (x - J.x) * J.dx + (z - J.z) * J.dz;
+    if (onJetty(x, z) && a > J.len - 7) return L;
+    const e = lakeE(L, x, z); if (e >= 1 && (Math.sqrt(e) - 1) * Math.min(L.rx, L.rz) < 4) return L;
+  }
+  return null;
+}
+function startLakeFishing(L) {
+  let nx = L.x - foot.x, nz = L.z - foot.z; const d = Math.hypot(nx, nz) || 1; nx /= d; nz /= d;
+  if (onJetty(foot.x, foot.z)) { nx = L.jet.dx; nz = L.jet.dz; }
+  foot.h = Math.atan2(nx, nz); foot.v = 0;
+  foot.fish = { st: 'ready', T: 0, nx, nz, tx: nz, tz: -nx, spot: null, D: 0, D0: 1, tension: 0, low: 0, type: null, kg: 0, biteAt: 0, lake: L };
+  foot.rod.pivot.visible = true; foot.rod.line.visible = true;
+  animPerson(foot.p, 0, 0); foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05; foot.p.arms[0].rotation.z = .25; foot.p.arms[1].rotation.z = -.25;
+  const b = gearOf('bait'); show(L.name, b.water === 'lake' ? 'Aim with A/D and W/S, then press E to cast.' : 'Tip: lake lures and bait (worms, spoons, spinners…) work much better here. Press B to swap.', 3.5);
+  audio.init();
+}
 function startFishing() {
   const rn = railNear(foot.x, foot.z); if (!rn) return;
   const r = rn.r, px = r.ax + (r.bx - r.ax) * rn.t, pz = r.az + (r.bz - r.az) * rn.t;
@@ -2826,11 +2885,11 @@ function stopFishing() {
   const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false;
   if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
   foot.p.arms[0].rotation.z = foot.p.arms[1].rotation.z = 0;
-  clearUnder(foot.fish); fishCam = false; renderBaitBar();
+  clearUnder(foot.fish); fishCam = false; renderBaitBar(); if (AIM) AIM.visible = false;
   foot.fish = null; $('catchBox').hidden = true;
 }
 // what a catch is worth at the fish market (€ per kg), and how each one looks
-const FISH_PRICE = { 'Blue marlin': 30, 'Dusky grouper': 18, 'Mahi-mahi': 12, Swordfish: 25, Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
+const FISH_PRICE = { Pike: 9, 'Brown trout': 16, Perch: 10, Roach: 6, Carp: 5, 'Blue marlin': 30, 'Dusky grouper': 18, 'Mahi-mahi': 12, Swordfish: 25, Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
 const catchValue = (name, kg) => name === 'Old boot' ? 0 : Math.max(.5, Math.round(kg * FISH_PRICE[name] * (fishLog.gadgets.icebox ? 1.25 : 1) * 2) / 2);
 // body shape (height and width as a share of length), fin colour, and how to paint the side of the fish
 const FISH_LOOK = {
@@ -2864,6 +2923,24 @@ const FISH_LOOK = {
   } },
   Swordfish: { h: .2, w: .16, fin: '#26324a', dorsal: 1, tallDorsal: true, fork: 1.3, lunate: true, bill: true, skin: (g, W, H) => {
     band(g, W, H, ['#1a2338', '#2e3d5c', '#6a7890', '#b9c0c8', '#dde1e4']);
+  } },
+  Pike: { h: .15, w: .12, fin: '#8a7a3a', dorsal: 1, rearDorsal: true, fork: .5, skin: (g, W, H) => {
+    band(g, W, H, ['#2f3a1c', '#4f6030', '#8a9a4a', '#d8d8a0', '#f2f0d8']);
+    g.fillStyle = 'rgba(235,230,150,.7)'; for (let r = 0; r < 4; r++) for (let k = 0; k < 16; k++) { g.beginPath(); g.ellipse(W * (.1 + k * .045 + (r % 2) * .02), H * (.28 + r * .1), 6, 3, 0, 0, 7); g.fill(); }
+  } },
+  'Brown trout': { h: .22, w: .13, fin: '#8a6a3a', dorsal: 1, fork: .25, skin: (g, W, H) => {
+    band(g, W, H, ['#4a3a22', '#7a6038', '#c9a75a', '#e8d8a8', '#f4efe0']);
+    for (let k = 0; k < 40; k++) { const x = W * (.12 + Math.random() * .66), y = H * (.18 + Math.random() * .3); g.fillStyle = '#1b140c'; g.beginPath(); g.arc(x, y, 2.5, 0, 7); g.fill(); }
+    for (let k = 0; k < 14; k++) { const x = W * (.15 + Math.random() * .6), y = H * (.42 + Math.random() * .12); g.fillStyle = 'rgba(255,255,255,.7)'; g.beginPath(); g.arc(x, y, 4.5, 0, 7); g.fill(); g.fillStyle = '#c8302e'; g.beginPath(); g.arc(x, y, 2.8, 0, 7); g.fill(); }
+  } },
+  Perch: { h: .3, w: .13, fin: '#e0602a', dorsal: 2, spiny: true, fork: .5, skin: (g, W, H) => {
+    band(g, W, H, ['#3f4a1e', '#6f7f2e', '#b8b84a', '#e0d890', '#f4f0dc']);
+    g.fillStyle = 'rgba(30,35,15,.65)'; for (let k = 0; k < 6; k++) { const x = W * (.2 + k * .1); g.beginPath(); g.moveTo(x, 0); g.lineTo(x + 12, 0); g.lineTo(x + 6, H * .62); g.lineTo(x - 2, H * .62); g.fill(); }
+  } },
+  Roach: { h: .3, w: .11, fin: '#c8402e', dorsal: 1, fork: .7, skin: (g, W, H) => { band(g, W, H, ['#3a4a5a', '#6a7f8f', '#c9d2d8', '#eef1f3', '#f7f8f8']); } },
+  Carp: { h: .33, w: .17, fin: '#8a5a2a', dorsal: 0, longDorsal: true, fork: .5, blunt: true, skin: (g, W, H) => {
+    band(g, W, H, ['#4a3a1a', '#8a6a2a', '#c9a24a', '#e0c890', '#f0e4c0']);
+    g.strokeStyle = 'rgba(60,40,10,.45)'; g.lineWidth = 2; for (let y = 8; y < H * .8; y += 13) for (let x = ((y / 13) % 2) * 8; x < W * .8; x += 16) { g.beginPath(); g.arc(x, y, 8, Math.PI * .1, Math.PI * .9); g.stroke(); }
   } },
   'Blue marlin': { h: .2, w: .14, fin: '#1f3f8a', dorsal: 0, sail: true, fork: 1.4, lunate: true, bill: true, skin: (g, W, H) => {
     band(g, W, H, ['#0f2a6a', '#1f4fae', '#6a9fd8', '#c9d6e6', '#eef2f6']);
@@ -2925,7 +3002,7 @@ function makeFishModel(name, len) {
   // dorsal fin(s)
   const d1 = L.spiny ? [[len * .12, 0], [len * .1, H * .4], [len * .04, H * .5], [-len * .02, H * .42], [-len * .08, H * .28], [-len * .1, 0]]
     : [[len * .1, 0], [len * .02, H * .55], [-len * .08, H * .35], [-len * .12, 0]];
-  const df = new THREE.Mesh(finGeo(d1), finM); df.position.set(0, H * .42, L.deep ? len * .02 : len * .02); g.add(df);
+  const df = new THREE.Mesh(finGeo(d1), finM); df.position.set(0, H * .42, L.rearDorsal ? -len * .26 : len * .02); g.add(df);
   if (L.tallDorsal) { const td = new THREE.Mesh(finGeo([[len * .06, 0], [len * .02, H * 1.1], [-len * .06, H * .7], [-len * .05, 0]]), finM); td.position.set(0, H * .4, len * .12); g.add(td); df.visible = false; }
   if (L.longDorsal) { df.visible = false; const ld = new THREE.Mesh(finGeo([[len * .36, 0], [len * .3, H * .5], [0, H * .35], [-len * .36, H * .18], [-len * .4, 0]]), finM); ld.position.set(0, H * .4, 0); g.add(ld); }
   if (L.sail) { df.visible = false; const sl = new THREE.Mesh(finGeo([[len * .3, 0], [len * .22, H * 1.7], [-len * .05, H * 1.35], [-len * .3, H * .4], [-len * .34, 0]]), finM); sl.position.set(0, H * .4, 0); g.add(sl); }
@@ -2998,15 +3075,24 @@ function makeCatchMesh(type, kg) { // hangs from the hook by its mouth: origin a
   return outer;
 }
 const _tw = new THREE.Vector3();
+let AIM = null;
 function updateFishing(dt, act, press) {
   const F = foot.fish, R = foot.rod; F.T += dt;
   const now = performance.now() / 1000;
   let ang = 1.0, arm = 0, bx = 0, by = .07 + Math.sin(now * 2) * .04, bz = 0, showBob = false;
   if (F.spot) { bx = F.spot.x; bz = F.spot.z; }
-  if (F.st === 'ready') {
+  if (!AIM) { AIM = new THREE.Group(); const am = new THREE.MeshBasicMaterial({ color: 0xf9c80e, transparent: true, opacity: .9, depthWrite: false }); AIM.add(new THREE.Mesh(new THREE.RingGeometry(.95, 1.25, 32).rotateX(-Math.PI / 2), am), new THREE.Mesh(new THREE.CircleGeometry(.2, 12).rotateX(-Math.PI / 2), am), new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, 1.6, 6).translate(0, .8, 0), am), new THREE.Mesh(new THREE.ConeGeometry(.22, .45, 10).rotateX(Math.PI).translate(0, 1.9, 0), am)); scene.add(AIM); }
+  AIM.visible = F.st === 'ready';
+  if (F.st === 'ready') { // aim: A/D left and right, W/S nearer and further, E to cast there
     ang = 1 + Math.sin(now * 1.2) * .03;
-    if (press) { F.st = 'cast'; F.T = 0; const cst = gearOf('rod').cast + (gearOf('bait').cast || 0), d = rnd(cst - 2, cst + 2), s2 = rnd(-3, 3); F.spot = { x: foot.x + F.nx * d + F.tx * s2, z: foot.z + F.nz * d + F.tz * s2 }; }
-    else if (input.up || input.down) return stopFishing();
+    const maxC = gearOf('rod').cast + (gearOf('bait').cast || 0) + 2;
+    if (!F.aim) F.aim = { a: 0, d: Math.min(12, maxC * .7) };
+    F.aim.a = clamp(F.aim.a + (input.left - input.right) * 1.1 * dt, -1.1, 1.1); F.aim.d = clamp(F.aim.d + (input.up - input.down) * 9 * dt, 4, maxC);
+    const ca = Math.cos(F.aim.a), sa = Math.sin(F.aim.a), dx = F.nx * ca + F.nz * sa, dz = F.nz * ca - F.nx * sa;
+    const tx = foot.x + dx * F.aim.d, tz = foot.z + dz * F.aim.d;
+    AIM.position.set(tx, F.lake ? .14 : .08, tz); AIM.scale.setScalar(1 + Math.sin(now * 5) * .08);
+    if (!foot.boat) foot.h = Math.atan2(dx, dz);
+    if (press) { F.st = 'cast'; F.T = 0; F.cdx = dx; F.cdz = dz; const sc = F.aim.d * .05; F.spot = { x: tx + rnd(-sc, sc), z: tz + rnd(-sc, sc) }; }
   } else if (F.st === 'cast') { // back over the shoulder, whip forward, the float flies out
     const u = F.T / 1.4;
     ang = u < .4 ? lerp(1, -.55, smooth01(u / .4)) : u < .55 ? lerp(-.55, 1.3, (u - .4) / .15) : lerp(1.3, 1, smooth01((u - .55) / .45));
@@ -3016,7 +3102,13 @@ function updateFishing(dt, act, press) {
     else if (u < .9) { const k = (u - .55) / .35; bx = lerp(_tw.x, F.spot.x, k); bz = lerp(_tw.z, F.spot.z, k); by = lerp(_tw.y, .07, k) + Math.sin(k * Math.PI) * 3; }
     showBob = true;
     if (u >= 1) {
-      F.rig = gearOf('bait').kind === 'rig'; audio.plop();
+      F.rig = gearOf('bait').kind === 'rig'; F.lure = gearOf('bait').kind === 'lure'; audio.plop();
+      if (F.lure) { // lures are reeled back in: fish chase them and strike on the way
+        const b = gearOf('bait'), rightWater = F.lake ? b.water === 'lake' : b.water !== 'lake';
+        F.st = 'retrieve'; F.T = 0; F.RT = 0; F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z); F.next = null;
+        if (Math.random() < (rightWater ? (b.attract || .75) : .4) * (fishLog.gadgets.sonar ? 1.15 : 1)) { const t = pickFish(F); F.next = { type: t, kg: rollKg(t) }; F.strikeAt = rnd(.8, Math.max(1.2, (F.D - 3) / (2.2 * gearOf('reel').spd))); }
+        show('', 'Hold E to reel the lure in. Let go to pause. Fish may chase it!', 2.4);
+      } else
       if (F.rig) { F.st = 'jig'; F.T = 0; F.hooked = []; F.biteT = 1.2; F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z); show('', 'Hold E to reel the rig in slowly. Let go to jig and wait for bites.', 2.6); }
       else { F.st = 'wait'; F.T = 0; F.biteAt = biteTime(); }
     }
@@ -3024,7 +3116,14 @@ function updateFishing(dt, act, press) {
     showBob = true; ang = 1 + Math.sin(now * 1.3) * .02;
     if (Math.sin(now * 6.3) > .985) by -= .09; // a nibble
     if (F.T > F.biteAt) { F.st = 'bite'; F.T = 0; audio.plop(); }
-    if (input.up || input.down) return stopFishing();
+  } else if (F.st === 'retrieve') { // winding the lure back: hold E to reel, let go to pause
+    showBob = true;
+    if (act) { F.D -= 2.2 * gearOf('reel').spd * dt; F.RT += dt; }
+    ang = act ? .7 + Math.sin(now * 14) * .05 : .9; arm = act ? -.3 + Math.sin(now * 12) * .12 : 0;
+    bx = foot.x + F.cdx * Math.max(F.D, .8); bz = foot.z + F.cdz * Math.max(F.D, .8); by = (F.lake ? .1 : .04) + (act ? Math.sin(now * 18) * .03 : 0);
+    F.spot = { x: bx, z: bz };
+    if (F.next && F.RT >= F.strikeAt) { F.st = 'bite'; F.T = 0; audio.plop(); show('', 'STRIKE! Press E!', 1); }
+    else if (F.D <= 1.2) { F.st = 'ready'; F.T = 0; F.spot = null; F.next = null; show('', 'No takers this time. Aim somewhere else and cast again!', 2.2); }
   } else if (F.st === 'bite') { // the float is dragged under: strike now!
     showBob = true; by = -.2 + Math.sin(now * 30) * .05; ang = .95;
     if (press) {
@@ -3032,7 +3131,7 @@ function updateFishing(dt, act, press) {
       F.type = type; F.kg = nx.kg;
       F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) + (type[4] >= 1.5 ? 14 + type[4] * 3 : type[4] * 4);
       F.tension = .4; F.low = 0; F.st = 'reel'; F.T = 0; audio.ding();
-    } else if (F.T > 1.1) { F.st = 'wait'; F.T = 0; F.biteAt = biteTime() + 1; F.next = null; if (F.visM) F.leaving = true; show('', 'Too slow: the fish stole the bait.', 1.8); }
+    } else if (F.T > 1.1) { F.st = F.lure ? 'retrieve' : 'wait'; F.T = 0; F.biteAt = biteTime() + 1; F.next = null; if (F.visM) F.leaving = true; show('', F.lure ? 'Too slow: it let go of the lure!' : 'Too slow: the fish stole the bait.', 1.8); }
   } else if (F.st === 'reel') { // hold E to reel; keep the tension in the green or the line snaps
     const fight = F.type[4], surge = .55 + .45 * Math.sin(F.T * (1.7 + fight)) + .35 * Math.sin(F.T * 5.3 + 1);
     const RT = gearOf('rod').ten, SN = gearOf('line').snap;
@@ -3044,7 +3143,7 @@ function updateFishing(dt, act, press) {
     ang = .45 + Math.sin(now * 16) * .06 * F.tension - F.tension * .2; arm = act ? -.3 + Math.sin(now * 12) * .12 : -.1;
     R.tip.getWorldPosition(_tw);
     const k = clamp(F.D / F.D0, 0, 1.3);
-    bx = foot.x + F.nx * F.D + F.tx * (F.spot ? 0 : 0); bz = foot.z + F.nz * F.D; by = F.D > 1.5 ? .05 + Math.abs(Math.sin(now * 9)) * .12 * fight : lerp(_tw.y - .8, .05, F.D / 1.5);
+    bx = foot.x + (F.cdx ?? F.nx) * F.D; bz = foot.z + (F.cdz ?? F.nz) * F.D; by = F.D > 1.5 ? .05 + Math.abs(Math.sin(now * 9)) * .12 * fight : lerp(_tw.y - .8, .05, F.D / 1.5);
     if (!R.fishMesh && F.D < 4) { R.fishMesh = makeCatchMesh(F.type, F.kg); scene.add(R.fishMesh); }
     if (R.fishMesh) { R.fishMesh.position.set(bx, by + .02, bz); R.fishMesh.rotation.z = Math.sin(now * 5) * .25; R.fishMesh.userData.wig(now, 1); }
     showBob = !R.fishMesh;
@@ -3075,7 +3174,7 @@ function updateFishing(dt, act, press) {
         show('', `+1 ${type[0].toLowerCase()} on the rig! (${F.hooked.length}/7)`, 1.2);
       }
     }
-    bx = foot.x + F.nx * Math.max(F.D, .5); bz = foot.z + F.nz * Math.max(F.D, .5); by = .03 + Math.abs(Math.sin(now * 6)) * .04 * F.hooked.length;
+    bx = foot.x + (F.cdx ?? F.nx) * Math.max(F.D, .5); bz = foot.z + (F.cdz ?? F.nz) * Math.max(F.D, .5); by = .03 + Math.abs(Math.sin(now * 6)) * .04 * F.hooked.length;
     if (F.D <= .5) { // the rig comes up out of the water
       if (!F.hooked.length) { F.st = 'ready'; F.T = 0; F.spot = null; show('', 'Nothing on the rig this time. Tip: let go of E now and then so the fish can bite.', 3); }
       else {
@@ -3139,7 +3238,7 @@ function clearUnder(F) {
   if (F.amb) { F.amb.forEach(a => a.m.parent && a.m.parent.remove(a.m)); F.amb = null; }
 }
 function updateUnderBait(F, bx, by, bz, now, dt) {
-  const inWater = ['wait', 'bite', 'reel', 'jig'].includes(F.st);
+  const inWater = ['wait', 'bite', 'reel', 'jig', 'retrieve'].includes(F.st);
   if (!F.ug) { // float line, hook and bait (or lure) hanging under the float
     F.ug = new THREE.Group(); scene.add(F.ug);
     F.ug.add(new THREE.Mesh(new THREE.CylinderGeometry(.004, .004, 1, 4).translate(0, -.5, 0), new THREE.MeshBasicMaterial({ color: 0xe8e8e8 })));
@@ -3151,7 +3250,7 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
   F.ug.visible = inWater;
   if (!inWater) { if (F.visM) { scene.remove(F.visM); F.visM = null; } F.leaving = false; F.leaveT = 0; if (F.rigM) { scene.remove(F.rigM); F.rigM = null; } return; }
   // where the hook sits: under the float, or wherever the fish drags it
-  const floor = seabedY(bx, bz), depth = F.st === 'jig' ? Math.max(floor + .5, -2.4) : Math.max(floor + .6, -1.7);
+  const floor = F.lake ? lakeBed(F.lake, bx, bz) : seabedY(bx, bz), depth = F.st === 'jig' ? Math.max(floor + .5, -2.4) : F.st === 'retrieve' || (F.lure && F.st !== 'reel') ? Math.max(floor + .4, -.7) : Math.max(floor + .6, -1.7);
   F.hookPos.set(bx, depth, bz);
   const L = F.ug.children[0]; F.ug.position.set(bx, Math.min(by, 0), bz); L.scale.y = Math.max(.05, Math.min(by, 0) - depth); F.ug.children[1].position.y = F.ug.children[2].position.y = depth - Math.min(by, 0);
   F.ug.children[1].visible = F.st !== 'jig';
@@ -3163,7 +3262,7 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
   } else if (F.rigM) { scene.remove(F.rigM); F.rigM = null; }
   // the next fish is chosen as soon as the bait is in the water, so you can watch it come in
   if (F.st === 'wait' && !F.next && !F.rig) { const type = pickFish(F); F.next = { type, kg: rollKg(type) }; }
-  if (F.next && !F.visM && F.st === 'wait') { F.visM = makeSwimmer(F.next.type, F.next.kg); if (F.visM) { F.visM.rotation.order = 'YXZ'; scene.add(F.visM); F.visA = Math.random() * 6; } }
+  if (F.next && !F.visM && (F.st === 'wait' || F.st === 'retrieve')) { F.visM = makeSwimmer(F.next.type, F.next.kg); if (F.visM) { F.visM.rotation.order = 'YXZ'; scene.add(F.visM); F.visA = Math.random() * 6; } }
   const V = F.visM, H = F.hookPos;
   if (V) {
     const len = V.userData.len; V.visible = true; V.userData.wig(now * (F.st === 'reel' ? 2 : 1), F.st === 'wait' ? .6 : 1);
@@ -3176,6 +3275,10 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
       const x = H.x + Math.cos(F.visA) * r, z = H.z + Math.sin(F.visA) * r, y = H.y - .15 + Math.sin(F.visA * 1.7) * .2;
       V.rotation.y = Math.atan2(x - V.position.x, z - V.position.z) || V.rotation.y; V.rotation.x = 0;
       V.position.set(x, y, z);
+    } else if (F.st === 'retrieve') { // following the lure in, closer and closer until it strikes
+      const k = clamp(1 - (F.strikeAt - F.RT) / 2.5, 0, 1), gap = lerp(5, .15, k), cx = F.cdx, cz = F.cdz;
+      V.visible = k > 0; V.rotation.y = Math.atan2(-cx, -cz) + Math.sin(now * 4) * .15; V.rotation.x = 0;
+      V.position.set(H.x + cx * (gap + len * .5), H.y - .1 + Math.sin(now * 2) * .05, H.z + cz * (gap + len * .5));
     } else if (F.st === 'bite') { // it lunges and grabs the bait
       const dx = H.x - V.position.x, dz = H.z - V.position.z, d = Math.hypot(dx, dz) || 1, head = Math.atan2(dx, dz);
       V.rotation.y = head + Math.sin(now * 25) * .12;
@@ -3295,6 +3398,51 @@ const nearClub = (x, z) => Math.hypot(x - CLUB.x, z - CLUB.z) < 6;
   const sg = new THREE.Mesh(new THREE.PlaneGeometry(14, 2.6), new THREE.MeshBasicMaterial({ map: sgT })); sg.position.set(0, 9.9, 7.2); club.add(sg);
   for (const [x, col] of [[-12, '#c8102e'], [-8, '#f9c80e'], [8, '#1f4fd0'], [12, '#f4f4f4']]) { const fp = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 9, 6), flat('#dddddd')); fp.position.set(x, 4.5, 9.5); club.add(fp); const fl = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1), new THREE.MeshStandardMaterial({ color: C(col), side: THREE.DoubleSide })); fl.position.set(x + .8, 8.4, 9.5); club.add(fl); }
   for (let k = -2; k <= 2; k++) { const [x, z] = marWorld(cu + k * 7, cv); addCircle(x, z, 5.5); }
+}
+{ // the lakes: water, a muddy bottom, reeds, lily pads, willows, a jetty, a sign and ducks
+  const lt = SEA.mesh.material.normalMap.clone(); lt.repeat.set(24, 24); lt.needsUpdate = true;
+  const waterM = new THREE.MeshStandardMaterial({ color: C('#2a5650'), roughness: .16, metalness: 0, envMapIntensity: .35, normalMap: lt, normalScale: new THREE.Vector2(.3, .3), transparent: true, opacity: .9, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 });
+  ANIM.push(dt => { lt.offset.x += dt * .01; lt.offset.y += dt * .007; });
+  for (const L of LAKES) {
+    const ring = k => { const sh = new THREE.Shape(); for (let i = 0; i <= 64; i++) { const [x, z] = lakeEdge(L, i / 64 * Math.PI * 2, k); i ? sh.lineTo(x - L.x, -(z - L.z)) : sh.moveTo(x - L.x, -(z - L.z)); } return new THREE.ShapeGeometry(sh, 2).rotateX(-Math.PI / 2); };
+    const bank = new THREE.Mesh(ring(1.025), new THREE.MeshStandardMaterial({ color: C('#7d7050'), roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -8 })); bank.position.set(L.x, .02, L.z); bank.receiveShadow = true; scene.add(bank);
+    const water = new THREE.Mesh(ring(1), waterM); water.position.set(L.x, .12, L.z); scene.add(water);
+    // the bottom of the lake, for the underwater camera
+    const N = 44, bg = new THREE.PlaneGeometry((L.rx + 30) * 2, (L.rx + 30) * 2, N, N).rotateX(-Math.PI / 2), bp = bg.attributes.position, cols = new Float32Array(bp.count * 3), c = new THREE.Color();
+    for (let k = 0; k < bp.count; k++) { const x = bp.getX(k) + L.x, z = bp.getZ(k) + L.z, inside = lakeE(L, x, z) < 1.02; bp.setY(k, inside ? lakeBed(L, x, z) : -.4); c.set(Math.random() < .25 ? '#3f5a2a' : '#5e5a3e'); cols.set([c.r, c.g, c.b], k * 3); }
+    bg.computeVertexNormals(); bg.setAttribute('color', new THREE.BufferAttribute(cols, 3));
+    const bed = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })); bed.position.set(L.x, 0, L.z); scene.add(bed);
+    // reeds round the edge, lily pads on the water, willow trees on the bank
+    const reeds = [], pads = [], trees = [];
+    for (let i = 0; i < 700; i++) { const th = Math.random() * Math.PI * 2, [x, z] = lakeEdge(L, th, rnd(.97, 1.04)); if (Math.abs(th - L.ja) < .12) continue; reeds.push([x, z]); }
+    for (let i = 0; i < 90; i++) { const th = Math.random() * Math.PI * 2, [x, z] = lakeEdge(L, th, rnd(.78, .95)); pads.push([x, z]); }
+    for (let i = 0; i < 26; i++) { const th = Math.random() * Math.PI * 2, [x, z] = lakeEdge(L, th, rnd(1.12, 1.3)); if (Math.abs(th - L.ja) < .25) continue; trees.push([x, z]); addCircle(x, z, 1); }
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3(), sc = new THREE.Vector3();
+    const reedM = new THREE.InstancedMesh(new THREE.ConeGeometry(.05, 2.2, 4).translate(0, 1.1, 0), new THREE.MeshStandardMaterial({ color: C('#6f7f3a'), roughness: .9 }), reeds.length);
+    reeds.forEach(([x, z], k) => { q.setFromAxisAngle(new THREE.Vector3(Math.random() - .5, 0, Math.random() - .5).normalize(), rnd(0, .25)); m4.compose(v3.set(x, 0, z), q, sc.set(1, rnd(.6, 1.2), 1)); reedM.setMatrixAt(k, m4); }); scene.add(reedM);
+    const padM = new THREE.InstancedMesh(new THREE.CircleGeometry(.5, 10, .3, Math.PI * 1.85).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: C('#3f7a2e'), roughness: .6, side: THREE.DoubleSide }), pads.length);
+    pads.forEach(([x, z], k) => { q.setFromAxisAngle(up, Math.random() * 6); m4.compose(v3.set(x, .14, z), q, sc.setScalar(rnd(.6, 1.3))); padM.setMatrixAt(k, m4); }); scene.add(padM);
+    const trunkM = new THREE.InstancedMesh(new THREE.CylinderGeometry(.25, .4, 4, 6).translate(0, 2, 0), flat('#6a5238'), trees.length), crownM = new THREE.InstancedMesh(new THREE.SphereGeometry(3.2, 9, 7).scale(1, .8, 1).translate(0, 5, 0), flat('#6f8f3a'), trees.length);
+    trees.forEach(([x, z], k) => { q.setFromAxisAngle(up, Math.random() * 6); m4.compose(v3.set(x, 0, z), q, sc.setScalar(rnd(.8, 1.3))); trunkM.setMatrixAt(k, m4); crownM.setMatrixAt(k, m4); }); trunkM.castShadow = crownM.castShadow = true; scene.add(trunkM, crownM);
+    // wooden jetty on posts
+    const J = L.jet, jg = new THREE.Group(); jg.position.set(J.x, 0, J.z); jg.rotation.y = Math.atan2(J.dx, J.dz); scene.add(jg);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(2.4, .15, J.len + 2), new THREE.MeshStandardMaterial({ map: canvasTex(64, 256, (cx, w, h) => { for (let y = 0; y < h; y += 16) { const v = 130 + Math.random() * 40 | 0; cx.fillStyle = `rgb(${v},${v * .76 | 0},${v * .52 | 0})`; cx.fillRect(0, y, w, 15); } }, 1, 8), roughness: .85 }));
+    deck.position.set(0, .42, J.len / 2 - 1); deck.receiveShadow = deck.castShadow = true; jg.add(deck);
+    for (let a = 0; a <= J.len; a += 4) for (const sd of [-1, 1]) { const po = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, 2.2, 6), flat('#5a4630')); po.position.set(sd * 1.1, -.6, a); jg.add(po); }
+    const sgT = canvasTex(256, 128, (cx, w, h) => { cx.fillStyle = '#2f4a26'; cx.fillRect(0, 0, w, h); cx.fillStyle = '#f4efe0'; cx.font = '800 24px Arial'; cx.textAlign = 'center'; cx.fillText(L.name.toUpperCase(), w / 2, 40); cx.font = '600 16px Arial'; cx.fillText('Pesca: lluç de riu · truita', w / 2, 72); cx.fillText('perca · gardí · carpa', w / 2, 96); }, 1, 1);
+    const sg = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 1.2), new THREE.MeshStandardMaterial({ map: sgT, side: THREE.DoubleSide })); sg.position.set(2.2, 1.8, -4); sg.rotation.y = Math.PI; jg.add(sg);
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(.06, .06, 1.8, 6), flat('#5a4630')); sp.position.set(2.2, .9, -4); jg.add(sp);
+    // ducks paddling about
+    const ducks = [];
+    for (let i = 0; i < 6; i++) {
+      const d = new THREE.Group(), bodyC = i % 2 ? '#7a5a3a' : '#f4f4f4';
+      const b1 = new THREE.Mesh(new THREE.SphereGeometry(.2, 10, 8), flat(bodyC)); b1.scale.set(.8, .6, 1.2); d.add(b1);
+      const hd = new THREE.Mesh(new THREE.SphereGeometry(.11, 10, 8), flat(i % 2 ? '#2f6a3a' : '#f4f4f4')); hd.position.set(0, .18, .18); d.add(hd);
+      const bk = new THREE.Mesh(new THREE.ConeGeometry(.04, .12, 6).rotateX(Math.PI / 2), flat('#f29a1a')); bk.position.set(0, .17, .31); d.add(bk);
+      scene.add(d); ducks.push({ d, a: Math.random() * 6, k: rnd(.4, .8), s: rnd(.03, .06) * (Math.random() < .5 ? -1 : 1) });
+    }
+    ANIM.push(dt => { for (const u of ducks) { u.a += u.s * dt; const [x, z] = lakeEdge(L, u.a, u.k), t = performance.now() / 1000; u.d.rotation.y = Math.atan2(x - u.d.position.x, z - u.d.position.z) || u.d.rotation.y; u.d.position.set(x, .16 + Math.sin(t * 2 + u.k * 9) * .02, z); } });
+  }
 }
 const nearKiosk = (x, z) => Math.hypot(x - KIOSK.x, z - KIOSK.z) < 3.6;
 const nearDock = (x, z) => Math.hypot(x - DOCK.px, z - DOCK.pz) < 4;
@@ -3494,8 +3642,9 @@ function renderShop() {
     sec('rod', 'Rods', 'A better rod casts further, takes more strain and brings in heavier fish.', GEAR.rod.map((r, k) => card('rod', k, r, stat('Cast', r.cast, 27, r.cast + ' m') + stat('Strength', 1.05 - r.ten, .5, Math.round((1 - r.ten) * 100 + 10) + '') + stat('Fish size', r.kg - .9, .4, '×' + r.kg.toFixed(2)))).join('')) +
     sec('reel', 'Reels', 'A faster reel winds the fish in quicker.', GEAR.reel.map((r, k) => card('reel', k, r, stat('Speed', r.spd, 2.8, '×' + r.spd))).join('')) +
     sec('line', 'Lines', 'Stronger line lets you pull harder before it snaps.', GEAR.line.map((r, k) => card('line', k, r, stat('Strength', r.snap, 2, '×' + r.snap))).join('')) +
-    sec('bait', 'Bait', 'Put real bait on the hook. Each bait attracts different fish.', GEAR.bait.map((r, k) => r.kind === 'bait' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
-    sec('lure', 'Lures and rigs', 'Lures are fake fish that flash and wiggle. A sabiki rig catches lots of little fish at once.', GEAR.bait.map((r, k) => r.kind !== 'bait' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`) + stat('Extra cast', r.cast, 6, '+' + r.cast + ' m')) : '').join('')) +
+    sec('bait', 'Sea bait', 'Put real bait on the hook. Each bait attracts different fish.', GEAR.bait.map((r, k) => r.kind === 'bait' && r.water !== 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
+    sec('lake', 'Lake lures and bait', 'For the lakes: pike, trout, perch, roach and carp. Cast a lure and reel it back to make fish chase it!', GEAR.bait.map((r, k) => r.water === 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
+    sec('lure', 'Sea lures and rigs', 'Lures are fake fish that flash and wiggle. Cast them out and reel them back in. A sabiki rig catches lots of little fish at once.', GEAR.bait.map((r, k) => r.kind !== 'bait' && r.water !== 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`) + stat('Extra cast', r.cast, 6, '+' + r.cast + ' m')) : '').join('')) +
     sec('gadgets', 'Gadgets', 'Handy extras: once you buy one it works all the time.', GADGETS.map((gd, k) => `<div class="card${fishLog.gadgets[gd.id] ? ' sel' : ''}"><img class="pic" src="${itemPic('gadget', k)}" alt=""><h3>${gd.name}</h3><div class="tag">${gd.desc}</div>${fishLog.gadgets[gd.id] ? '<button class="go" disabled>✓ You have this</button>' : `<button class="go${money < gd.price ? ' poor' : ''}" data-gadget="${k}">Buy · €${gd.price}</button>`}</div>`).join('')) +
     sec('boats', 'Boats & yachts', 'Small boats wait halfway along the pier; the big yachts moor at the Port Olímpic marina (search "marina"). Drive out to deep water for the biggest fish.', BOATS.map((b, k) => card('boat', k, b, stat('Top speed', b.vmax, 22, Math.round(b.vmax * 3.6) + ' km/h') + stat('Handling', b.turn, .85, Math.round(b.turn * 100) + '') + stat('Fish size', b.kg - 1, .2, '×' + b.kg))).join(''));
 }
@@ -3557,6 +3706,10 @@ function updateFoot(dt) {
         if (pa > 0 && pl > 0) { if (pa < pl) { f.x += cfx * pa * Math.sign(al); f.z += cfz * pa * Math.sign(al); } else { f.x += cfz * pl * Math.sign(lt); f.z -= cfx * pl * Math.sign(lt); } }
       }
       for (const a of agents) { const dx = f.x - a.x, dz = f.z - a.z, d = Math.hypot(dx, dz); if (d < 2.3 && d > .01) { f.x = a.x + dx / d * 2.3; f.z = a.z + dz / d * 2.3; } }
+      for (const L of LAKES) { // the lake is water: walk round it, or out along the jetty
+        if (Math.abs(f.x - L.x) > L.rx + 60 || Math.abs(f.z - L.z) > L.rx + 60 || onJetty(f.x, f.z)) continue;
+        for (let it = 0; it < 3; it++) { const e = lakeE(L, f.x, f.z); if (e >= .998) break; const [u, v] = lakeLocal(L, f.x, f.z), k = 1.002 / Math.sqrt(e); [f.x, f.z] = lakeWorld(L, u * k, v * k); }
+      }
       { const dx = f.x - KIOSK.x, dz = f.z - KIOSK.z, d = Math.hypot(dx, dz); if (d < 2.2 && d > .01) { f.x = KIOSK.x + dx / d * 2.2; f.z = KIOSK.z + dz / d * 2.2; } } // the tackle stand
     }
     const gy = f.inside ? room.heightAt(f.x, f.z) : walkY(f.x, f.z);
@@ -3578,6 +3731,7 @@ function updateFoot(dt) {
       else if (nearDock(f.x, f.z)) enterBoat();
       else if (dp) { f.x = dp.x; f.z = dp.z; f.y = -.35; f.h = Math.atan2(dp.nx, dp.nz); startSwim(); f.swim.vy = -1; show('Splash!', 'Hold Shift to dive down to the reef.', 2.5); }
       else if (railNear(f.x, f.z)) startFishing();
+      else if (lakeNear(f.x, f.z)) startLakeFishing(lakeNear(f.x, f.z));
       else { const d = nearDoor(f.x, f.z); if (d) enterDoor(d); }
     }
   }
@@ -3592,6 +3746,8 @@ function footPrompt() {
   }
   if (foot.fish) {
     const st = foot.fish.st;
+    if (st === 'ready') return IS_TOUCH ? 'Arrows aim · GAS/BRAKE nearer or further · tap to cast' : 'A/D aim · W/S nearer or further · E to cast · Q to stop';
+    if (st === 'retrieve') return IS_TOUCH ? 'Hold DRIFT to reel the lure in · let go to pause' : 'Hold E to reel the lure in · let go to pause';
     if (st === 'jig') return IS_TOUCH ? 'Hold DRIFT to reel the rig in slowly · let go to jig' : 'Hold E to reel the rig in slowly · let go to jig';
     return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in' : 'Hold E to reel in') : '';
   }
@@ -3603,6 +3759,7 @@ function footPrompt() {
   if (nearDock(foot.x, foot.z)) return fishLog.boat >= 0 ? (IS_TOUCH ? 'Tap here to get in your boat' : 'Press E to get in your boat') : (IS_TOUCH ? 'Boat for sale! Tap to see the boats' : 'Boat for sale! Press E to see the boats');
   if (divePlatform(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to jump in and go scuba diving' : 'Press E to jump in and go scuba diving';
   if (railNear(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fish' : 'Press E to fish';
+  { const L = lakeNear(foot.x, foot.z); if (L) return IS_TOUCH ? `Tap here to fish in ${L.name}` : `Press E to fish in ${L.name}`; }
   const d = nearDoor(foot.x, foot.z);
   if (d) { const what = d.type === 'lobby' ? 'the entrance hall' : d.name ? `${d.name} (${TYPE_INFO[d.type].label.toLowerCase()})` : `the ${TYPE_INFO[d.type].label.toLowerCase()}`; return IS_TOUCH ? `Tap here to go into ${what}` : `Press E to go into ${what}`; }
   if (Math.hypot(foot.x - player.x, foot.z - player.z) < 4.5) return IS_TOUCH ? 'Tap here to get in' : 'Press F to get in';
@@ -4314,6 +4471,7 @@ $('prompt').onclick = () => {
     else if (nearDock(foot.x, foot.z)) enterBoat();
     else if (divePlatform(foot.x, foot.z)) { input.act = 1; setTimeout(() => input.act = 0, 120); }
     else if (railNear(foot.x, foot.z)) startFishing();
+    else if (lakeNear(foot.x, foot.z)) startLakeFishing(lakeNear(foot.x, foot.z));
     else if (nearDoor(foot.x, foot.z)) enterDoor(nearDoor(foot.x, foot.z));
     else toggleFoot();
   } else if (nearMission >= 0) startMission(nearMission);
@@ -4392,6 +4550,7 @@ const MCK = .34, mapCity = document.createElement('canvas'); mapCity.width = Mat
   g.lineCap = 'round'; g.strokeStyle = '#3b3f47';
   for (const r of ROADS) { g.lineWidth = Math.max(2, r.w * MWK * 1.6); g.beginPath(); g.moveTo(X(r.ax), Z(r.az)); g.lineTo(X(r.bx), Z(r.bz)); g.stroke(); }
   g.lineWidth = 2; g.beginPath(); MR.forEach((p, k) => k ? g.lineTo(X(p.x), Z(p.z)) : g.moveTo(X(p.x), Z(p.z))); g.stroke();
+  g.fillStyle = '#3f7f86'; for (const L of LAKES) { g.beginPath(); for (let k = 0; k <= 48; k++) { const [x, z] = lakeEdge(L, k / 48 * Math.PI * 2); k ? g.lineTo(X(x), Z(z)) : g.moveTo(X(x), Z(z)); } g.fill(); }
 }
 {
   const g = mapCity.getContext('2d'), X = x => (x - BX0) * MCK, Z = z => (z - BZ0) * MCK;
@@ -4541,6 +4700,36 @@ const PIC_DRAW = {
       fishShape(g, cx, cy, 150, 38, '#2b5d7c', '#9fc0d0');
       g.fillStyle = 'rgba(20,40,60,.8)'; for (let i = 0; i < 5; i++) { g.beginPath(); g.arc(cx + 30 - i * 12, cy - 8, 2.2, 0, 7); g.fill(); }
       treble(g, cx + 20, cy - 34, 1.2);
+    } else if (it.name === 'Worms') {
+      for (let w = 0; w < 3; w++) { g.strokeStyle = ['#c96a6a', '#b85a5a', '#d98080'][w]; g.lineWidth = 9; g.beginPath(); for (let i = 0; i <= 30; i++) { const x = cx - 80 + i * 5.5, y = cy - 20 + w * 20 + Math.sin(i * .5 + w * 2) * 12; i ? g.lineTo(x, y) : g.moveTo(x, y); } g.stroke(); g.strokeStyle = 'rgba(120,40,40,.4)'; g.lineWidth = 1; for (let i = 3; i < 30; i += 3) { const x = cx - 80 + i * 5.5, y = cy - 20 + w * 20 + Math.sin(i * .5 + w * 2) * 12; g.beginPath(); g.moveTo(x, y - 4); g.lineTo(x, y + 4); g.stroke(); } }
+    } else if (it.name === 'Sweetcorn') {
+      g.fillStyle = '#6a8a3a'; g.beginPath(); g.ellipse(cx, cy + 6, 90, 34, 0, 0, 7); g.fill();
+      for (let i = 0; i < 70; i++) { const x = cx - 70 + (i % 14) * 10.5 + (Math.floor(i / 14) % 2) * 5, y = cy - 14 + Math.floor(i / 14) * 9; g.fillStyle = i % 5 ? '#f2d04a' : '#e8b83a'; g.beginPath(); g.ellipse(x, y, 5, 4.5, 0, 0, 7); g.fill(); }
+    } else if (it.name === 'Spoon') {
+      const gr = g.createLinearGradient(cx - 40, cy - 20, cx + 40, cy + 20); gr.addColorStop(0, '#ffffff'); gr.addColorStop(.5, '#aeb6be'); gr.addColorStop(1, '#e8ecef');
+      g.fillStyle = gr; g.beginPath(); g.ellipse(cx, cy, 52, 22, -.2, 0, 7); g.fill(); g.fillStyle = '#c8102e'; g.beginPath(); g.ellipse(cx + 8, cy - 2, 26, 8, -.2, 0, 7); g.fill();
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2; g.beginPath(); g.arc(cx - 56, cy + 10, 5, 0, 7); g.stroke(); treble(g, cx + 58, cy - 8, 1.2);
+    } else if (it.name === 'Inline spinner') {
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 1.6; g.beginPath(); g.moveTo(cx - 80, cy); g.lineTo(cx + 50, cy); g.stroke();
+      g.fillStyle = '#f2c230'; g.beginPath(); g.ellipse(cx - 30, cy - 10, 22, 12, -.5, 0, 7); g.fill();
+      g.fillStyle = '#2b2d31'; g.fillRect(cx - 4, cy - 6, 34, 12); g.fillStyle = '#c8102e'; for (let i = 0; i < 3; i++) { g.beginPath(); g.arc(cx + 2 + i * 10, cy, 3, 0, 7); g.fill(); }
+      treble(g, cx + 54, cy, 1.3);
+    } else if (it.name === 'Jerkbait') {
+      const gr = g.createLinearGradient(0, cy - 20, 0, cy + 20); gr.addColorStop(0, '#1b1b1b'); gr.addColorStop(.4, '#ff7a1a'); gr.addColorStop(1, '#fff2d0');
+      g.fillStyle = gr; g.beginPath(); g.ellipse(cx, cy, 90, 18, 0, 0, 7); g.fill();
+      g.fillStyle = 'rgba(0,0,0,.6)'; for (let i = 0; i < 6; i++) g.fillRect(cx - 60 + i * 20, cy - 16, 6, 16);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(cx + 66, cy - 4, 6, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(cx + 67, cy - 4, 3, 0, 7); g.fill();
+      treble(g, cx + 20, cy + 16, 1.1); treble(g, cx - 40, cy + 16, 1.1);
+    } else if (it.name === 'Soft frog') {
+      g.fillStyle = '#4fbf4a'; g.beginPath(); g.ellipse(cx, cy, 48, 32, 0, 0, 7); g.fill(); g.fillStyle = '#f2f0c0'; g.beginPath(); g.ellipse(cx, cy + 8, 34, 20, 0, 0, 7); g.fill();
+      for (const sd of [-1, 1]) { g.fillStyle = '#4fbf4a'; g.beginPath(); g.arc(cx + sd * 22, cy - 28, 11, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(cx + sd * 22, cy - 30, 7, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(cx + sd * 22, cy - 30, 3.5, 0, 7); g.fill();
+        g.strokeStyle = '#3f9f3a'; g.lineWidth = 7; g.beginPath(); g.moveTo(cx + sd * 30, cy + 20); g.quadraticCurveTo(cx + sd * 70, cy + 30, cx + sd * 80, cy + 50); g.stroke(); }
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx - 10, cy - 32); g.quadraticCurveTo(cx, cy - 50, cx + 10, cy - 32); g.stroke();
+    } else if (it.name === 'Dry fly') {
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2.5; g.beginPath(); g.moveTo(cx - 30, cy - 10); g.lineTo(cx + 40, cy - 10); g.quadraticCurveTo(cx + 55, cy + 20, cx + 30, cy + 22); g.stroke();
+      g.fillStyle = '#8a6a3a'; g.fillRect(cx - 20, cy - 16, 40, 12);
+      for (let i = 0; i < 14; i++) { g.strokeStyle = i % 2 ? '#d9c08c' : '#8a6a3a'; g.lineWidth = 1.2; const a = i / 14 * Math.PI * 2; g.beginPath(); g.moveTo(cx - 20, cy - 10); g.lineTo(cx - 20 + Math.cos(a) * 22, cy - 10 + Math.sin(a) * 22); g.stroke(); }
+      g.strokeStyle = '#e8e4dc'; g.lineWidth = 4; g.beginPath(); g.moveTo(cx - 10, cy - 16); g.lineTo(cx - 30, cy - 50); g.moveTo(cx - 4, cy - 16); g.lineTo(cx + 6, cy - 52); g.stroke();
     } else if (it.name === 'Sabiki rig') {
       g.strokeStyle = 'rgba(240,240,240,.8)'; g.lineWidth = 1.2; g.beginPath(); g.moveTo(cx - 110, cy - 50); g.lineTo(cx + 110, cy + 40); g.stroke();
       for (let i = 0; i < 7; i++) {
@@ -5421,6 +5610,10 @@ const PLACES = [
     const [x, z] = pierWorld(-PIER.headW / 2 + 6, PIER.hz + 8.6); footTo(x, z, Math.atan2(KIOSK.x - x, KIOSK.z - z));
     return 'Press E at the counter to shop.';
   }, 'tackle fishing shop bait lure rod reel botiga pesca'],
+  ...LAKES.map(L => [L.name + ' (lake)', 'Fish for pike, trout, perch, roach and carp off the jetty', [L.x, L.z], () => {
+    carTo(L.car.x, L.car.z, L.car.h); const J = L.jet; footTo(J.x + J.dx * (J.len - 2), J.z + J.dz * (J.len - 2), Math.atan2(J.dx, J.dz));
+    return 'Press E at the end of the jetty to fish. Lake lures and bait are in the tackle shop (K).';
+  }, 'lake estany llac fishing pike trout perch roach carp freshwater']),
   ['Marina Port Olímpic (yacht club)', 'Pontoons full of yachts and the yacht club where you buy them', [CLUB.x, CLUB.z], () => {
     const st = onStreet(marWorld(38, -70), [CLUB.x, CLUB.z]); carTo(st.x, st.z, st.h); const [x, z] = marWorld(38, -18); footTo(x, z, Math.atan2(-MAR.nx, -MAR.nz));
     return 'Press E at the yacht club to buy a yacht.';
@@ -5862,6 +6055,8 @@ function loop() {
       const SN = gearOf('line').snap;
       $('fTen').style.width = clamp(F.st === 'reel' ? F.tension / SN : F.st === 'jig' ? F.hooked.length / 7 : 0, 0, 1) * 100 + '%';
       if (F.st === 'jig') $('fState').textContent = `Sabiki rig: ${F.hooked.length}/7 fish · ${Math.max(0, F.D).toFixed(0)} m out`;
+      if (F.st === 'ready' && F.aim) $('fState').textContent = `Aim: ${F.aim.d.toFixed(0)} m${F.lake ? ' · ' + F.lake.name : ''}`;
+      if (F.st === 'retrieve') $('fState').textContent = `Reeling in the lure: ${Math.max(0, F.D).toFixed(0)} m to go`;
       $('fTen').style.background = F.tension > .85 * SN ? 'var(--bad)' : F.tension < .2 ? 'var(--muted)' : 'var(--good)';
       $('fCount').textContent = `${gearOf('bait').kind === 'lure' ? 'Lure' : 'Bait'}: ${gearOf('bait').name} · Catches: ${fishLog.count}${fishLog.gadgets.sonar ? ' · 📡 Sonar on' : ''}`;
     }
@@ -5885,7 +6080,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
