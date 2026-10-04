@@ -80,3 +80,16 @@ Upload in this order (all 1080×1350, 4:5):
 > Which stage would you have stopped at?
 >
 > #colourpalette #oilpainting #paintingprocess #abstractart #colourtheory
+
+## 5. Living Triptych Reel, a follow-up to the carousel
+
+- **Video:** `janet_living_triptych.mp4` (11.7s). The full canvas split into three bands across,
+  each playing the real-speed process 7 seconds apart. The green, lavender and blue are always
+  on the canvas together, rolling down through it as she paints. It's the moving version of
+  the carousel cover.
+- **Music:** something with a steady pulse, such as "Comptine d'un autre été: L'après-midi" (Yann Tiersen)
+
+**Caption**
+
+> Three moments, one painting.
+> Top: where it started. Middle: brushing it back. Bottom: the new colour going on.
