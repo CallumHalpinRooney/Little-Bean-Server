@@ -5,16 +5,17 @@ process, and the Story points people to both.
 
 ## 1. Carousel post (feed), post first
 
-Upload in this order (all 1080×1350, 4:5):
+Upload in this order (all 1080×1350, 4:5, seven slides):
 
 | # | File | What it does |
 |---|------|--------------|
 | 1 | `carousel/01_cover_triptych.jpg` | Hook: then / during / now in one image |
-| 2 | `carousel/02_before.jpg` | The early painting |
-| 3 | `carousel/03_lavender.jpg` | The middle stage, old colour peeping through |
-| 4 | `carousel/04_now.jpg` | Where it is now (from Janet's photo, sharpest image) |
-| 5 | `carousel/05_detail.jpg` | Close-up of the wet paint and texture |
-| 6 | `carousel/06_video_blue.mp4` | The blue going on (9s, silent) |
+| 2 | `carousel/02_palette.jpg` | The new colours, mixed and ready |
+| 3 | `carousel/03_before.jpg` | The early painting |
+| 4 | `carousel/04_lavender.jpg` | The middle stage, old colour peeping through |
+| 5 | `carousel/05_now.jpg` | Where it is now (from Janet's photo, sharpest image) |
+| 6 | `carousel/06_detail.jpg` | Close-up of the wet paint and texture |
+| 7 | `carousel/07_video_blue.mp4` | The blue going on (9s, silent) |
 
 **Caption**
 
@@ -24,7 +25,7 @@ Upload in this order (all 1080×1350, 4:5):
 > brushed it back with white spirit, mixed new colour, and let the old painting
 > peep through underneath.
 >
-> Swipe to see where it started, and stay for the blue going on at the end.
+> Swipe for the new palette, where it started, and stay for the blue going on at the end.
 >
 > Now it dries. Next layer to come.
 >
@@ -33,11 +34,12 @@ Upload in this order (all 1080×1350, 4:5):
 
 **Alt text** (Advanced settings → Accessibility)
 1. Three bands of the same painting: green and orange at the top, lavender in the middle, blue at the bottom.
-2. An early abstract oil painting in greens and teals with orange marks and a white flower shape.
-3. The painting reworked in lavender and purple, with green showing through.
-4. The painting now: blue and lavender strokes with a deep blue circle.
-5. Close-up of wet blue and lilac oil paint with raised texture.
-6. Video of a gloved hand brushing blue paint across the lavender layer.
+2. An artist's palette with mounds of sky blue, orange, peach, lemon yellow, lilac, deep blue, green and grey oil paint, and a well-used brush.
+3. An early abstract oil painting in greens and teals with orange marks and a white flower shape.
+4. The painting reworked in lavender and purple, with green showing through.
+5. The painting now: blue and lavender strokes with a deep blue circle.
+6. Close-up of wet blue and lilac oil paint with raised texture.
+7. Video of a gloved hand brushing blue paint across the lavender layer.
 
 ## 2. Reel, two or three days later
 
@@ -94,7 +96,7 @@ Upload in this order (all 1080×1350, 4:5):
 > Three moments, one painting.
 > Top: where it started. Middle: brushing it back. Bottom: the new colour going on.
 
-## 6. Palette post (stand-alone, or slide 2 of the carousel)
+## 6. Palette (now slide 2 of the carousel; Story version below)
 
 - **Feed:** `palette/janet_palette_post.jpg` (1080×1350)
 - **Story:** `palette/janet_palette_story.jpg` (1080×1920, on the gallery off-white)
