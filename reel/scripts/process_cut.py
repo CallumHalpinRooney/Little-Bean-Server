@@ -7,7 +7,7 @@ from build import grade
 P = os.path.dirname(os.path.abspath(__file__))
 OUT = '/home/user/Little-Bean-Server/reel/janet_rework_process_locked.mp4'
 FPS, XF = 30, 0.25
-BAND_H, BAND_Y = 864, 243        # 5:4 landscape band, fixed (locked-off) framing
+BAND_H, BAND_Y = 864, 243        # 5:4 landscape band, fixed (locked-off) framing; rotated 180 so she paints from the bottom
 PY = (1920 - BAND_H) // 2
 HOOK = ('3655', 1.00, 2.50, 1.0, 'B')   # glimpse of the lavender texture, hard cut to the start
 FADE_OUT = 1.5
@@ -36,7 +36,7 @@ for k, (c, tin, tout, sp, grp) in enumerate(CUT):
     d = (tout - tin) / sp
     durs.append(d)
     g.append(f'[{k}:v]trim={tin}:{tout},setpts=(PTS-STARTPTS)/{sp},fps={FPS},'
-             f'trim=duration={d:.4f},crop=1080:{BAND_H}:0:{BAND_Y},{grade(grp)},settb=1/{FPS * 1000}[v{k}]')
+             f'trim=duration={d:.4f},crop=1080:{BAND_H}:0:{BAND_Y},hflip,vflip,{grade(grp)},settb=1/{FPS * 1000}[v{k}]')
 acc, t = 'v0', durs[0]
 for k in range(1, len(CUT)):
     off = t - XF
@@ -47,7 +47,7 @@ c, tin, tout, sp, grp = HOOK
 hd = (tout - tin) / sp
 kh = len(CUT)
 g.append(f'[{kh}:v]trim={tin}:{tout},setpts=PTS-STARTPTS,fps={FPS},trim=duration={hd:.4f},'
-         f'crop=1080:{BAND_H}:0:{BAND_Y},{grade(grp)},settb=1/{FPS * 1000}[hook]')
+         f'crop=1080:{BAND_H}:0:{BAND_Y},hflip,vflip,{grade(grp)},settb=1/{FPS * 1000}[hook]')
 g.append(f'[hook][{acc}]concat=n=2:v=1:a=0[full]')
 t += hd
 g.append(f"[full]fade=t=out:st={t - FADE_OUT:.4f}:d={FADE_OUT}:color=black,"
