@@ -11,22 +11,19 @@ PY = (1920 - 1350) // 2
 
 # (clip, in, out, speed, grade group) - chronological
 CUT = [
-    ('3628', 0.00, 5.00, 1.0, 'A'),   # orange rubbed into the old painting
+    ('3628', 0.00, 4.00, 1.0, 'A'),   # orange swept into the old painting
     ('3629', 0.00, 1.75, 1.0, 'A'),   # white spirit pour
-    ('3631', 0.00, 3.55, 1.0, 'A'),   # brushing it through
-    ('3632', 0.00, 6.85, 1.0, 'A'),   # peach dabs
-    ('3640', 0.00, 3.15, 1.0, 'A'),   # wash
-    ('3641', 0.00, 3.55, 1.0, 'A'),
+    ('3632', 0.00, 3.00, 1.0, 'A'),   # peach dabs
+    ('3640', 0.00, 3.15, 1.0, 'A'),   # brushing it all back
     ('3644', 0.00, 2.25, 1.0, 'A'),   # purple goes on
-    ('3650', 0.00, 6.30, 1.0, 'B'),   # lavender over purple
+    ('3650', 3.50, 5.00, 1.0, 'B'),   # lavender stroke
     ('3654', 0.00, 2.35, 1.0, 'B'),   # texture dabbing
-    ('3655', 0.00, 3.05, 1.0, 'B'),
-    ('3657', 0.00, 7.30, 1.0, 'B'),   # blue
-    ('3658', 0.00, 6.75, 1.0, 'B'),
-    ('3659', 0.00, 3.70, 1.0, 'B'),
-    ('3660', 0.00, 4.95, 1.0, 'B'),
+    ('3657', 0.00, 2.50, 1.0, 'B'),   # first blue strokes
+    ('3658', 0.00, 2.60, 1.0, 'B'),   # big blue sweep
     ('3661', 0.00, 4.85, 1.0, 'B'),   # last confident strokes
 ]
+# Dropped: 3631/3641 (repeat the brushing), 3655 (repeats 3654), 3659/3660
+# (hand leaving / arm blocking the canvas), rest of 3650 (no hand in shot).
 
 cmd = ['ffmpeg', '-v', 'error', '-y']
 for c, *_ in CUT:
