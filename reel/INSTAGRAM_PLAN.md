@@ -1,0 +1,66 @@
+# Janet Cruise Halpin: "Reworking an early painting" launch
+
+One story told three ways: the carousel shows the transformation, the Reel shows the
+process, and the Story points people to both.
+
+## 1. Carousel post (feed), post first
+
+Upload in this order (all 1080×1350, 4:5):
+
+| # | File | What it does |
+|---|------|--------------|
+| 1 | `carousel/01_cover_triptych.jpg` | Hook: then / during / now in one image |
+| 2 | `carousel/02_before.jpg` | The early painting |
+| 3 | `carousel/03_lavender.jpg` | The middle stage, old colour peeping through |
+| 4 | `carousel/04_now.jpg` | Where it is now (from Janet's photo, sharpest image) |
+| 5 | `carousel/05_detail.jpg` | Close-up of the wet paint and texture |
+| 6 | `carousel/06_video_blue.mp4` | The blue going on (9s, silent) |
+
+**Caption**
+
+> Reworking an early painting.
+>
+> This one had been sitting in the studio for years, never quite finished. So I
+> brushed it back with white spirit, mixed new colour, and let the old painting
+> peep through underneath.
+>
+> Swipe to see where it started, and stay for the blue going on at the end.
+>
+> Now it dries. Next layer to come.
+>
+> #oilpainting #abstractpainting #workinprogress #paintingprocess
+> #contemporaryart #fineart #artistsoninstagram #studiolife
+
+**Alt text** (Advanced settings → Accessibility)
+1. Three bands of the same painting: green and orange at the top, lavender in the middle, blue at the bottom.
+2. An early abstract oil painting in greens and teals with orange marks and a white flower shape.
+3. The painting reworked in lavender and purple, with green showing through.
+4. The painting now: blue and lavender strokes with a deep blue circle.
+5. Close-up of wet blue and lilac oil paint with raised texture.
+6. Video of a gloved hand brushing blue paint across the lavender layer.
+
+## 2. Reel, two or three days later
+
+- **Video:** `janet_rework_process_locked.mp4` (27s, locked camera, real speed, lavender hook)
+- **Cover:** `carousel/reel_cover_process.jpg` (matches the carousel on the profile grid)
+- **Music:** "Experience" by Ludovico Einaudi, with the build landing as the blue starts
+- Turn on "Also share to feed"
+
+**Caption**
+
+> An early painting, reworked.
+> White spirit. New colour. Letting the old peep through.
+> Next layer soon.
+>
+> #oilpainting #paintingprocess #abstractart #workinprogress #artprocess
+
+## 3. Story, same day as the Reel
+
+- Post `janet_rework_triptych_reel.mp4` (all three stages playing together)
+- Add a "New Reel" link sticker, or reshare the carousel post
+
+## Kept in reserve
+
+- `janet_rework_reel_clean.mp4`: the cinematic 16:9 cut, good for a later "how it began" post
+- `janet_rework_triptych_post.jpg`: the side-by-side split version of the cover
+- `photos/`: graded full-resolution photos for the website or a print listing
