@@ -64,3 +64,19 @@ Upload in this order (all 1080×1350, 4:5):
 - `janet_rework_reel_clean.mp4`: the cinematic 16:9 cut, good for a later "how it began" post
 - `janet_rework_triptych_post.jpg`: the side-by-side split version of the cover
 - `photos/`: graded full-resolution photos for the website or a print listing
+
+## 4. Colour Story Reel, about a week later
+
+- **Video:** `janet_colour_story_reel.mp4` (27s). The process video with a live palette strip
+  underneath. The swatches shift from teal, green and orange through lavender to cobalt blue
+  as she paints, and each swatch's width shows how much of the canvas that colour covers.
+- **Music:** something slow and minimal so the colour change carries it, such as
+  "Gymnopédie No. 1" (Satie)
+
+**Caption**
+
+> The colours of one painting, as they changed.
+> Teal and orange, then lavender, then blue.
+> Which stage would you have stopped at?
+>
+> #colourpalette #oilpainting #paintingprocess #abstractart #colourtheory
