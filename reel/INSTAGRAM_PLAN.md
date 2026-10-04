@@ -93,3 +93,15 @@ Upload in this order (all 1080×1350, 4:5):
 
 > Three moments, one painting.
 > Top: where it started. Middle: brushing it back. Bottom: the new colour going on.
+
+## 6. Palette post (stand-alone, or slide 2 of the carousel)
+
+- **Feed:** `palette/janet_palette_post.jpg` (1080×1350)
+- **Story:** `palette/janet_palette_story.jpg` (1080×1920, on the gallery off-white)
+
+**Caption**
+
+> Today's palette.
+> Cerulean, cadmium orange, a lot of lemon, and the violet that's about to change everything.
+>
+> #oilpainting #artistpalette #paintingprocess #colourmixing #studiolife
