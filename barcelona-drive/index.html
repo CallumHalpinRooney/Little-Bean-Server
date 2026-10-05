@@ -3921,7 +3921,15 @@ const nearKiosk = (x, z) => Math.hypot(x - KIOSK.x, z - KIOSK.z) < 3.6;
 const nearDock = (x, z) => Math.hypot(x - DOCK.px, z - DOCK.pz) < 4;
 // ---------- building the rainforest (only the first time you go there) ----------
 JNG.trunks = new Map(); // a coarse grid of tree trunks you bump into
-JNG.addTrunk = (x, z, r) => { const k = Math.floor(x / 8) + ',' + Math.floor(z / 8); let l = JNG.trunks.get(k); if (!l) JNG.trunks.set(k, l = []); l.push([x, z, r]); };
+JNG.trees = new Map(); // a coarser grid of whole trees (trunk + crown) for flying
+JNG.addTrunk = (x, z, r, top = 0, cw = 0, cy = 0) => { const k = Math.floor(x / 8) + ',' + Math.floor(z / 8); let l = JNG.trunks.get(k); if (!l) JNG.trunks.set(k, l = []); l.push([x, z, r]);
+  if (top) { const k2 = Math.floor(x / 16) + ',' + Math.floor(z / 16); let t = JNG.trees.get(k2); if (!t) JNG.trees.set(k2, t = []); t.push([x, z, r, top, cw, cy]); } };
+JNG.hit = (x, y, z) => { // flying into a trunk, a treetop, or the lodge
+  if (Math.hypot(x - JNG.lodge.x, z - JNG.lodge.z) < 10 && y < 9.5) return true;
+  const i0 = Math.floor(x / 16), j0 = Math.floor(z / 16);
+  for (let i = i0 - 2; i <= i0 + 2; i++) for (let j = j0 - 2; j <= j0 + 2; j++) { const l = JNG.trees.get(i + ',' + j); if (l) for (const [tx, tz, r, top, cw, cy] of l) { const d = Math.hypot(x - tx, z - tz); if (d < r + 1.2 && y < top) return true; if (d < cw * .8 && Math.abs(y - cy) < cw * .38) return true; } }
+  return false;
+};
 JNG.build = () => {
   if (JNG.built) return; JNG.built = true;
   const root = JNG.root = new THREE.Group(); scene.add(root);
@@ -3987,17 +3995,17 @@ JNG.build = () => {
     const cx = JNG.x + ci + CH / 2, cz = JNG.z + cj + CH / 2;
     const spot = (pad) => { for (let t = 0; t < 6; t++) { const x = JNG.x + ci + Math.random() * CH, z = JNG.z + cj + Math.random() * CH, r = JNG.rd(x, z), a = Math.abs(r.d) - r.w / 2; if (a > pad && !lodgeClear(x, z)) return [x, z, a]; } return null; };
     for (let i = 0; i < 150; i++) { const s = spot(5); if (!s) continue; const [x, z] = s, y = JNG.h(x, z), h = rnd(16, 34), r = rnd(.6, 1.3) * (h / 25);
-      L.trunk.push({ m: pick(BARK), M: M4(x, y - .3, z, rnd(-.05, .05), Math.random() * 6, rnd(-.05, .05), r, h, r) }); JNG.addTrunk(x, z, .75 * r);
-      const cw = rnd(5, 10) * (h / 25); L.crown.push({ m: pick(LEAF), M: M4(x, y + h, z, 0, Math.random() * 6, 0, cw, cw * rnd(.8, 1.2), cw) });
+      L.trunk.push({ m: pick(BARK), M: M4(x, y - .3, z, rnd(-.05, .05), Math.random() * 6, rnd(-.05, .05), r, h, r) }); const cw = rnd(5, 10) * (h / 25); JNG.addTrunk(x, z, .75 * r, y + h, cw, y + h);
+      L.crown.push({ m: pick(LEAF), M: M4(x, y + h, z, 0, Math.random() * 6, 0, cw, cw * rnd(.8, 1.2), cw) });
       if (Math.random() < .5) L.crown.push({ m: pick(LEAF), M: M4(x + rnd(-3, 3), y + h - rnd(2, 5), z + rnd(-3, 3), 0, Math.random() * 6, 0, cw * .7, cw * .6, cw * .7) });
       if (Math.random() < .35) for (let k = 0; k < 3; k++) L.liana.push({ m: '#3a4a22', M: M4(x + rnd(-cw, cw) * .6, y + h - 1, z + rnd(-cw, cw) * .6, rnd(-.08, .08), 0, rnd(-.08, .08), 1, rnd(h * .5, h - 1), 1) }); }
     for (let i = 0; i < 4; i++) { const s = spot(14); if (!s) continue; const [x, z] = s, y = JNG.h(x, z), h = rnd(38, 48); // giant kapok trees with buttress roots
-      L.trunk.push({ m: '#8a8070', M: M4(x, y - .3, z, 0, Math.random() * 6, 0, 2.6, h, 2.6) }); JNG.addTrunk(x, z, 2.4);
+      L.trunk.push({ m: '#8a8070', M: M4(x, y - .3, z, 0, Math.random() * 6, 0, 2.6, h, 2.6) }); JNG.addTrunk(x, z, 2.4, y + h + 4, 22, y + h + 2);
       for (let k = 0; k < 5; k++) L.butt.push({ m: '#8a8070', M: M4(x, y - .2, z, 0, k / 5 * Math.PI * 2 + rnd(-.2, .2), 0, 1, rnd(3, 5), rnd(1.3, 2)) });
       L.crown.push({ m: '#2f5a24', M: M4(x, y + h, z, 0, Math.random() * 6, 0, 22, 9, 22) }); L.crown.push({ m: '#3a6a28', M: M4(x + 6, y + h + 3, z - 4, 0, 1, 0, 13, 7, 13) }); }
     for (let i = 0; i < 70; i++) { const s = spot(2); if (!s) continue; const [x, z, a] = s, y = JNG.h(x, z), h = a < 14 ? rnd(8, 15) : rnd(6, 13), lean = a < 14 ? .25 : .1, ry = Math.random() * 6; // açaí palms, leaning out over the river
       q.setFromEuler(new THREE.Euler(rnd(-lean, lean), ry, rnd(-lean, lean))); tv.set(0, h, 0).applyQuaternion(q);
-      L.palmT.push({ m: '#7a6a50', M: new THREE.Matrix4().compose(new THREE.Vector3(x, y - .2, z), q.clone(), new THREE.Vector3(1, h, 1)) }); JNG.addTrunk(x, z, .25);
+      L.palmT.push({ m: '#7a6a50', M: new THREE.Matrix4().compose(new THREE.Vector3(x, y - .2, z), q.clone(), new THREE.Vector3(1, h, 1)) }); JNG.addTrunk(x, z, .25, y + h, 2.6, y + h);
       L.palm.push({ m: pick(['#3a7a2a', '#2f6a24', '#4a8a30']), M: M4(x + tv.x, y + tv.y - .3, z + tv.z, 0, Math.random() * 6, 0, rnd(.9, 1.3), rnd(.9, 1.2), rnd(.9, 1.3)) }); }
     for (let i = 0; i < 380; i++) { const s = spot(1.5); if (!s) continue; const [x, z] = s, y = JNG.h(x, z), b = rnd(.6, 2.6); L.bush.push({ m: pick(['#2a5a20', '#1f4a1c', '#3a6a28', '#2f5a24', '#476a2a']), M: M4(x, y - .2, z, 0, Math.random() * 6, 0, b * rnd(.8, 1.3), b * rnd(.6, 1.1), b * rnd(.8, 1.3)) }); }
     for (let i = 0; i < 320; i++) { const s = spot(.5); if (!s) continue; const [x, z] = s, y = JNG.h(x, z); L.fern.push({ m: pick(['#3a7a2a', '#4a8a30', '#2f6a24', '#5a8a34']), M: M4(x, y - .05, z, 0, Math.random() * 6, 0, rnd(.7, 1.6), rnd(.6, 1.4), rnd(.7, 1.6)) }); }
@@ -4093,7 +4101,7 @@ JNG.build = () => {
 JNG.update = (dt) => {
   if (!JNG.built || !JNG.on) return;
   const cp = camera.position, t = performance.now() / 1000, A = JNG.ani;
-  for (const ch of JNG.chunks) ch.g.visible = Math.abs(ch.x - cp.x) < 560 && Math.abs(ch.z - cp.z) < 560;
+  const vr = plane.on ? 1150 : 560; for (const ch of JNG.chunks) ch.g.visible = Math.abs(ch.x - cp.x) < vr && Math.abs(ch.z - cp.z) < vr;
   for (const b of A.birds) { b.v += b.sp * dt; if (Math.abs(b.v) > JNG.HS) b.sp = -b.sp; const x = JNG.x + JNG.uc(b.v) + b.o + Math.sin(t * .3 + b.ph) * 15, z = JNG.z + b.v, y = b.y + Math.sin(t * .7 + b.ph) * 3;
     b.b.rotation.y = Math.atan2(x - b.b.position.x, z - b.b.position.z) || 0; b.b.position.set(x, y, z); const f = Math.sin(t * 9 + b.ph) * .7; b.wings[0].rotation.y = f; b.wings[1].rotation.y = -f; }
   for (const d of A.dol) { d.t += dt; const per = 7, u = d.t % per; if (u < .1 && !d.moved) { d.v = clamp(d.v + rnd(-40, 40), -JNG.HS + 50, JNG.HS - 50); d.off = rnd(-JNG.w(d.v) * .3, JNG.w(d.v) * .3); d.moved = true; } if (u > 1) d.moved = false;
@@ -4124,6 +4132,12 @@ JNG.collide = (f) => { // the river (except the jetty), the lodge, tree trunks a
     if (Math.abs(lx) < 6.4 && lz > -8.4 && lz < 6.4) { const px = 6.4 - Math.abs(lx), pz1 = lz + 8.4, pz2 = 6.4 - lz, m = Math.min(px, pz1, pz2); let nlx = lx, nlz = lz; if (m === px) nlx = Math.sign(lx || 1) * 6.4; else if (m === pz2) nlz = 6.4; else nlz = -8.4; f.x = L.x + nlx * c + nlz * s; f.z = L.z - nlx * s + nlz * c; } }
   for (let i = Math.floor(f.x / 8) - 1; i <= Math.floor(f.x / 8) + 1; i++) for (let j = Math.floor(f.z / 8) - 1; j <= Math.floor(f.z / 8) + 1; j++) { const l = JNG.trunks.get(i + ',' + j); if (l) for (const [x, z, r] of l) { const dx = f.x - x, dz = f.z - z, d = Math.hypot(dx, dz), m = r + .3; if (d < m && d > 1e-3) { f.x = x + dx / d * m; f.z = z + dz / d * m; } } }
 };
+const nearJPlane = (x, z) => JNG.built && !plane.on && Math.hypot(x - JNG.plane.x, z - JNG.plane.z) < 9;
+function jungleTakeoff() { // your own plane, lined up on the grass strip
+  if (foot.fish) stopFishing();
+  plane.jg = true; planeStart(true); boardPlane();
+  show('Fly over the rainforest!', IS_TOUCH ? 'GAS to speed up, ▲ to take off. Fly low along the river, or weave between the giant trees… carefully!' : 'W for power (Shift = boost), ↑ to take off. Fly low along the river, or weave between the giant trees… carefully! Land back on the strip, then F to get out.', 6);
+}
 const nearJDesk = (x, z) => JNG.built && Math.hypot(x - JNG.desk.x, z - JNG.desk.z) < 2.6;
 const nearJShop = (x, z) => JNG.built && Math.hypot(x - JNG.shop.x, z - JNG.shop.z) < 2.6;
 
@@ -4381,7 +4395,7 @@ function updateFoot(dt) {
   if (f.fish) { updateFishing(dt, act, press); f.y = walkY(f.x, f.z); }
   else {
     f.h += (input.left - input.right) * 2.8 * dt;
-    const want = input.up ? (input.run ? (f.inside ? 3.2 : 5.4) : 1.9) : input.down ? -1.2 : 0;
+    const want = input.up ? (input.run ? (f.inside ? 4.2 : 8.5) : f.inside ? 2.4 : 3.2) : input.down ? -1.6 : 0; // a brisk walk, and a proper sprint with Shift
     f.v += clamp(want - f.v, -dt * 14, dt * 9);
     f.x += Math.sin(f.h) * f.v * dt; f.z += Math.cos(f.h) * f.v * dt;
     if (f.inside) roomCollide(f);
@@ -4404,8 +4418,8 @@ function updateFoot(dt) {
     const gy = f.inside ? room.heightAt(f.x, f.z) : walkY(f.x, f.z);
     if (!IS_TOUCH && input.hand && f.y <= gy + .02) f.jv = 4.3;
     f.jv -= 9.81 * dt; f.y += f.jv * dt; if (f.y < gy) { f.y = f.inside ? lerp(f.y, gy, .5) : gy; f.jv = 0; }
-    f.ph += Math.abs(f.v) * dt * 3.2;
-    const amp = clamp(Math.abs(f.v) / 1.9, 0, 1) * (Math.abs(f.v) > 3 ? .85 : .5);
+    f.ph += Math.abs(f.v) * dt * (Math.abs(f.v) > 4 ? 2.2 : 3);
+    const amp = clamp(Math.abs(f.v) / 2.4, 0, 1) * (Math.abs(f.v) > 4.5 ? .95 : .55);
     animPerson(f.p, f.ph, amp, f.y > gy + .05 ? .9 : 0);
     if (f.inside) {
       if (f.z > room.D / 2 + .1) exitDoor();
@@ -4419,6 +4433,7 @@ function updateFoot(dt) {
       else if (nearKiosk(f.x, f.z)) openShop();
       else if (nearDock(f.x, f.z)) enterBoat();
       else if (dp) { f.x = dp.x; f.z = dp.z; f.y = -.35; f.h = Math.atan2(dp.nx, dp.nz); startSwim(); f.swim.vy = -1; show('Splash!', 'Hold Shift to dive down to the reef.', 2.5); }
+      else if (nearJPlane(f.x, f.z)) jungleTakeoff();
       else if (nearJDesk(f.x, f.z)) amazonHome();
       else if (nearJShop(f.x, f.z)) openShop('river');
       else if (railNear(f.x, f.z)) startFishing();
@@ -4452,6 +4467,7 @@ function footPrompt() {
   if (nearKiosk(foot.x, foot.z)) return IS_TOUCH ? 'Tap here for the tackle shop' : 'Press E for the tackle shop (rods, bait, lures, boats)';
   if (nearDock(foot.x, foot.z)) return fishLog.boat >= 0 ? (IS_TOUCH ? 'Tap here to get in your boat' : 'Press E to get in your boat') : (IS_TOUCH ? 'Boat for sale! Tap to see the boats' : 'Boat for sale! Press E to see the boats');
   if (divePlatform(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to jump in and go scuba diving' : 'Press E to jump in and go scuba diving';
+  if (nearJPlane(foot.x, foot.z)) return IS_TOUCH ? `Tap here to fly your ${plane.spec.name} over the rainforest ✈` : `Press E to fly your ${plane.spec.name} over the rainforest ✈`;
   if (nearJDesk(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fly home to Barcelona ✈' : 'Press E to fly home to Barcelona ✈';
   if (nearJShop(foot.x, foot.z)) return IS_TOUCH ? 'Tap here for river monster tackle' : 'Press E for the river monster tackle shop';
   if (railNear(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fish' : 'Press E to fish';
@@ -5002,7 +5018,7 @@ function setUnderwater(under, kind) {
 const JSKY = { hor: C('#a8b8a2'), zen: C('#6f8fa0'), fog: C('#8fa28a') }, SKY0 = { hor: skyMat.uniforms.hor.value, zen: skyMat.uniforms.zen.value };
 function applyAbove() { // the normal look above water: Barcelona's warm haze, or the rainforest's misty green
   sky.visible = true;
-  if (JNG.on) { scene.fog.color.copy(JSKY.fog); scene.fog.density = .0045; scene.background = JSKY.fog.clone(); sun.intensity = ABOVE.sun * .8; sun.color.set(C('#fff2d0')); HEMI.intensity = ABOVE.hemi * 1.05; HEMI.color.set(C('#cfe0c0')); HEMI.groundColor.set(C('#2a3418')); skyMat.uniforms.hor.value = JSKY.hor; skyMat.uniforms.zen.value = JSKY.zen; return; }
+  if (JNG.on) { scene.fog.color.copy(JSKY.fog); scene.fog.density = plane.on ? .0018 : .0045; scene.background = JSKY.fog.clone(); sun.intensity = ABOVE.sun * .8; sun.color.set(C('#fff2d0')); HEMI.intensity = ABOVE.hemi * 1.05; HEMI.color.set(C('#cfe0c0')); HEMI.groundColor.set(C('#2a3418')); skyMat.uniforms.hor.value = JSKY.hor; skyMat.uniforms.zen.value = JSKY.zen; return; }
   scene.fog.color.copy(ABOVE.fogCol); scene.fog.density = ABOVE.fogD; scene.background = ABOVE.bg.clone(); sun.intensity = ABOVE.sun; sun.color.copy(ABOVE.sunCol); HEMI.intensity = ABOVE.hemi; HEMI.color.copy(ABOVE.hemiSky); HEMI.groundColor.copy(ABOVE.hemiGround); skyMat.uniforms.hor.value = SKY0.hor; skyMat.uniforms.zen.value = SKY0.zen;
 }
 // ---------- the diver ----------
@@ -5178,6 +5194,7 @@ $('prompt').onclick = () => {
     else if (nearKiosk(foot.x, foot.z)) openShop();
     else if (nearDock(foot.x, foot.z)) enterBoat();
     else if (divePlatform(foot.x, foot.z)) { input.act = 1; setTimeout(() => input.act = 0, 120); }
+    else if (nearJPlane(foot.x, foot.z)) jungleTakeoff();
     else if (nearJDesk(foot.x, foot.z)) amazonHome();
     else if (nearJShop(foot.x, foot.z)) openShop('river');
     else if (railNear(foot.x, foot.z)) startFishing();
@@ -6011,12 +6028,13 @@ function setPlaneModel() {
 }
 function placePlaneMesh() { const P = plane; P.g.position.set(P.x, P.y, P.z); P.g.rotation.set(-P.p, P.h, -P.r); }
 const worldH = (x, z) => AWAY ? AWAY.h(x, z) : groundH(x, z);
-const worldWater = (x, z) => AWAY ? AWAY.waterY > -900 && AWAY.h(x, z) < AWAY.waterY - .3 : isSea(x, z);
+const worldWater = (x, z) => AWAY ? AWAY.waterY > -900 && AWAY.h(x, z) < AWAY.waterY - .3 : isSea(x, z) || JNG.water(x, z);
 function worldHit(x, y, z) { // did you fly into something tall?
   if (AWAY) {
     for (const o of AWAY.obs) { if (o.pyr) { const m = Math.max(Math.abs(x - o.x), Math.abs(z - o.z)); if (m < o.pyr && y < o.y0 + (o.h - o.y0) * (1 - m / o.pyr)) return true; } else if (Math.hypot(x - o.x, z - o.z) < o.r && y < o.h) return true; }
     return AWAY.hit ? AWAY.hit(x, y, z) : false;
   }
+  if (JNG.here(x, z)) return JNG.built && JNG.hit(x, y, z);
   if (inBox(x, z)) for (const i of gridGet(bldGrid, x, z) || []) { const b = BLD[i]; if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && inPoly(b.pts, x, z) && y < groundH(b.cx, b.cz) + 4.2 + Math.max(0, b.lv - 1) * 3.1) return true; }
   for (const [k, r, h] of [['sagrada', 45, 172], ['glories', 22, 144], ['wvela', 35, 99], ['colom', 5, 60]]) if (LM[k] && Math.hypot(x - LM[k][0], z - LM[k][1]) < r && y < h) return true;
   if (Math.abs(x - TERM.x) < 200 && Math.abs(z - TERM.z) < 52 && y < 21) return true;
@@ -6043,7 +6061,8 @@ function updateTrails(P, on) { // white vapour streaming off the wingtips when y
 }
 function planeStart(onRunway) { // line up at the end of the runway, or at your parking stand
   const P = plane, rw = AWAY ? AWAY.rw : { x: AIRPORT.x, z: AIRPORT.z, len: AIRPORT.len, alt: 0 };
-  if (onRunway) { P.x = rw.x + rw.len / 2 - 60; P.z = rw.z; P.h = -Math.PI / 2; } else { P.x = STAND.x; P.z = STAND.z; P.h = STAND.h; }
+  if (P.jg && !AWAY) { const S = JNG.strip; P.x = S.x - S.ax * (S.len / 2 - 35); P.z = S.z - S.az * (S.len / 2 - 35); P.h = Math.atan2(S.ax, S.az); } // the grass strip by the jungle lodge
+  else if (onRunway) { P.x = rw.x + rw.len / 2 - 60; P.z = rw.z; P.h = -Math.PI / 2; } else { P.x = STAND.x; P.z = STAND.z; P.h = STAND.h; }
   P.y = worldH(P.x, P.z) + .06; P.p = 0; P.r = 0; P.v = 0; P.ground = true; P.crash = 0; P.cx = null; P.thr = 0; P.lever = 0; TRAILS.forEach(l => { l.n = 0; l.visible = false; });
   P.g.visible = true; placePlaneMesh();
 }
@@ -6059,6 +6078,7 @@ function flyMode(on) {
   SEA.mesh.material.normalScale.setScalar(on ? .18 : .45);
   if (on) { plane.cx = null; planeCam(1 / 30); } // put the camera behind the plane before choosing which city tiles to draw
   $('flight').hidden = !on; updateTiles();
+  if (JNG.on) applyAbove(); // keep the rainforest's misty air
 }
 function clearForFlight() { // you can't fly mid-mission, mid-chase, swimming or fishing
   if (M) finishMission(false, 'Mission abandoned.');
@@ -6135,8 +6155,8 @@ function updatePlane(dt) {
   let vy = Math.sin(P.p) * P.v; if (!P.ground && P.v < S.stall) vy -= (S.stall - P.v) * .7;
   P.y += vy * dt;
   // stay inside the map
-  const R = AWAY ? AWAY.R : WORLD.x1 - 300;
-  if (Math.abs(P.x) > R || Math.abs(P.z) > R) { const want = Math.atan2(-P.x, -P.z); P.h += clamp(angDiff(P.h, want), -1, 1) * dt * 1.2; if (!P.edgeT || performance.now() - P.edgeT > 4000) { P.edgeT = performance.now(); show('', 'Edge of the map: turning back.', 2); } }
+  const R = AWAY ? AWAY.R : P.jg ? JNG.HS + 120 : WORLD.x1 - 300, ox = P.jg && !AWAY ? JNG.x : 0, oz = P.jg && !AWAY ? JNG.z : 0;
+  if (Math.abs(P.x - ox) > R || Math.abs(P.z - oz) > R) { const want = Math.atan2(ox - P.x, oz - P.z); P.h += clamp(angDiff(P.h, want), -1, 1) * dt * 1.2; if (!P.edgeT || performance.now() - P.edgeT > 4000) { P.edgeT = performance.now(); show('', 'Edge of the map: turning back.', 2); } }
   const gh = worldH(P.x, P.z);
   if (P.ground) { P.y = gh + .06; if (worldWater(P.x, P.z)) return crashPlane('water'); if (worldHit(P.x, P.y + 1, P.z)) return crashPlane(); }
   else if (P.y < gh + .06) {
@@ -6146,6 +6166,7 @@ function updatePlane(dt) {
     if (!soft) return crashPlane();
     P.ground = true; P.y = gh + .06; P.p = 0; P.r = 0; show('Touchdown!', AWAY ? 'Nice landing! Hold Space to stop. Press J to fly somewhere else.' : 'Nice landing! Hold Space to stop, then F to get out.', 3); audio.plop();
   } else if (worldHit(P.x, P.y, P.z)) return crashPlane();
+  else if (P.jg && P.y < JNG.WY + .4 && JNG.water(P.x, P.z)) return crashPlane('water'); // the river is deeper than the ground under it
   placePlaneMesh();
   if (trip) tripTick(P.y - gh);
   const U = P.g.userData; if (U.prop) U.prop.rotation.z += dt * (8 + P.v * 1.4 + thr * 30);
@@ -6321,7 +6342,7 @@ $('hangar').addEventListener('click', e => {
 });
 $('hangar').addEventListener('change', e => { const t = e.target; if (t.dataset.colc !== undefined) paintPlane('col', t.value); if (t.dataset.accc !== undefined) paintPlane('acc', t.value); });
 function flyTo(id) {
-  closeAll(); trip = null;
+  closeAll(); trip = null; plane.jg = false;
   if (id === 'home') { goHome(); clearForFlight(); flyMode(false); plane.on = false; planeStart(false); if (!foot.p) buildWalker(); foot.x = DESK.x; foot.z = DESK.z - 3; foot.h = Math.PI; foot.y = walkY(foot.x, foot.z); foot.on = true; scene.add(foot.p.root); $('footT').textContent = 'Get in'; cam.fh = cam.fx = cam.fz = cam.fy = undefined; show('Welcome home!', 'Your car is in the car park next to the terminal.', 3); return; }
   const name = id === 'bcn' ? 'Barcelona' : WORLDS[id].name;
   $('transitT').textContent = `Flying to ${name}…`; $('transit').hidden = false; paused = true;
@@ -6335,7 +6356,7 @@ function flyTo(id) {
 function goAmazon() { // fly to the rainforest lodge
   closeAll(); trip = null; $('transitT').textContent = 'Flying to the Amazon rainforest…'; $('transit').hidden = false; paused = true;
   setTimeout(() => {
-    goHome(); clearForFlight(); flyMode(false); plane.on = false; planeStart(false); JNG.build();
+    goHome(); clearForFlight(); flyMode(false); plane.on = false; plane.jg = false; planeStart(false); JNG.build();
     const L = JNG.lodge, [wx, wz] = JNG.wdir; footTo(L.x + wx * 12, L.z + wz * 12, Math.atan2(wx, wz));
     cam.fh = cam.fx = cam.fz = cam.fy = undefined; camera.position.set(foot.x - wx * 6, foot.y + 3, foot.z - wz * 6);
     JNG.on = true; JNG.root.visible = true; applyAbove();
@@ -6886,7 +6907,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { JNG, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
