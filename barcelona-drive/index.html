@@ -4147,7 +4147,7 @@ function jungleTakeoff() { // your own plane, lined up on the grass strip
 const nearJDesk = (x, z) => JNG.built && Math.hypot(x - JNG.desk.x, z - JNG.desk.z) < 2.6;
 const nearJShop = (x, z) => JNG.built && Math.hypot(x - JNG.shop.x, z - JNG.shop.z) < 2.6;
 /* ================= DUBLIN & WICKLOW: real OpenStreetMap streets, buildings, water and land cover, on real elevation data =================
-   The data (dublin.dat) loads the first time you go there. It sits far from Barcelona in the same world, like the Amazon.
+   The data (dublin-data.txt, gzipped and base64) loads the first time you go there. It sits far from Barcelona in the same world, like the Amazon.
    Map data © OpenStreetMap contributors (ODbL); elevation: Mapzen/AWS terrain tiles. */
 class DVR { // varint reader matching the python packer
   constructor(b) { this.b = b; this.p = 0; }
@@ -4156,8 +4156,8 @@ class DVR { // varint reader matching the python packer
   line(q = 2) { const n = this.u(), out = new Float64Array(n * 2); let x = 0, z = 0; for (let k = 0; k < n; k++) { x += this.i(); z += this.i(); out[2 * k] = x / q + DUB.fx0; out[2 * k + 1] = z / q + DUB.fz0; } return out; }
 }
 DUB.load = () => DUB.loading || (DUB.loading = (async () => {
-  const res = await fetch('dublin.dat'); if (!res.ok) throw new Error('Dublin map data missing (' + res.status + ')');
-  let buf = new Uint8Array(await res.arrayBuffer());
+  const res = await fetch('dublin-data.txt'); if (!res.ok) throw new Error('Dublin map data missing (' + res.status + ')');
+  const b64 = (await res.text()).trim(); let buf = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0)); // base64 text, so it can be served anywhere
   if (buf[0] === 0x1f && buf[1] === 0x8b) buf = new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   const hl = buf[0] | buf[1] << 8 | buf[2] << 16 | buf[3] << 24, hdr = JSON.parse(new TextDecoder().decode(buf.subarray(4, 4 + hl)));
   let base = 4 + hl; base += (4 - base % 4) % 4;
