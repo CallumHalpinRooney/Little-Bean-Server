@@ -595,6 +595,42 @@ const lakeE = (L, x, z) => { const [u, v] = lakeLocal(L, x, z), a = u / L.rx, b 
 const lakeEdge = (L, th, k = 1) => lakeWorld(L, L.rx * Math.cos(th) * k / Math.sqrt(lakeW(th)), L.rz * Math.sin(th) * k / Math.sqrt(lakeW(th)));
 const lakeAt = (x, z, pad = 0) => LAKES.find(L => Math.abs(x - L.x) < L.rx + 60 + pad && Math.abs(z - L.z) < L.rx + 60 + pad && lakeE(L, x, z) < 1);
 const lakeBed = (L, x, z) => -.3 - L.depth * Math.pow(Math.max(0, 1 - lakeE(L, x, z)), .6);
+// ---------- the Amazon: a separate rainforest far from Barcelona, with a big brown river winding right through it ----------
+const JNG = { x: -30000, z: -30000, HS: 1300, on: false, built: false, WY: .12, name: 'Rio Amazonas', river: true, id: 'amazon', depth: 8, mul: {} };
+JNG.uc = v => 260 * Math.sin(v / 310) + 80 * Math.sin(v / 113 + 1.3); // the river's middle, across (u) for each distance along (v)
+JNG.ucd = v => 260 / 310 * Math.cos(v / 310) + 80 / 113 * Math.cos(v / 113 + 1.3);
+JNG.w = v => 42 + 14 * Math.sin(v / 205 + .5) + 34 * Math.exp(-Math.pow(v / 110, 2)); // wide lagoon by the lodge
+JNG.dep = v => 7 + 2.5 * Math.sin(v / 150 + 1);
+JNG.here = (x, z, pad = 400) => Math.abs(x - JNG.x) < JNG.HS + pad && Math.abs(z - JNG.z) < JNG.HS + pad;
+JNG.rd = (x, z) => { // signed distance across the river from its middle (+ = east bank side), its width there and how far along
+  const u = x - JNG.x, v = z - JNG.z, s = JNG.ucd(v); return { d: (u - JNG.uc(v)) / Math.sqrt(1 + s * s), w: JNG.w(v), v, s };
+};
+JNG.water = (x, z) => { if (!JNG.here(x, z, 0)) return false; const r = JNG.rd(x, z); return Math.abs(r.d) < r.w / 2; };
+JNG.bed = (x, z) => { const r = JNG.rd(x, z), k = clamp(1 - Math.pow(2 * Math.abs(r.d) / r.w, 2), 0, 1); return -.3 - JNG.dep(r.v) * Math.pow(k, .7); };
+JNG.hill = (u, v) => .9 * (Math.sin(u / 87) * Math.sin(v / 121) + 1) + .5 * Math.sin(u / 37 + v / 53) + .3 * Math.sin(v / 23 - u / 41);
+JNG.h = (x, z) => { // ground height: the river bed, then a muddy bank, then gentle forest floor
+  const r = JNG.rd(x, z), a = Math.abs(r.d) - r.w / 2;
+  if (a < 0) return JNG.bed(x, z);
+  const bank = .05 + .55 * smooth01(a / 9), u = x - JNG.x, h = bank + JNG.hill(u, r.v) * smooth01((a - 6) / 40);
+  return a > 8 ? lerp(h, .6, JNG.flat(x, z)) : h;
+};
+JNG.normal = (x, z) => { const r = JNG.rd(x, z), k = 1 / Math.sqrt(1 + r.s * r.s), sg = r.d > 0 ? -1 : 1; return [sg * k, -sg * r.s * k]; }; // across the river, pointing at the water
+JNG.edge = (v, side, off = 0) => { const s = JNG.ucd(v), k = 1 / Math.sqrt(1 + s * s), hw = JNG.w(v) / 2 + off; return [JNG.x + JNG.uc(v) + side * hw * k, JNG.z + v - side * hw * s * k]; };
+// the lodge sits on the east bank of the lagoon, with a jetty out over the water and an airstrip behind it
+{ const sl = JNG.ucd(0), k = 1 / Math.sqrt(1 + sl * sl), wx = -k, wz = sl * k, px = wz, pz = -wx, [bx, bz] = JNG.edge(0, 1);
+  JNG.wdir = [wx, wz]; JNG.bank = { x: bx, z: bz };
+  const L = JNG.lodge = { x: bx - wx * 26, z: bz - wz * 26, h: Math.atan2(wx, wz) };
+  JNG.jet = { x: bx - wx * 1.5, z: bz - wz * 1.5, dx: wx, dz: wz, len: 24 };
+  JNG.desk = { x: L.x + wx * 7.5 + px * 3.5, z: L.z + wz * 7.5 + pz * 3.5 }; JNG.shop = { x: L.x + wx * 7.5 - px * 3.5, z: L.z + wz * 7.5 - pz * 3.5 };
+  JNG.strip = { x: bx - wx * 170, z: bz - wz * 170, ax: px, az: pz, bx: wx, bz: wz, len: 560, w: 36 };
+  JNG.plane = { x: JNG.strip.x + wx * 30 + px * 60, z: JNG.strip.z + wz * 30 + pz * 60 };
+}
+JNG.flat = (x, z) => { // the clearing round the lodge and the grass airstrip are flat
+  const L = JNG.lodge, S = JNG.strip, a = (x - S.x) * S.ax + (z - S.z) * S.az, b = (x - S.x) * S.bx + (z - S.z) * S.bz;
+  return Math.max(1 - smooth01((Math.hypot(x - L.x, z - L.z) - 22) / 18), (1 - smooth01((Math.abs(a) - S.len / 2) / 25)) * (1 - smooth01((Math.abs(b) - S.w / 2 - 25) / 20)));
+};
+JNG.onJetty = (x, z) => { const J = JNG.jet, a = (x - J.x) * J.dx + (z - J.z) * J.dz, b = (x - J.x) * J.dz - (z - J.z) * J.dx; return a > -2 && a < J.len && Math.abs(b) < 1.4; };
+const waterBed = (L, x, z) => L.river ? JNG.bed(x, z) : lakeBed(L, x, z);
 function placeJetty(L, P) { // the jetty faces the road: it runs from the bank 24 m out over the water
   const [u, v] = lakeLocal(L, P[0], P[1]); L.ja = Math.atan2(v / L.rz, u / L.rx);
   const [sx, sz] = lakeEdge(L, L.ja, 1.03), dx = L.x - sx, dz = L.z - sz, d = Math.hypot(dx, dz);
@@ -751,6 +787,7 @@ function pierConstrain(px, pz, rad) { // keep things between the railings (worke
 
 /* ---------- height of the ground anywhere ---------- */
 function groundH(x, z) {
+  if (JNG.here(x, z, 600)) return JNG.onJetty(x, z) ? .55 : JNG.h(x, z); // the Amazon
   if (onJetty(x, z)) return .5; // lake jetties
   { const [mu, mv] = marLocal(x, z); if (mv > -13 && mv < 207 && Math.abs(mu) < 59 && onMarinaL(mu, mv)) return mv < 0 ? MAR_H * clamp((mv + 12) / 12, 0, 1) : MAR_H; } // marina pontoons
   const [u, v] = pierLocal(x, z);
@@ -1968,6 +2005,12 @@ const audio = {
     g.gain.setValueAtTime(.35, A.currentTime); g.gain.exponentialRampToValueAtTime(.001, A.currentTime + .22);
     o.connect(g); g.connect(this.master); o.start(); o.stop(A.currentTime + .25);
   },
+  tink() { // the little bell on the rod tip
+    if (!this.ctx) return;
+    const A = this.ctx, o = A.createOscillator(), g = A.createGain(); o.frequency.value = 2900 + Math.random() * 300; o.type = 'sine';
+    g.gain.setValueAtTime(.12, A.currentTime); g.gain.exponentialRampToValueAtTime(.001, A.currentTime + .25);
+    o.connect(g); g.connect(this.master); o.start(); o.stop(A.currentTime + .3);
+  },
   ding() {
     if (!this.ctx) return;
     const A = this.ctx, o = A.createOscillator(), g = A.createGain(); o.frequency.value = 1320; o.type = 'triangle';
@@ -2699,6 +2742,13 @@ const FISH_TYPES = [
   ['Blue marlin', 'Marlí blau', 100, 300, 2, '#1f3f8a', 0], ['Dusky grouper', 'Nero', 5, 35, 1.3, '#5a4630', 0],
   ['Pike', 'Lluç de riu', 1, 20, 1.2, '#5a6b2e', 0], ['Brown trout', 'Truita de riu', .3, 3, 1, '#8a6a3a', 0], ['Perch', 'Perca', .1, 1.5, .55, '#7a8a3a', 0], ['Roach', 'Gardí', .05, .6, .35, '#b8c0c6', 0], ['Carp', 'Carpa', 2, 30, 1.1, '#a07a3a', 0], // lakes only
   ['Wels catfish', 'Silur', 8, 140, 1.6, '#3a3a2e', 0], // a freshwater monster: lakes only
+  ['Red-bellied piranha', 'Piranha-vermelha', .2, 1.6, .75, '#c8402a', 0], ['Peacock bass', 'Tucunaré', 1, 12, 1.35, '#b8a83a', 0], ['Silver arowana', 'Aruanã', 1, 6, 1.15, '#c8ccc0', 0], // the Amazon only
+  ['Payara', 'Peixe-cachorro', 2, 17, 1.45, '#b8c0c8', 0], ['Wolf fish', 'Trairão', 2, 15, 1.3, '#4a4a32', 0], ['Pacu', 'Pacu', 2, 25, 1.2, '#4a4a4a', 0],
+  ['Electric eel', 'Poraquê', 2, 20, 1.2, '#3a3a2a', 0], ['Redtail catfish', 'Pirarara', 5, 55, 1.55, '#1a1a1a', 0], ['Arapaima', 'Pirarucu', 20, 200, 1.9, '#5a6a50', 0],
+  ['Piraíba', 'Piraíba', 30, 250, 2, '#6a6a62', 0], ['Bull shark', 'Tubarão-cabeça-chata', 60, 230, 2, '#7a8288', 0],
+  ['Common sole', 'Llenguado', .15, 1.5, .6, '#8a7050', 4], ['Flounder', 'Palaia', .3, 2.5, .7, '#7a6a4a', 4], ['Turbot', 'Rèmol', 1, 15, 1.1, '#6a5a40', 1], // flatfish: they lie on the sea bed
+  ['Red mullet', 'Moll', .1, .8, .4, '#d86a5a', 6], ['Striped seabream', 'Mabre', .2, 1.2, .6, '#c8c0a0', 6], ['Dentex', 'Déntol', 1, 12, 1.2, '#c87a8a', 1.5], ['Garfish', 'Agulla', .3, 1.3, .7, '#4a8a7a', 4],
+  ['Conger eel', 'Congre', 2, 40, 1.4, '#3a3a32', 1.5], ['Scorpionfish', 'Escórpora', .2, 2, .6, '#c8402a', 3], ['Amberjack', 'Círvia', 5, 50, 1.6, '#8a8a6a', 0], ['Bonito', 'Bonítol', 1, 6, 1.1, '#3a5a8a', 2],
 ];
 let fishLog = { count: 0, best: {}, money: 0, sold: 0, released: 0 };
 try { const f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); if (f && typeof f === 'object') fishLog = { count: f.count | 0, best: f.best || {}, money: +f.money || 0, sold: f.sold | 0, released: f.released | 0 }; } catch (e) { }
@@ -2728,10 +2778,11 @@ const GEAR = {
   ],
   bait: [ // bait and lures: one on the hook at a time
     { name: 'Bread', kind: 'bait', desc: 'Free. Sardines and mullet love it.', price: 0, b: [3, 9], col: '#e9d9a8', mul: { Sardine: 1.5, 'Grey mullet': 2 } },
-    { name: 'Prawns', kind: 'bait', desc: 'Bream and sea bass can\'t resist.', price: 15, b: [2, 6], col: '#f08a6a', mul: { 'Gilt-head bream': 2.4, 'Sea bass': 1.8, 'Old boot': .5 } },
-    { name: 'Squid', kind: 'bait', desc: 'Big-fish bait: octopus, tuna and bass.', price: 40, b: [2, 5], col: '#f1e9f0', mul: { Octopus: 2.5, 'Bluefin tuna': 2, 'Sea bass': 1.5, Sardine: .4, 'Old boot': .4 } },
-    { name: 'Live sardine', kind: 'bait', desc: 'The best bait for tuna, mahi-mahi and swordfish.', price: 120, b: [1.5, 4], col: '#b8c7d1', mul: { 'Bluefin tuna': 4, 'Mahi-mahi': 3, Swordfish: 3, Sardine: .2, 'Old boot': .2 } },
-    { name: 'Spinner lure', kind: 'lure', desc: 'A flashing spinning blade. Mackerel go crazy for it.', price: 20, b: [2, 6], col: '#d9dde2', cast: 4, mul: { Mackerel: 3, 'Sea bass': 1.5, 'Grey mullet': .4 } },
+    { name: 'Prawns', kind: 'bait', desc: 'Bream and sea bass can\'t resist.', price: 15, b: [2, 6], col: '#f08a6a', mul: { 'Gilt-head bream': 2.4, 'Sea bass': 1.8, 'Red mullet': 2, 'Striped seabream': 2, 'Common sole': 1.5, Scorpionfish: 2, 'Old boot': .5 } },
+    { name: 'Squid', kind: 'bait', desc: 'Big-fish bait: octopus, tuna and bass.', price: 40, b: [2, 5], col: '#f1e9f0', mul: { Octopus: 2.5, 'Bluefin tuna': 2, 'Sea bass': 1.5, 'Conger eel': 2.5, Dentex: 2, Turbot: 1.5, Sardine: .4, 'Old boot': .4 } },
+    { name: 'Live sardine', kind: 'bait', desc: 'The best bait for tuna, mahi-mahi and swordfish.', price: 120, b: [1.5, 4], col: '#b8c7d1', mul: { 'Bluefin tuna': 4, 'Mahi-mahi': 3, Swordfish: 3, Dentex: 3, Amberjack: 4, Bonito: 2, Turbot: 2, Sardine: .2, 'Old boot': .2 } },
+    { name: 'Lugworm', kind: 'bait', desc: 'Juicy worms dug from the sand. The best bait for beach fishing: flatfish, sole and bream love it.', price: 6, b: [2, 6], col: '#a0605a', mul: { 'Common sole': 3, Flounder: 3, Turbot: 1.5, 'Gilt-head bream': 1.8, 'Striped seabream': 2.2, 'Red mullet': 2, 'Sea bass': 1.4, Sardine: .3 } },
+    { name: 'Spinner lure', kind: 'lure', desc: 'A flashing spinning blade. Mackerel go crazy for it.', price: 20, b: [2, 6], col: '#d9dde2', cast: 4, mul: { Mackerel: 3, 'Sea bass': 1.5, Garfish: 3, Bonito: 2.5, 'Grey mullet': .4 } },
     { name: 'Soft shad', kind: 'lure', desc: 'A wobbly rubber fish. Sea bass love it.', price: 55, b: [2, 6], col: '#6fd08a', cast: 3, mul: { 'Sea bass': 3, 'Gilt-head bream': 1.5, Sardine: .5 } },
     { name: 'Popper', kind: 'lure', desc: 'Splashes on the surface. Brings up mahi-mahi and tuna.', price: 90, b: [2.5, 6], col: '#ff6a2a', cast: 5, mul: { 'Mahi-mahi': 3, 'Bluefin tuna': 1.6, Sardine: .3, 'Old boot': .3 } },
     { name: 'Deep diver', kind: 'lure', desc: 'Dives deep where the giants live.', price: 200, b: [2, 5.5], col: '#2a5bff', cast: 6, mul: { 'Bluefin tuna': 2.5, Swordfish: 2, 'Mahi-mahi': 2, Sardine: .2 } },
@@ -2753,6 +2804,18 @@ const GEAR = {
     { name: 'Mini crankbait', kind: 'lure', water: 'lake', desc: 'A small plastic fish with a diving lip, €10. Catches almost everything.', price: 10, b: [2, 5], col: '#9acd32', cast: 4, attract: .78, mul: {}, lakeMul: { 'Wels catfish': .4, Perch: 2, Pike: 1.6, 'Brown trout': 1, Roach: .3, Carp: .1 } },
     { name: 'Catfish pellets', kind: 'bait', water: 'lake', desc: 'Big smelly fish-oil pellets for €15. The only bait that really brings up the giant wels catfish!', price: 15, b: [3, 8], col: '#6a4a2a', mul: {}, lakeMul: { 'Wels catfish': 6, Carp: 2, Roach: .2, Perch: .1, Pike: .2, 'Brown trout': .1 } },
     { name: 'Paddle-tail shad', kind: 'lure', water: 'lake', desc: 'A soft rubber fish with a kicking tail for €12. Pike can\'t say no.', price: 12, b: [2, 5.5], col: '#e8e0c8', cast: 4, attract: .75, mul: {}, lakeMul: { 'Wels catfish': 1.5, Pike: 2.4, Perch: 2, 'Brown trout': .5, Roach: .1, Carp: 0 } },
+    // river monster tackle for the Amazon
+    { name: 'Fish chunks', kind: 'bait', water: 'river', desc: 'Bloody chunks of fish on a big hook. Catfish and piranhas follow the smell.', price: 6, b: [2, 5], col: '#c8505a', mul: {}, riverMul: { 'Redtail catfish': 3, 'Piraíba': 2, 'Red-bellied piranha': 2, 'Wolf fish': 1.5, Arapaima: .6, 'Bull shark': 1.5, 'Electric eel': 1.2, Pacu: .4, 'Peacock bass': .3 } },
+    { name: 'Fruit & nuts', kind: 'bait', water: 'river', desc: 'Pacu eat fruit that falls from the trees, with teeth like a person\'s!', price: 4, b: [2.5, 6], col: '#e86a2a', mul: {}, riverMul: { Pacu: 5, 'Redtail catfish': .6, 'Red-bellied piranha': .3, 'Silver arowana': .5 } },
+    { name: 'Beef heart', kind: 'bait', water: 'river', desc: 'Tough red meat. Piranhas go into a frenzy!', price: 10, b: [1, 3], col: '#8a1a2a', mul: {}, riverMul: { 'Red-bellied piranha': 4, 'Redtail catfish': 2, 'Electric eel': 1.5, 'Wolf fish': 1.2 } },
+    { name: 'Live baitfish', kind: 'bait', water: 'river', desc: 'A lively little fish. The best bait there is for real river monsters.', price: 25, b: [2.5, 7], col: '#b8c0c6', mul: {}, riverMul: { Arapaima: 2.6, 'Piraíba': 3, Payara: 2.5, 'Wolf fish': 2, 'Bull shark': 3, 'Peacock bass': 1.4, 'Red-bellied piranha': .6 } },
+    { name: 'Bucktail jig', kind: 'lure', water: 'river', desc: 'A lead head with a hairy tail, €8. Hop it along the bottom.', price: 8, b: [2, 5], col: '#f4f0e0', cast: 3, attract: .8, mul: {}, riverMul: { 'Peacock bass': 2, 'Red-bellied piranha': 1.5, Payara: 1.5, 'Wolf fish': 1.2 } },
+    { name: 'Wire spinnerbait', kind: 'lure', water: 'river', desc: 'A flashing blade and a skirt on strong wire, so piranhas can\'t bite it off.', price: 12, b: [2, 5], col: '#ff3a8a', cast: 3, attract: .8, mul: {}, riverMul: { 'Red-bellied piranha': 2.6, 'Peacock bass': 2, Payara: 1.2 } },
+    { name: 'Walk-the-dog', kind: 'lure', water: 'river', desc: 'A topwater lure that zigzags across the surface. Peacock bass explode on it!', price: 15, b: [2, 5], col: '#f2d430', cast: 4, attract: .8, mul: {}, riverMul: { 'Peacock bass': 3.2, 'Silver arowana': 2.6, 'Wolf fish': 1.6 } },
+    { name: 'Prop bait', kind: 'lure', water: 'river', desc: 'Spinning propellers splash and buzz on top. Drives peacock bass crazy.', price: 18, b: [2, 5], col: '#e8e8e8', cast: 4, attract: .8, mul: {}, riverMul: { 'Peacock bass': 4, 'Wolf fish': 1.5, 'Silver arowana': 1.6 } },
+    { name: 'Giant spoon', kind: 'lure', water: 'river', desc: 'A huge flashing spoon for payara, the vampire fish with fangs.', price: 22, b: [2, 5], col: '#f0c040', cast: 5, attract: .78, mul: {}, riverMul: { Payara: 3.5, 'Peacock bass': 1.5, 'Red-bellied piranha': 1, Arapaima: .8 } },
+    { name: 'Big swimbait', kind: 'lure', water: 'river', desc: 'A big soft fish with a kicking tail. Arapaima and payara hit it hard.', price: 35, b: [2, 6], col: '#8aa0b0', cast: 4, attract: .76, mul: {}, riverMul: { Arapaima: 2.4, Payara: 2.4, 'Peacock bass': 1.6, 'Bull shark': 1.4, 'Wolf fish': 1.4 } },
+    { name: 'Monster plug', kind: 'lure', water: 'river', desc: 'A giant diving plug with huge hooks, built for the biggest river monsters.', price: 60, b: [2, 6], col: '#d42a1e', cast: 5, attract: .75, mul: {}, riverMul: { Arapaima: 2.8, 'Piraíba': 1.6, 'Bull shark': 2.2, 'Redtail catfish': 1.2, Payara: 1.4 } },
   ],
 };
 const BOATS = [
@@ -2775,11 +2838,17 @@ const BOATS = [
   fishLog.boat = f && fishLog.own.boat.includes(f.boat | 0) && f.boat != null ? f.boat | 0 : (fishLog.own.boat.length ? fishLog.own.boat[fishLog.own.boat.length - 1] : -1);
 }
 const gearOf = k => GEAR[k][fishLog.gear[k]];
+const RIVER_BASE = { 'Red-bellied piranha': 26, 'Peacock bass': 16, 'Silver arowana': 9, Payara: 7, 'Wolf fish': 9, Pacu: 9, 'Electric eel': 4, 'Redtail catfish': 7, Arapaima: 3.5, 'Piraíba': 2.2, 'Bull shark': .8, 'Old boot': 1.5 };
+const RIVER_FISH = new Set(Object.keys(RIVER_BASE).filter(n => n !== 'Old boot'));
 const LAKE_BASE = { Roach: 30, Perch: 24, 'Brown trout': 14, Pike: 9, Carp: 11, 'Wels catfish': 3, 'Old boot': 3 };
 function pickFish(F) { // what bites depends on your bait or lure, your rod, and where you are
   const bait = gearOf('bait'), deep = F.boat && F.deep;
+  if (F.lake && F.lake.river) { // the Amazon: river monster tackle works best, lake tackle a bit, sea tackle hardly at all
+    const w = FISH_TYPES.map(t => { const b = RIVER_BASE[t[0]]; if (!b) return 0; if (t[0] === 'Old boot') return b; return b * (bait.riverMul ? (bait.riverMul[t[0]] ?? .5) : bait.water === 'lake' ? .55 : .3) * (fishLog.gear.rod >= 3 && b < 5 ? 1.4 : 1) * (F.bottom ? (BOTTOM_FISH.has(t[0]) ? 2.2 : .6) : 1); });
+    let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let k = 0; k < w.length; k++) { r -= w[k]; if (r <= 0) return FISH_TYPES[k]; } return FISH_TYPES.find(t => t[0] === 'Red-bellied piranha');
+  }
   if (F.lake) { // freshwater: pike, trout, perch, roach and carp
-    const w = FISH_TYPES.map(t => { const b = LAKE_BASE[t[0]]; if (!b) return 0; if (t[0] === 'Old boot') return b * (bait.water === 'lake' ? .5 : 1); return b * (bait.lakeMul ? (bait.lakeMul[t[0]] ?? 1) : .5) * (F.lake.mul[t[0]] || 1); });
+    const w = FISH_TYPES.map(t => { const b = LAKE_BASE[t[0]]; if (!b) return 0; if (t[0] === 'Old boot') return b * (bait.water === 'lake' ? .5 : 1); return b * (bait.lakeMul ? (bait.lakeMul[t[0]] ?? 1) : .5) * (F.lake.mul[t[0]] || 1) * (F.bottom ? (BOTTOM_FISH.has(t[0]) ? 2.2 : .7) : 1); });
     let r = Math.random() * w.reduce((a, b) => a + b, 0); for (let k = 0; k < w.length; k++) { r -= w[k]; if (r <= 0) return FISH_TYPES[k]; } return FISH_TYPES.find(t => t[0] === 'Roach');
   }
   const w = FISH_TYPES.map(t => {
@@ -2788,6 +2857,10 @@ function pickFish(F) { // what bites depends on your bait or lure, your rod, and
     if (t[0] === 'Swordfish') x = deep ? 1.5 * (bait.mul[t[0]] || 1) : 0;
     if (t[0] === 'Blue marlin') x = deep ? .8 * (bait.mul[t[0]] || 1) : 0;
     if (t[0] === 'Dusky grouper') x = F.boat ? 3 * (bait.mul[t[0]] || 1) : 0;
+    if (t[0] === 'Amberjack') x = F.boat ? (deep ? 3 : .6) * (bait.mul[t[0]] || 1) : 0;
+    if (t[0] === 'Turbot' && deep) x *= 2.5;
+    if (F.beach) { if (['Bluefin tuna', 'Octopus', 'Dentex', 'Conger eel'].includes(t[0])) x *= .15; if (['Common sole', 'Flounder', 'Turbot', 'Striped seabream', 'Sea bass', 'Gilt-head bream', 'Red mullet'].includes(t[0])) x *= 1.8; }
+    if (F.bottom) x *= BOTTOM_FISH.has(t[0]) ? 2.4 : UP_FISH.has(t[0]) ? .3 : .8;
     if (deep && t[0] === 'Bluefin tuna') x *= 3;
     if (deep && (t[0] === 'Sardine' || t[0] === 'Old boot')) x *= .4;
     if (fishLog.gear.rod === 3 && (t[0] === 'Bluefin tuna' || t[0] === 'Swordfish')) x *= 1.5;
@@ -2803,7 +2876,7 @@ const GADGETS = [
   { id: 'net', name: 'Landing net', desc: 'Scoop up your catch: a slack line hardly ever loses the fish.', price: 200 },
 ];
 { let f = null; try { f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); } catch (e) { } const g = f && typeof f.gadgets === 'object' && f.gadgets || {}; fishLog.gadgets = {}; for (const G2 of GADGETS) if (g[G2.id] === true) fishLog.gadgets[G2.id] = true; }
-const biteTime = () => { const b = gearOf('bait').b, F = foot.fish, wrong = F && (F.lake ? gearOf('bait').water !== 'lake' : gearOf('bait').water === 'lake'); return rnd(b[0], b[1]) * (fishLog.gadgets.sonar ? .6 : 1) * (wrong ? 1.7 : 1); };
+const biteTime = () => { const b = gearOf('bait').b, F = foot.fish, wrong = F && (F.lake ? (F.lake.river ? !gearOf('bait').water : gearOf('bait').water !== 'lake') : !!gearOf('bait').water); return rnd(b[0], b[1]) * (fishLog.gadgets.sonar ? .6 : 1) * (wrong ? 1.7 : 1); };
 const kgMul = () => gearOf('rod').kg * (foot.boat ? BOATS[fishLog.boat].kg : 1);
 const ROD_COLS = ['#e63946', '#ff7a1a', '#f9c80e', '#2ecc71', '#00b4d8', '#1f4fd0', '#7b2cbf', '#ff5fa2', '#f4f4f4', '#1c1c1c', '#c9a227', '#8b5a2b'];
 function applyRodLook() {
@@ -2849,6 +2922,7 @@ function toggleFoot() {
     if (foot.boat) return leaveBoat();
     if (foot.inside) return show('', 'Walk out of the building first.', 1.8);
     if (foot.swim) return show('', 'Swim back to the beach first.', 1.8);
+    if (JNG.here(foot.x, foot.z)) return show('', 'Your car is back in Barcelona! Fly home from the lodge (✈ VOOS counter).', 2.6);
     if (Math.hypot(foot.x - player.x, foot.z - player.z) > 4.5) return show('', 'Walk back to your car to get in.', 1.8);
     if (foot.fish) stopFishing();
     foot.on = false; scene.remove(foot.p.root); $('footT').textContent = 'Get out';
@@ -2867,6 +2941,7 @@ function railNear(x, z) {
   return best;
 }
 function lakeNear(x, z) { // on the bank or at the end of the jetty, close to the water
+  if (JNG.here(x, z)) { const J = JNG.jet, a = (x - J.x) * J.dx + (z - J.z) * J.dz; if (JNG.onJetty(x, z)) return a > J.len - 7 ? JNG : null; const r = JNG.rd(x, z), e = Math.abs(r.d) - r.w / 2; return e > -.1 && e < 3.5 ? JNG : null; }
   for (const L of LAKES) {
     if (Math.abs(x - L.x) > L.rx + 80 || Math.abs(z - L.z) > L.rx + 80) continue;
     const J = L.jet, a = (x - J.x) * J.dx + (z - J.z) * J.dz;
@@ -2877,12 +2952,13 @@ function lakeNear(x, z) { // on the bank or at the end of the jetty, close to th
 }
 function startLakeFishing(L) {
   let nx = L.x - foot.x, nz = L.z - foot.z; const d = Math.hypot(nx, nz) || 1; nx /= d; nz /= d;
-  if (onJetty(foot.x, foot.z)) { nx = L.jet.dx; nz = L.jet.dz; }
+  if (L.river) { [nx, nz] = JNG.onJetty(foot.x, foot.z) ? [L.jet.dx, L.jet.dz] : JNG.normal(foot.x, foot.z); }
+  else if (onJetty(foot.x, foot.z)) { nx = L.jet.dx; nz = L.jet.dz; }
   foot.h = Math.atan2(nx, nz); foot.v = 0;
   foot.fish = { st: 'ready', T: 0, nx, nz, tx: nz, tz: -nx, spot: null, D: 0, D0: 1, tension: 0, low: 0, type: null, kg: 0, biteAt: 0, lake: L };
   foot.rod.pivot.visible = true; foot.rod.line.visible = true;
   animPerson(foot.p, 0, 0); foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05; foot.p.arms[0].rotation.z = .25; foot.p.arms[1].rotation.z = -.25;
-  const b = gearOf('bait'); show(L.name, b.water === 'lake' ? 'Aim with A/D and W/S, then press E to cast.' : 'Tip: lake lures and bait (worms, spoons, spinners…) work much better here. Press B to swap.', 3.5);
+  const b = gearOf('bait'); show(L.name, L.river ? (b.water === 'river' ? 'River monsters live here! Aim with A/D and W/S, then press E to cast.' : 'Tip: river monster tackle (from the lodge shop) works much better here. Lake tackle works a bit. Press B to swap.') : b.water === 'lake' ? 'Aim with A/D and W/S, then press E to cast.' : 'Tip: lake lures and bait (worms, spoons, spinners…) work much better here. Press B to swap.', 3.5);
   audio.init();
 }
 function startFishing() {
@@ -2894,6 +2970,20 @@ function startFishing() {
   animPerson(foot.p, 0, 0); foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05; foot.p.arms[0].rotation.z = .25; foot.p.arms[1].rotation.z = -.25;
   audio.init();
 }
+function beachNear(x, z) { // standing on the sand right at the water's edge
+  if (JNG.here(x, z) || rasAt(x, z) !== 2 || seaDist(x, z) > .3) return null;
+  let best = null; for (let k = 0; k < 12; k++) { const a = k / 12 * Math.PI * 2, dx = Math.sin(a), dz = Math.cos(a), d = seaDist(x + dx * 4, z + dz * 4); if (d > .4 && (!best || d > best.d)) best = { d, nx: dx, nz: dz }; }
+  return best;
+}
+function startBeachFishing() {
+  const b = beachNear(foot.x, foot.z); if (!b) return;
+  foot.h = Math.atan2(b.nx, b.nz); foot.v = 0;
+  foot.fish = { st: 'ready', T: 0, nx: b.nx, nz: b.nz, tx: b.nz, tz: -b.nx, spot: null, D: 0, D0: 1, tension: 0, low: 0, type: null, kg: 0, biteAt: 0, beach: true };
+  foot.rod.pivot.visible = true; foot.rod.line.visible = true;
+  animPerson(foot.p, 0, 0); foot.p.arms[0].rotation.x = foot.p.arms[1].rotation.x = -1.05; foot.p.arms[0].rotation.z = .25; foot.p.arms[1].rotation.z = -.25;
+  show('Surf fishing 🏖', fishLog.bottom ? 'Cast out past the waves and watch your rod tip. Lugworm is the best beach bait!' : 'Tip: press T to fish on the bottom. Flatfish, sole and bream love lugworm on the bottom!', 4);
+  audio.init();
+}
 function stopFishing() {
   const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false;
   if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
@@ -2902,7 +2992,11 @@ function stopFishing() {
   foot.fish = null; $('catchBox').hidden = true;
 }
 // what a catch is worth at the fish market (€ per kg), and how each one looks
-const FISH_PRICE = { 'Wels catfish': 4, Pike: 9, 'Brown trout': 16, Perch: 10, Roach: 6, Carp: 5, 'Blue marlin': 30, 'Dusky grouper': 18, 'Mahi-mahi': 12, Swordfish: 25, Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
+const pick3 = a => a[Math.random() * a.length | 0];
+const BOTTOM_FISH = new Set(['Common sole', 'Flounder', 'Turbot', 'Red mullet', 'Striped seabream', 'Conger eel', 'Scorpionfish', 'Gilt-head bream', 'Octopus', 'Dusky grouper', 'Carp', 'Wels catfish', 'Roach', 'Redtail catfish', 'Piraíba', 'Electric eel', 'Pacu', 'Old boot']);
+const UP_FISH = new Set(['Sardine', 'Mackerel', 'Garfish', 'Bonito', 'Mahi-mahi', 'Bluefin tuna', 'Swordfish', 'Blue marlin', 'Amberjack', 'Silver arowana', 'Peacock bass', 'Payara']);
+const JUMPERS = new Set(['Peacock bass', 'Arapaima', 'Silver arowana', 'Payara', 'Pike', 'Brown trout', 'Sea bass', 'Mahi-mahi', 'Swordfish', 'Blue marlin', 'Garfish', 'Bonito', 'Grey mullet', 'Mackerel', 'Wolf fish', 'Bull shark', 'Amberjack']);
+const FISH_PRICE = { 'Common sole': 22, Flounder: 10, Turbot: 20, 'Red mullet': 18, 'Striped seabream': 9, Dentex: 20, Garfish: 6, 'Conger eel': 5, Scorpionfish: 16, Amberjack: 12, Bonito: 9, 'Red-bellied piranha': 14, 'Peacock bass': 14, 'Silver arowana': 18, Payara: 11, 'Wolf fish': 9, Pacu: 7, 'Electric eel': 10, 'Redtail catfish': 6, Arapaima: 6, 'Piraíba': 5, 'Bull shark': 6, 'Wels catfish': 4, Pike: 9, 'Brown trout': 16, Perch: 10, Roach: 6, Carp: 5, 'Blue marlin': 30, 'Dusky grouper': 18, 'Mahi-mahi': 12, Swordfish: 25, Sardine: 6, Mackerel: 7, 'Grey mullet': 5, 'Gilt-head bream': 14, 'Sea bass': 18, Octopus: 16, 'Bluefin tuna': 35, 'Old boot': 0 };
 const catchValue = (name, kg) => name === 'Old boot' ? 0 : Math.max(.5, Math.round(kg * FISH_PRICE[name] * (fishLog.gadgets.icebox ? 1.25 : 1) * 2) / 2);
 // body shape (height and width as a share of length), fin colour, and how to paint the side of the fish
 const FISH_LOOK = {
@@ -2955,6 +3049,63 @@ const FISH_LOOK = {
     band(g, W, H, ['#16160f', '#24251c', '#33342a', '#4a4a3a', '#8a8670']);
     g.fillStyle = 'rgba(8,8,4,.55)'; for (let k = 0; k < 120; k++) { g.beginPath(); g.ellipse(W * Math.random(), H * (.1 + Math.random() * .75), 4 + Math.random() * 9, 3 + Math.random() * 5, Math.random() * 3, 0, 7); g.fill(); }
   } },
+  'Red-bellied piranha': { h: .42, w: .13, fin: '#9a3a2a', dorsal: 1, fork: .35, deep: true, blunt: true, teeth: true, skin: (g, W, H) => {
+    band(g, W, H, ['#3e4a52', '#6a7680', '#a8b0b6', '#d0603a', '#e0402a']);
+    g.fillStyle = 'rgba(200,210,220,.5)'; for (let k = 0; k < 120; k++) { g.beginPath(); g.arc(W * Math.random() * .85, H * (.15 + Math.random() * .4), 1.6, 0, 7); g.fill(); }
+  } },
+  'Peacock bass': { h: .27, w: .13, fin: '#c8502a', dorsal: 2, spiny: true, fork: .3, skin: (g, W, H) => {
+    band(g, W, H, ['#4a5a1e', '#8a9a2a', '#d8c84a', '#f0d870', '#f4e8c0']);
+    g.fillStyle = 'rgba(20,20,10,.75)'; for (let k = 0; k < 3; k++) { const x = W * (.3 + k * .17); g.fillRect(x, 4, 18, H * .6); }
+    g.fillStyle = '#e8b030'; g.beginPath(); g.arc(W * .08, H * .38, 14, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(W * .08, H * .38, 9, 0, 7); g.fill(); // the eyespot on its tail
+  } },
+  'Silver arowana': { lenMul: 1.25, h: .17, w: .08, fin: '#a8b0a0', dorsal: 0, rearDorsal: true, longAnal: true, fork: .2, skin: (g, W, H) => {
+    band(g, W, H, ['#6a7a6a', '#a8b4aa', '#d8e0d8', '#eef0ea', '#f6f6f2']);
+    g.strokeStyle = 'rgba(120,140,170,.55)'; g.lineWidth = 2; for (let y = 6; y < H * .85; y += 18) for (let x = ((y / 18) % 2) * 12; x < W * .85; x += 24) { g.beginPath(); g.arc(x, y, 12, Math.PI * .1, Math.PI * .9); g.stroke(); }
+  } },
+  Payara: { h: .2, w: .1, fin: '#7a8a9a', dorsal: 1, rearDorsal: true, fork: .9, fangs: true, skin: (g, W, H) => {
+    band(g, W, H, ['#4a5a6a', '#8a98a8', '#c8d0d8', '#eef0f2', '#f8f8f8']);
+    g.fillStyle = 'rgba(30,30,40,.7)'; g.beginPath(); g.ellipse(W * .72, H * .32, 10, 6, 0, 0, 7); g.fill();
+  } },
+  'Wolf fish': { h: .2, w: .15, fin: '#4a4030', dorsal: 1, fork: 0, blunt: true, teeth: true, matte: true, skin: (g, W, H) => {
+    band(g, W, H, ['#2a2a1a', '#3e3e28', '#55553a', '#7a7858', '#a8a488']);
+    g.fillStyle = 'rgba(10,10,4,.5)'; for (let k = 0; k < 70; k++) { g.beginPath(); g.ellipse(W * Math.random(), H * (.1 + Math.random() * .6), 5 + Math.random() * 10, 4 + Math.random() * 5, Math.random() * 3, 0, 7); g.fill(); }
+  } },
+  Pacu: { h: .45, w: .14, fin: '#5a4a3a', dorsal: 1, fork: .3, deep: true, blunt: true, humanTeeth: true, skin: (g, W, H) => {
+    band(g, W, H, ['#2a2e30', '#44494c', '#6a6e70', '#b0705a', '#d08a6a']);
+  } },
+  'Electric eel': { lenMul: 1.9, h: .07, w: .08, fin: '#4a4030', dorsal: 0, noDorsal: true, longAnal: true, fork: 0, blunt: true, matte: true, skin: (g, W, H) => {
+    band(g, W, H, ['#22241a', '#34362a', '#4a4a38', '#c87a3a', '#e8a050']);
+  } },
+  'Redtail catfish': { h: .17, w: .2, fin: '#2a2a2a', tailCol: '#e0502a', dorsal: 1, fork: .5, blunt: true, whiskers: true, matte: true, skin: (g, W, H) => {
+    band(g, W, H, ['#121212', '#1e1e1e', '#2a2a28', '#f0e8d8', '#f8f4ea']); g.fillStyle = '#e8e0c8'; g.fillRect(0, H * .55, W, 3);
+  } },
+  Arapaima: { lenMul: 1.15, h: .15, w: .14, fin: '#6a3a2a', tailCol: '#a83a2a', dorsal: 0, rearDorsal: true, longAnal: true, fork: 0, blunt: true, skin: (g, W, H) => {
+    band(g, W, H, ['#3a4a3a', '#5a6a50', '#8a9478', '#c8c8a8', '#e0dcc8']);
+    for (let y = 6; y < H * .9; y += 14) for (let x = ((y / 14) % 2) * 10; x < W * .9; x += 20) { const red = x < W * .45; g.strokeStyle = red ? 'rgba(200,50,30,.85)' : 'rgba(40,50,40,.45)'; g.lineWidth = red ? 3 : 2; g.beginPath(); g.arc(x, y, 10, Math.PI * .1, Math.PI * .9); g.stroke(); }
+  } },
+  'Piraíba': { h: .15, w: .17, fin: '#5a5a52', dorsal: 1, fork: .7, blunt: true, whiskers: true, matte: true, skin: (g, W, H) => {
+    band(g, W, H, ['#4a4a44', '#6a6a62', '#8a8a82', '#c8c8c0', '#e8e8e2']);
+  } },
+  'Bull shark': { h: .2, w: .17, fin: '#6a7278', dorsal: 0, tallDorsal: true, fork: 1.1, lunate: true, blunt: true, teeth: true, matte: true, skin: (g, W, H) => {
+    band(g, W, H, ['#5a6268', '#7a8288', '#9aa2a8', '#e8eaea', '#f6f6f6']);
+  } },
+  'Common sole': { flat: true, h: .42, w: .05, fin: '#7a6040', dorsal: 0, longDorsal: true, longAnal: true, fork: 0, blunt: true, matte: true, skin: (g, W, H) => {
+    g.fillStyle = '#8a7050'; g.fillRect(0, 0, W, H); g.fillStyle = 'rgba(40,30,20,.35)'; for (let k = 0; k < 160; k++) { g.beginPath(); g.arc(W * Math.random(), H * Math.random(), 2 + Math.random() * 5, 0, 7); g.fill(); }
+  } },
+  Flounder: { flat: true, h: .5, w: .05, fin: '#6a5a3a', dorsal: 0, longDorsal: true, longAnal: true, fork: 0, blunt: true, matte: true, skin: (g, W, H) => {
+    g.fillStyle = '#7a6a4a'; g.fillRect(0, 0, W, H); for (let k = 0; k < 45; k++) { g.fillStyle = Math.random() < .5 ? '#e8702a' : 'rgba(30,25,15,.45)'; g.beginPath(); g.arc(W * Math.random() * .9, H * Math.random(), 3 + Math.random() * 5, 0, 7); g.fill(); }
+  } },
+  Turbot: { flat: true, h: .75, w: .06, fin: '#5a4a32', dorsal: 0, longDorsal: true, longAnal: true, fork: 0, blunt: true, matte: true, skin: (g, W, H) => {
+    g.fillStyle = '#6a5a40'; g.fillRect(0, 0, W, H); for (let k = 0; k < 220; k++) { g.fillStyle = Math.random() < .5 ? 'rgba(30,24,14,.45)' : 'rgba(200,190,160,.25)'; g.beginPath(); g.arc(W * Math.random(), H * Math.random(), 2 + Math.random() * 6, 0, 7); g.fill(); }
+  } },
+  'Red mullet': { h: .22, w: .12, fin: '#e8a060', dorsal: 2, fork: .6, blunt: true, skin: (g, W, H) => { band(g, W, H, ['#b83a2a', '#d8603a', '#e88a6a', '#f4c0a8', '#f8e8e0']); g.fillStyle = 'rgba(242,194,48,.8)'; g.fillRect(0, H * .4, W * .8, 5); } },
+  'Striped seabream': { h: .36, w: .12, fin: '#a8a090', dorsal: 1, fork: .6, deep: true, skin: (g, W, H) => { band(g, W, H, ['#6a6a5a', '#a8a890', '#d0d0c0', '#ececE0', '#f6f6f0']); g.fillStyle = 'rgba(30,30,25,.6)'; for (let k = 0; k < 13; k++) g.fillRect(W * (.08 + k * .055), 4, 7, H * .7); } },
+  Dentex: { h: .3, w: .13, fin: '#c88a8a', dorsal: 1, spiny: true, fork: .5, teeth: true, skin: (g, W, H) => { band(g, W, H, ['#8a6a7a', '#c88a9a', '#d8b0b8', '#ece0e0', '#f6f2f2']); g.fillStyle = 'rgba(60,110,200,.6)'; for (let k = 0; k < 60; k++) { g.beginPath(); g.arc(W * Math.random() * .85, H * (.1 + Math.random() * .4), 2, 0, 7); g.fill(); } } },
+  Garfish: { lenMul: 2, h: .07, w: .05, fin: '#4a8a7a', dorsal: 1, rearDorsal: true, fork: .7, bill: true, skin: (g, W, H) => { band(g, W, H, ['#1f5a6a', '#3a8a8a', '#a8d0c8', '#eef4f2', '#f8faf8']); } },
+  'Conger eel': { lenMul: 1.9, h: .08, w: .08, fin: '#3a3a32', dorsal: 0, longDorsal: true, longAnal: true, fork: 0, blunt: true, matte: true, skin: (g, W, H) => { band(g, W, H, ['#2a2a24', '#3a3a32', '#4a4a40', '#8a8a7a', '#c8c8b8']); } },
+  Scorpionfish: { h: .3, w: .17, fin: '#c8402a', dorsal: 1, spiny: true, fork: 0, blunt: true, matte: true, skin: (g, W, H) => { g.fillStyle = '#c8402a'; g.fillRect(0, 0, W, H); for (let k = 0; k < 120; k++) { g.fillStyle = ['rgba(90,20,10,.5)', 'rgba(240,180,140,.4)', 'rgba(60,40,30,.4)'][k % 3]; g.beginPath(); g.arc(W * Math.random(), H * Math.random(), 3 + Math.random() * 7, 0, 7); g.fill(); } } },
+  Amberjack: { h: .24, w: .14, fin: '#8a8a5a', dorsal: 2, fork: 1, lunate: true, skin: (g, W, H) => { band(g, W, H, ['#5a5a4a', '#8a8a6a', '#c8c0a0', '#ece8dc', '#f6f4ee']); g.fillStyle = 'rgba(232,180,60,.6)'; g.fillRect(0, H * .4, W, 6); g.fillStyle = 'rgba(60,50,30,.6)'; g.save(); g.translate(W * .86, H * .2); g.rotate(.5); g.fillRect(0, 0, 40, 6); g.restore(); } },
+  Bonito: { h: .24, w: .15, fin: '#3a5a8a', dorsal: 2, fork: 1.1, lunate: true, finlets: true, skin: (g, W, H) => { band(g, W, H, ['#1f3a6a', '#3a5a8a', '#b8c8d8', '#eef2f6', '#f8f8fa']); g.strokeStyle = 'rgba(15,30,60,.85)'; g.lineWidth = 4; for (let k = 0; k < 9; k++) { g.beginPath(); g.moveTo(W * (.1 + k * .08), 4); g.lineTo(W * (.18 + k * .08), H * .4); g.stroke(); } } },
   Carp: { h: .33, w: .17, fin: '#8a5a2a', dorsal: 0, longDorsal: true, fork: .5, blunt: true, skin: (g, W, H) => {
     band(g, W, H, ['#4a3a1a', '#8a6a2a', '#c9a24a', '#e0c890', '#f0e4c0']);
     g.strokeStyle = 'rgba(60,40,10,.45)'; g.lineWidth = 2; for (let y = 8; y < H * .8; y += 13) for (let x = ((y / 13) % 2) * 8; x < W * .8; x += 16) { g.beginPath(); g.arc(x, y, 8, Math.PI * .1, Math.PI * .9); g.stroke(); }
@@ -3015,7 +3166,7 @@ function makeFishModel(name, len) {
   // tail: forked (or lunate for tuna) on its own pivot so it can flap
   const tail = new THREE.Group(); tail.position.z = z0 + len * .02; g.add(tail);
   const tl = len * (L.lunate ? .22 : .2), th = H * (.55 + L.fork * .35);
-  tail.add(new THREE.Mesh(finGeo([[0, H * .06], [-tl, th], [-tl * (1 - L.fork * .35), 0], [-tl, -th], [0, -H * .06], [len * .03, 0]]), finM));
+  tail.add(new THREE.Mesh(finGeo([[0, H * .06], [-tl, th], [-tl * (1 - L.fork * .35), 0], [-tl, -th], [0, -H * .06], [len * .03, 0]]), L.tailCol ? new THREE.MeshStandardMaterial({ color: C(L.tailCol), roughness: .5, side: THREE.DoubleSide }) : finM));
   // dorsal fin(s)
   const d1 = L.spiny ? [[len * .12, 0], [len * .1, H * .4], [len * .04, H * .5], [-len * .02, H * .42], [-len * .08, H * .28], [-len * .1, 0]]
     : [[len * .1, 0], [len * .02, H * .55], [-len * .08, H * .35], [-len * .12, 0]];
@@ -3028,6 +3179,11 @@ function makeFishModel(name, len) {
     for (const sd of [-1, 1]) { const w1 = new THREE.Mesh(new THREE.CylinderGeometry(len * .003, len * .008, len * .38, 5).translate(0, -len * .19, 0), wm); w1.position.set(sd * Wd * .3, H * .08, len * .5); w1.rotation.set(-1.9, 0, sd * -.9); g.add(w1);
       for (const o of [.12, .25]) { const w2 = new THREE.Mesh(new THREE.CylinderGeometry(len * .002, len * .004, len * .09, 4).translate(0, -len * .045, 0), wm); w2.position.set(sd * Wd * o, -H * .3, len * .47); w2.rotation.set(-.6, 0, sd * .3); g.add(w2); } } }
   if (L.longAnal) { const la = new THREE.Mesh(finGeo([[len * .05, 0], [0, -H * .3], [-len * .45, -H * .25], [-len * .48, 0]]), finM); la.position.set(0, -H * .3, 0); g.add(la); df.scale.setScalar(.4); }
+  if (L.noDorsal) df.visible = false;
+  if (L.teeth || L.fangs || L.humanTeeth) { const tm = new THREE.MeshStandardMaterial({ color: C('#f4f0e6'), roughness: .3 }); // a mouthful of teeth
+    if (L.teeth) for (let k = 0; k < 7; k++) for (const sy of [1, -1]) { const tt = new THREE.Mesh(new THREE.ConeGeometry(len * .008, len * .025, 4), tm); const a = (k / 6 - .5) * 1.8; tt.position.set(Math.sin(a) * Wd * .22, -H * .02 + sy * len * .012, len * .49 - (1 - Math.cos(a)) * len * .03); tt.rotation.x = sy > 0 ? Math.PI : 0; g.add(tt); }
+    if (L.fangs) for (const sd of [-1, 1]) { const fg = new THREE.Mesh(new THREE.ConeGeometry(len * .012, len * .09, 5), tm); fg.position.set(sd * Wd * .12, -H * .02 + len * .03, len * .48); g.add(fg); }
+    if (L.humanTeeth) for (let k = 0; k < 6; k++) { const tt = new THREE.Mesh(new THREE.BoxGeometry(len * .018, len * .022, len * .01), tm); tt.position.set((k - 2.5) * len * .019, -H * .02, len * .495); g.add(tt); } }
   if (L.dorsal === 2) { const d2 = new THREE.Mesh(finGeo([[len * .05, 0], [0, H * .42], [-len * .08, H * .12], [-len * .09, 0]]), finM); d2.position.set(0, H * .34, -len * .18); g.add(d2); }
   if (L.deep) { const dl = new THREE.Mesh(finGeo([[len * .2, 0], [len * .1, H * .22], [-len * .25, H * .15], [-len * .3, 0]]), finM); dl.position.set(0, H * .4, 0); g.add(dl); }
   // anal fin, pelvic fins and pectoral fins
@@ -3039,8 +3195,10 @@ function makeFishModel(name, len) {
     const eyeR = Math.max(.008, len * (L.deep ? .045 : .038));
     const eye = new THREE.Mesh(new THREE.SphereGeometry(eyeR, 12, 10), new THREE.MeshStandardMaterial({ color: C(name === 'Bluefin tuna' ? '#b8b8a8' : '#e8e2c8'), metalness: .6, roughness: .25 }));
     eye.position.set(sd * Wd * .3, H * .1, len * .36); eye.scale.set(.5, 1, 1); g.add(eye);
+    if (L.flat) eye.position.set(Wd * .55, H * (sd > 0 ? .2 : .02), len * (sd > 0 ? .3 : .36));
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(eyeR * .6, 10, 8), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: .05 }));
     pupil.position.set(sd * (Wd * .3 + eyeR * .3), H * .1, len * .36); pupil.scale.set(.5, 1, 1); g.add(pupil);
+    if (L.flat) pupil.position.set(Wd * .55 + eyeR * .3, H * (sd > 0 ? .2 : .02), len * (sd > 0 ? .3 : .36));
   }
   // mouth
   const mouth = new THREE.Mesh(new THREE.TorusGeometry(len * .025, len * .006, 5, 10, Math.PI), new THREE.MeshStandardMaterial({ color: 0x5a4a48, roughness: .6 }));
@@ -3050,6 +3208,7 @@ function makeFishModel(name, len) {
     f.position.set(0, sy * H * (.2 - k * .02), -len * (.22 + k * .045)); g.add(f);
   }
   g.userData = { tail, len, wig: (t, a) => { tail.rotation.y = Math.sin(t * 14) * .6 * a; body.rotation.y = Math.sin(t * 14 - 1) * .08 * a; } };
+  if (L.flat) { const o = new THREE.Group(); g.rotation.z = Math.PI / 2; o.add(g); o.userData = g.userData; return o; } // flatfish swim on their side, eyes up
   return g;
 }
 function makeOctopus(len) {
@@ -3086,7 +3245,7 @@ function makeBoot() {
   return g;
 }
 function makeCatchMesh(type, kg) { // hangs from the hook by its mouth: origin at the hook
-  const name = type[0], len = clamp(.16 * Math.cbrt(kg / .1), .12, 2.1), outer = new THREE.Group();
+  const name = type[0], len = clamp(.16 * Math.cbrt(kg / .1) * (FISH_LOOK[name] && FISH_LOOK[name].lenMul || 1), .12, 2.7), outer = new THREE.Group();
   let m;
   if (name === 'Old boot') { m = makeBoot(); m.position.y = -m.userData.top; }
   else if (name === 'Octopus') { m = makeOctopus(len); m.position.y = -m.userData.top; }
@@ -3100,7 +3259,9 @@ let AIM = null;
 function updateFishing(dt, act, press) {
   const F = foot.fish, R = foot.rod; F.T += dt;
   const now = performance.now() / 1000;
-  let ang = 1.0, arm = 0, bx = 0, by = .07 + Math.sin(now * 2) * .04, bz = 0, showBob = false;
+  let ang = 1.0, arm = 0, bx = 0, by = .07 + Math.sin(now * 2) * .04, bz = 0, showBob = false, lineEnd = null;
+  const WYf = F.lake ? .12 : .02; // the water's surface here
+  if (F.jump && F.st !== 'reel') { scene.remove(F.jump.m); F.jump = null; }
   if (F.spot) { bx = F.spot.x; bz = F.spot.z; }
   if (!AIM) { AIM = new THREE.Group(); const am = new THREE.MeshBasicMaterial({ color: 0xf9c80e, transparent: true, opacity: .9, depthWrite: false }); AIM.add(new THREE.Mesh(new THREE.RingGeometry(.95, 1.25, 32).rotateX(-Math.PI / 2), am), new THREE.Mesh(new THREE.CircleGeometry(.2, 12).rotateX(-Math.PI / 2), am), new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, 1.6, 6).translate(0, .8, 0), am), new THREE.Mesh(new THREE.ConeGeometry(.22, .45, 10).rotateX(Math.PI).translate(0, 1.9, 0), am)); scene.add(AIM); }
   AIM.visible = F.st === 'ready';
@@ -3110,10 +3271,11 @@ function updateFishing(dt, act, press) {
     if (!F.aim) F.aim = { a: 0, d: Math.min(20, maxC * .7) };
     F.aim.a = clamp(F.aim.a + (input.left - input.right) * 1.1 * dt, -1.1, 1.1); F.aim.d = clamp(F.aim.d + (input.up - input.down) * (10 + maxC * .3) * dt, 4, maxC);
     const ca = Math.cos(F.aim.a), sa = Math.sin(F.aim.a), dx = F.nx * ca + F.nz * sa, dz = F.nz * ca - F.nx * sa;
+    if (F.lake && F.lake.river) while (F.aim.d > 4 && !JNG.water(foot.x + dx * F.aim.d, foot.z + dz * F.aim.d)) F.aim.d -= .5; // stay on the water
     const tx = foot.x + dx * F.aim.d, tz = foot.z + dz * F.aim.d;
     AIM.position.set(tx, F.lake ? .14 : .08, tz); AIM.scale.setScalar(1 + Math.sin(now * 5) * .08);
     if (!foot.boat) foot.h = Math.atan2(dx, dz);
-    if (press) { F.st = 'cast'; F.T = 0; F.cdx = dx; F.cdz = dz; const sc = F.aim.d * .05; F.spot = { x: tx + rnd(-sc, sc), z: tz + rnd(-sc, sc) }; }
+    if (press) { F.st = 'cast'; F.T = 0; F.bottom = false; F.sink = 0; F.cdx = dx; F.cdz = dz; const sc = F.aim.d * .05; F.spot = { x: tx + rnd(-sc, sc), z: tz + rnd(-sc, sc) }; }
   } else if (F.st === 'cast') { // back over the shoulder, whip forward, the float flies out
     const u = F.T / 1.4;
     ang = u < .4 ? lerp(1, -.55, smooth01(u / .4)) : u < .55 ? lerp(-.55, 1.3, (u - .4) / .15) : lerp(1.3, 1, smooth01((u - .55) / .45));
@@ -3125,39 +3287,54 @@ function updateFishing(dt, act, press) {
     if (u >= 1) {
       F.rig = gearOf('bait').kind === 'rig'; F.lure = gearOf('bait').kind === 'lure'; audio.plop();
       if (F.lure) { // lures are reeled back in: fish chase them and strike on the way
-        const b = gearOf('bait'), rightWater = F.lake ? b.water === 'lake' : b.water !== 'lake';
+        const b = gearOf('bait'), rightWater = F.lake ? (F.lake.river ? b.water === 'river' : b.water === 'lake') : !b.water;
         F.st = 'retrieve'; F.T = 0; F.RT = 0; F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z); F.next = null;
         if (Math.random() < (rightWater ? (b.attract || .75) : .4) * (fishLog.gadgets.sonar ? 1.15 : 1)) { const t = pickFish(F); F.next = { type: t, kg: rollKg(t) }; F.strikeAt = rnd(.8, Math.max(1.2, (F.D - 3) / (2.2 * gearOf('reel').spd))); }
         show('', 'Hold E to reel the lure in. Let go to pause. Fish may chase it!', 2.4);
       } else
       if (F.rig) { F.st = 'jig'; F.T = 0; F.hooked = []; F.biteT = 1.2; F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z); show('', 'Hold E to reel the rig in slowly. Let go to jig and wait for bites.', 2.6); }
-      else { F.st = 'wait'; F.T = 0; F.biteAt = biteTime(); }
+      else { F.st = 'wait'; F.T = 0; F.biteAt = biteTime() * (fishLog.bottom ? 1.15 : 1); F.bottom = !!fishLog.bottom; F.nibPh = Math.random() * 6; if (F.bottom && !fishLog.toldBottom) { fishLog.toldBottom = true; show('Bottom fishing', 'Your bait sinks to the bottom. Watch the rod tip: little taps and tinkles are nibbles, a big pull round is a bite!', 4.5); } }
     }
   } else if (F.st === 'wait') {
-    showBob = true; ang = 1 + Math.sin(now * 1.3) * .02;
-    if (Math.sin(now * 6.3) > .985) by -= .09; // a nibble
-    if (F.T > F.biteAt) { F.st = 'bite'; F.T = 0; audio.plop(); }
+    showBob = !F.bottom; ang = 1 + Math.sin(now * 1.3) * .02;
+    const nib = Math.sin(now * 6.3 + (F.nibPh || 0)) > .985 && F.T > F.biteAt - 4;
+    if (F.bottom) { lineEnd = [bx, WYf, bz]; if (nib) { ang -= .05 + Math.sin(now * 60) * .02; if (!F.tinked) { F.tinked = true; audio.tink(); } } else F.tinked = false; } // the rod tip nods and the little bell tinkles
+    else if (Math.sin(now * 6.3) > .985) by -= .09; // a nibble
+    F.pull = act ? (F.pull || 0) + dt : 0;
+    if (F.pull > .7) { // reel the bait back in to cast again
+      F.pull = 0; if (F.bottom && Math.random() < (F.lake && F.lake.river ? .3 : .22)) { F.st = 'snag'; F.T = 0; F.tension = .2; show('Snagged!', 'Your hook is stuck on the bottom! Hold E to pull it free, but don\'t snap the line. Q to cut it.', 3.5); audio.crash(1); }
+      else { F.st = 'ready'; F.T = 0; F.spot = null; F.next = null; if (F.visM) F.leaving = true; show('', 'Reeled in. Aim and cast again!', 1.6); }
+    }
+    else if (F.T > F.biteAt) { F.st = 'bite'; F.T = 0; audio.plop(); if (F.bottom) { audio.tink(); setTimeout(() => audio.tink(), 120); show('', 'The rod tip is pulling round! Strike: press E!', 1.2); } }
+  } else if (F.st === 'snag') { // stuck on a rock or a sunken branch
+    showBob = false; lineEnd = [bx, WYf, bz]; const SN = gearOf('line').snap;
+    F.tension = Math.max(0, F.tension + (act ? .55 : -.6) * dt); ang = .55 - F.tension * .2 + Math.sin(now * 20) * .01 * F.tension; arm = act ? -.35 : 0;
+    if (Math.random() < dt * (act ? F.tension * .9 : .06)) { F.st = F.lure ? 'retrieve' : 'ready'; F.T = 0; if (!F.lure) { F.spot = null; F.next = null; } F.sink = 0; show('Free!', F.lure ? 'It popped free. Keep reeling!' : 'You pulled it free. Cast again!', 1.8); audio.ding(); }
+    else if (F.tension >= .9 * SN) { F.st = 'ready'; F.T = 0; F.spot = null; F.next = null; audio.crash(3); show('Snapped off!', `You lost your ${gearOf('bait').kind === 'lure' ? 'lure' : 'hook'} on the snag. Tie on another and cast again (lures don't sink as far if you keep reeling).`, 3.5); }
   } else if (F.st === 'retrieve') { // winding the lure back: hold E to reel, let go to pause
     showBob = true;
-    if (act) { F.D -= 2.2 * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 35) * dt; F.RT += dt; }
+    if (act) { F.D -= 2.2 * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 35) * dt; F.RT += dt; F.sink = Math.max(0, (F.sink || 0) - dt * 2.5); } else F.sink = (F.sink || 0) + dt; // stop reeling and the lure sinks to the bottom
+    if (act && F.sink > 2.2 && F.D > 4 && Math.random() < dt * .45 && !(F.next && F.RT >= F.strikeAt - .3)) { F.st = 'snag'; F.T = 0; F.tension = .3; show('Snagged!', 'Your lure sank to the bottom and caught on something! Hold E to pull it free. Q to cut the line.', 3.5); audio.crash(1); }
     ang = act ? .7 + Math.sin(now * 14) * .05 : .9; arm = act ? -.3 + Math.sin(now * 12) * .12 : 0;
     bx = foot.x + F.cdx * Math.max(F.D, .8); bz = foot.z + F.cdz * Math.max(F.D, .8); by = (F.lake ? .1 : .04) + (act ? Math.sin(now * 18) * .03 : 0);
     F.spot = { x: bx, z: bz };
     if (F.next && F.RT >= F.strikeAt) { F.st = 'bite'; F.T = 0; audio.plop(); show('', 'STRIKE! Press E!', 1); }
     else if (F.D <= 1.2) { F.st = 'ready'; F.T = 0; F.spot = null; F.next = null; show('', 'No takers this time. Aim somewhere else and cast again!', 2.2); }
-  } else if (F.st === 'bite') { // the float is dragged under: strike now!
-    showBob = true; by = -.2 + Math.sin(now * 30) * .05; ang = .95;
+  } else if (F.st === 'bite') { // the float is dragged under (or the rod tip pulled round): strike now!
+    showBob = !F.bottom; by = -.2 + Math.sin(now * 30) * .05; ang = F.bottom ? .72 + Math.sin(now * 22) * .07 : .95; if (F.bottom) lineEnd = [bx, WYf, bz];
     if (press) {
       const nx = F.next || (() => { const t = pickFish(F); return { type: t, kg: rollKg(t) }; })(), type = nx.type; F.next = null;
       F.type = type; F.kg = nx.kg;
       F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) + (type[4] >= 1.5 ? 14 + type[4] * 3 : type[4] * 4);
-      F.tension = .4; F.low = 0; F.st = 'reel'; F.T = 0; audio.ding();
-    } else if (F.T > 1.1) { F.st = F.lure ? 'retrieve' : 'wait'; F.T = 0; F.biteAt = biteTime() + 1; F.next = null; if (F.visM) F.leaving = true; show('', F.lure ? 'Too slow: it let go of the lure!' : 'Too slow: the fish stole the bait.', 1.8); }
+      F.tension = .4; F.low = 0; F.st = 'reel'; F.T = 0; F.bitTest = false; F.jt = rnd(1.5, 4); audio.ding();
+    } else if (F.T > (F.bottom ? 1.6 : 1.1)) { F.st = F.lure ? 'retrieve' : 'wait'; F.T = 0; F.biteAt = biteTime() + 1; F.next = null; if (F.visM) F.leaving = true; show('', F.lure ? 'Too slow: it let go of the lure!' : 'Too slow: the fish stole the bait.', 1.8); }
   } else if (F.st === 'reel') { // hold E to reel; keep the tension in the green or the line snaps
     const fight = F.type[4], surge = .55 + .45 * Math.sin(F.T * (1.7 + fight)) + .35 * Math.sin(F.T * 5.3 + 1);
     const RT = gearOf('rod').ten, SN = gearOf('line').snap;
     F.tension += (act ? (.5 + fight * surge * .55) * RT : -.8) * dt + fight * surge * .05 * RT * dt;
     F.tension = Math.max(0, F.tension);
+    if (F.type[0] === 'Electric eel' && Math.random() < dt * .35) { F.tension += .18; show('⚡ ZAP! ⚡', 'The electric eel gave you a shock!', 1); audio.crash(1); }
+    if (F.type[0] === 'Red-bellied piranha' && !F.bitTest) { F.bitTest = true; if (fishLog.gear.line < 3 && Math.random() < .3) { F.st = 'ready'; F.T = 0; F.bitTest = false; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(3); show('Chomp!', 'The piranha bit right through your line! A steel leader (tackle shop) stops that.', 3); return; } }
     if (act && F.tension > .2 && F.tension < .85 * SN) F.D -= (3.3 - fight * .9) * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 35) * dt;
     else if (!act) F.D = Math.min(F.D0 + 8, F.D + fight * .45 * dt);
     F.low = F.tension < .1 ? F.low + dt : 0;
@@ -3168,6 +3345,20 @@ function updateFishing(dt, act, press) {
     if (!R.fishMesh && F.D < 4) { R.fishMesh = makeCatchMesh(F.type, F.kg); scene.add(R.fishMesh); }
     if (R.fishMesh) { R.fishMesh.position.set(bx, by + .02, bz); R.fishMesh.rotation.z = Math.sin(now * 5) * .25; R.fishMesh.userData.wig(now, 1); }
     showBob = !R.fishMesh;
+    { // thrashing at the surface, and the jumpers leap right out of the water
+      F.jt = (F.jt ?? 3) - dt;
+      if (!F.jump && F.D > 3 && F.jt <= 0 && F.type[0] !== 'Old boot' && F.type[0] !== 'Octopus') {
+        const jumper = JUMPERS.has(F.type[0]) && Math.random() < .75, m = makeSwimmer(F.type, F.kg); F.jt = rnd(3, 7);
+        if (m) { m.rotation.order = 'YXZ'; scene.add(m); const L = m.userData.len; F.jump = { m, t: 0, x: bx, z: bz, hd: Math.random() * 6, dur: jumper ? .8 + L * .35 : .9, h: jumper ? .4 + L * .9 : 0, roll: !jumper };
+          splashAt(bx, WYf, bz, L * (jumper ? 1.2 : .8)); if (jumper) { show('', `It jumped! ${F.type[0]} 🐟`, 1.1); F.tension = Math.max(.05, F.tension - .15); } else show('', 'It\'s thrashing at the surface!', 1); }
+      }
+      if (F.jump) { const J = F.jump, L = J.m.userData.len, u = (J.t += dt) / J.dur;
+        if (u >= 1) { splashAt(J.x, WYf, J.z, L * (J.roll ? .5 : 1.3)); scene.remove(J.m); F.jump = null; }
+        else { if (J.roll) { J.m.position.set(J.x, WYf - L * .14 + Math.sin(u * Math.PI) * L * .1, J.z); J.m.rotation.set(0, J.hd + u * 2, Math.sin(u * 20) * .7); if (Math.random() < dt * 10) splashAt(J.x + rnd(-L, L) * .4, WYf, J.z + rnd(-L, L) * .4, L * .35); }
+          else { J.m.position.set(J.x + Math.sin(J.hd) * (u - .5) * L, WYf + Math.sin(u * Math.PI) * J.h - L * .1, J.z + Math.cos(J.hd) * (u - .5) * L); J.m.rotation.set(lerp(-1.1, 1.1, u), J.hd, Math.sin(u * 12) * .4); }
+          J.m.userData.wig(now * 2.5, 1); const px = J.m.rotation.x; showBob = false; lineEnd = [J.m.position.x + Math.sin(J.hd) * Math.cos(px) * L * .5, J.m.position.y - Math.sin(px) * L * .5, J.m.position.z + Math.cos(J.hd) * Math.cos(px) * L * .5]; }
+      }
+    }
     if (F.tension >= SN) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Snap!', 'The line broke. Ease off when the bar goes red, or buy stronger line at the tackle shop (K).', 2.5); }
     else if (F.low > (fishLog.gadgets.net ? 5 : 2.2)) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } show('', 'The line went slack and the fish swam off. Keep reeling!', 2.5); }
     else if (F.D <= .4) {
@@ -3175,7 +3366,7 @@ function updateFishing(dt, act, press) {
       const [name, cat] = F.type, prev = fishLog.best[name];
       fishLog.count++; const rec = prev == null || F.kg > prev; if (rec) fishLog.best[name] = F.kg; saveFish();
       F.value = catchValue(name, F.kg);
-      $('cName').textContent = name; $('cCat').textContent = `${cat} in Catalan`;
+      $('cName').textContent = name + (RIVER_FISH.has(name) && F.kg > F.type[3] ? ' 🐊 RIVER MONSTER!' : ''); $('cCat').textContent = `${cat} in ${RIVER_FISH.has(name) ? 'Portuguese' : 'Catalan'}`;
       $('cInfo').textContent = name === 'Old boot' ? 'Someone threw this in the sea…' : `${F.kg} kg${rec ? ' · New personal best!' : ''} · Catch #${fishLog.count}`;
       $('cSell').innerHTML = name === 'Old boot' ? '<kbd>E</kbd>Put it in the bin' : `<kbd>E</kbd>Sell for €${F.value.toFixed(2)}`;
       $('cFree').hidden = name === 'Old boot';
@@ -3189,7 +3380,7 @@ function updateFishing(dt, act, press) {
       F.biteT = rnd(.5, 1.3);
       if (F.hooked.length < 7 && Math.random() < (act ? .4 : .75) * (fishLog.gadgets.sonar ? 1.4 : 1)) {
         let r = Math.random() * 100, type = FISH_TYPES[0];
-        for (const [n, w] of F.lake ? [['Roach', 55], ['Perch', 35], ['Brown trout', 6], ['Carp', 4]] : [['Sardine', 55], ['Mackerel', 32], ['Gilt-head bream', 7], ['Grey mullet', 6]]) { r -= w; if (r <= 0) { type = FISH_TYPES.find(t => t[0] === n); break; } }
+        for (const [n, w] of F.lake && F.lake.river ? [['Red-bellied piranha', 70], ['Peacock bass', 12], ['Silver arowana', 8], ['Pacu', 10]] : F.lake ? [['Roach', 55], ['Perch', 35], ['Brown trout', 6], ['Carp', 4]] : [['Sardine', 55], ['Mackerel', 32], ['Gilt-head bream', 7], ['Grey mullet', 6]]) { r -= w; if (r <= 0) { type = FISH_TYPES.find(t => t[0] === n); break; } }
         const kg = +(type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 2) * .45).toFixed(2);
         F.hooked.push({ type, kg }); audio.plop();
         show('', `+1 ${type[0].toLowerCase()} on the rig! (${F.hooked.length}/7)`, 1.2);
@@ -3223,8 +3414,10 @@ function updateFishing(dt, act, press) {
   R.tip.getWorldPosition(_tw);
   const pa = R.line.geometry.attributes.position; pa.setXYZ(0, _tw.x, _tw.y, _tw.z);
   if (R.fishMesh) pa.setXYZ(1, R.fishMesh.position.x, R.fishMesh.position.y, R.fishMesh.position.z);
-  else if (showBob) pa.setXYZ(1, bx, by, bz); else pa.setXYZ(1, _tw.x, _tw.y - .6, _tw.z);
+  else if (lineEnd) pa.setXYZ(1, ...lineEnd); else if (showBob) pa.setXYZ(1, bx, by, bz); else pa.setXYZ(1, _tw.x, _tw.y - .6, _tw.z);
   pa.needsUpdate = true;
+  if (!R.bell) { R.bell = new THREE.Mesh(new THREE.SphereGeometry(.025, 10, 8, 0, Math.PI * 2, 0, Math.PI * .6), new THREE.MeshStandardMaterial({ color: C('#f2c230'), metalness: .8, roughness: .25, side: THREE.DoubleSide })); R.tip.add(R.bell); R.bell.position.y = -.03; R.bell.rotation.x = Math.PI; }
+  R.bell.visible = !!F.bottom && ['wait', 'bite'].includes(F.st); if (R.bell.visible && (F.tinked || F.st === 'bite')) R.bell.rotation.z = Math.sin(now * 40) * .5; else R.bell.rotation.z = 0;
 }
 function makeRigMesh(hooked) { // the sabiki line with a little fish (or a pink feather) on every hook
   const g = new THREE.Group(), gap = .34, n = 7, fish = [];
@@ -3241,9 +3434,9 @@ function makeRigMesh(hooked) { // the sabiki line with a little fish (or a pink 
 
 /* ---------- the underwater bait camera: watch the fish come to your hook ---------- */
 let fishCam = false;
-const rollKg = type => +((type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 1.6)) * (type[0] === 'Old boot' ? 1 : kgMul())).toFixed(2);
+const rollKg = type => +((type[2] + (type[3] - type[2]) * Math.pow(Math.random(), 1.6)) * (type[0] === 'Old boot' ? 1 : kgMul()) * (RIVER_FISH.has(type[0]) && type[3] >= 50 && Math.random() < .14 ? rnd(1.15, 1.6) : 1)).toFixed(2); // now and then a true river monster
 function makeSwimmer(type, kg) { // a free-swimming fish (nose along +z), or null for the old boot
-  const name = type[0], len = clamp(.16 * Math.cbrt(kg / .1), .12, 2.1);
+  const name = type[0], len = clamp(.16 * Math.cbrt(kg / .1) * (FISH_LOOK[name] && FISH_LOOK[name].lenMul || 1), .12, 2.7);
   if (name === 'Old boot') return null;
   const m = name === 'Octopus' ? makeOctopus(len) : makeFishModel(name, len);
   m.userData.len = len; m.traverse(o => { if (o.isMesh) o.castShadow = false; }); return m;
@@ -3341,13 +3534,22 @@ function makeBaitModel(b) {
     for (let i = 0; i < 2; i++) add(new THREE.Mesh(new THREE.SphereGeometry(.011, 12, 10), BM.mat('#3a2a18', { roughness: .8 })), .012, -.04 - i * .022, 0);
     const cloud = []; for (let i = 0; i < 14; i++) { const c = add(new THREE.Mesh(new THREE.SphereGeometry(.012, 8, 6), new THREE.MeshBasicMaterial({ color: C('#b89a6a'), transparent: true, opacity: .25, depthWrite: false }))); c.userData.ph = Math.random(); c.userData.a = Math.random() * 6; cloud.push(c); }
     anim.push(t => cloud.forEach(c => { const u = (t * .1 + c.userData.ph) % 1; c.position.set(.012 + Math.cos(c.userData.a) * u * .12, -.05 + u * .2, Math.sin(c.userData.a) * u * .12); c.scale.setScalar(1 + u * 5); c.material.opacity = .22 * (1 - u); }));
-  } else if (n === 'Spoon') {
+  } else if (n === 'Spoon' || n === 'Giant spoon') {
     const sp = new THREE.Group(); g.add(sp);
     const geo = new THREE.SphereGeometry(1, 20, 10), p = geo.attributes.position; for (let k = 0; k < p.count; k++) { const x = p.getX(k), z = p.getZ(k); p.setY(k, p.getY(k) * .12 + (x * x) * .35); } geo.computeVertexNormals();
-    const s = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: C('#e4e8ec'), metalness: 1, roughness: .12, side: THREE.DoubleSide })); s.scale.set(.02, .02, .045); sp.add(s);
+    const s = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: C(n === 'Giant spoon' ? '#f0c040' : '#e4e8ec'), metalness: 1, roughness: .12, side: THREE.DoubleSide })); s.scale.set(.02, .02, .045); sp.add(s);
     const st = new THREE.Mesh(new THREE.PlaneGeometry(.008, .05).rotateX(-Math.PI / 2), BM.mat('#c8102e', { side: THREE.DoubleSide })); st.position.y = .003; sp.add(st);
     const tr = trebleHook(1.3); tr.rotation.x = Math.PI / 2; tr.position.z = -.05; sp.add(tr); g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { sp.rotation.z = Math.sin(t * (sp2 > .2 ? 16 : 3)) * (sp2 > .2 ? .9 : .3); sp.position.x = Math.sin(t * 16) * .008 * Math.min(1, sp2 * 3); });
+  } else if (n === 'Wire spinnerbait') { // a bent wire: a spinning blade on the top arm, a lead head and a rubber skirt on the bottom one
+    const w1 = add(new THREE.Mesh(new THREE.CylinderGeometry(.0012, .0012, .07, 4).translate(0, .035, 0), BM.metal())); w1.rotation.x = -.9;
+    const blade = new THREE.Group(); blade.position.set(0, .04, -.045); g.add(blade);
+    const bm = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), new THREE.MeshStandardMaterial({ color: C('#e8d070'), metalness: 1, roughness: .1, side: THREE.DoubleSide })); bm.scale.set(.012, .002, .024); bm.position.x = .01; blade.add(bm);
+    add(new THREE.Mesh(new THREE.SphereGeometry(.009, 12, 10), BM.mat('#ff3a8a', { metalness: .4 })), 0, 0, .012);
+    const skirt = new THREE.Group(); skirt.position.z = 0; g.add(skirt);
+    for (let i = 0; i < 16; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(.0012, .0006, .045, 3).translate(0, -.0225, 0).rotateX(-Math.PI / 2), BM.mat(i % 2 ? '#ff3a8a' : '#ffffff')); st.rotation.set((Math.random() - .5) * .5, (Math.random() - .5) * .5, 0); skirt.add(st); }
+    const hk = singleHook(1.2); hk.rotation.x = Math.PI / 2; hk.position.z = -.03; g.add(hk); g.add(lineTo()); moveMode = 'lure';
+    anim.push((t, sp2) => { blade.rotation.z += sp2 > .2 ? .8 : .04; skirt.children.forEach((c, i) => c.rotation.y = Math.sin(t * 8 + i) * .25); });
   } else if (/spinner/i.test(n)) {
     const tiny = n === 'Micro spinner', s = tiny ? .75 : 1;
     const shaft = add(new THREE.Mesh(new THREE.CylinderGeometry(.0012, .0012, .09 * s, 4).rotateX(Math.PI / 2), BM.metal()), 0, 0, 0);
@@ -3359,17 +3561,17 @@ function makeBaitModel(b) {
     if (n === 'Inline spinner') { const tuft = new THREE.Mesh(new THREE.ConeGeometry(.008, .03, 8).rotateX(-Math.PI / 2), BM.mat('#e8e0d0', { roughness: 1 })); tuft.position.z = -.06; g.add(tuft); }
     g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { blade.rotation.z += (sp2 > .2 ? .9 : .05); });
-  } else if (['Jerkbait', 'Deep diver', 'Golden lure', 'Mini crankbait'].includes(n)) {
-    const L = n === 'Mini crankbait' ? .07 : n === 'Jerkbait' ? .14 : .11, cr = n === 'Mini crankbait';
-    const cols = { Jerkbait: ['#ff7a1a', '#fff1d0'], 'Deep diver': ['#1f3fae', '#eef2ff'], 'Golden lure': ['#b8860b', '#fff3b0'], 'Mini crankbait': ['#3f8a1a', '#f2e87a'] }[n];
+  } else if (['Jerkbait', 'Deep diver', 'Golden lure', 'Mini crankbait', 'Monster plug'].includes(n)) {
+    const L = n === 'Monster plug' ? .2 : n === 'Mini crankbait' ? .07 : n === 'Jerkbait' ? .14 : .11, cr = n === 'Mini crankbait';
+    const cols = { Jerkbait: ['#ff7a1a', '#fff1d0'], 'Deep diver': ['#1f3fae', '#eef2ff'], 'Golden lure': ['#b8860b', '#fff3b0'], 'Mini crankbait': ['#3f8a1a', '#f2e87a'], 'Monster plug': ['#d42a1e', '#f4f0e0'] }[n];
     const fb = fishBody(L, cols[0], cols[1], { h: cr ? .36 : .2, w: cr ? .22 : .14, glow: n === 'Golden lure' ? '#ffcc33' : null }); g.add(fb);
     if (n !== 'Jerkbait' || true) { const lip = new THREE.Mesh(new THREE.PlaneGeometry(L * (n === 'Jerkbait' ? .12 : .2), L * (n === 'Deep diver' ? .42 : n === 'Jerkbait' ? .12 : .26)), new THREE.MeshStandardMaterial({ color: C('#dfefff'), transparent: true, opacity: .55, roughness: .1, side: THREE.DoubleSide })); lip.position.set(0, -L * .06, L * .52); lip.rotation.x = n === 'Deep diver' ? 1.1 : .7; g.add(lip); }
     if (cr) { const bars = fb.userData.body; for (let i = 0; i < 3; i++) { const bar = new THREE.Mesh(new THREE.TorusGeometry(L * .17, L * .02, 4, 16, Math.PI), BM.mat('#1e3a10')); bar.rotation.y = Math.PI / 2; bar.position.set(0, L * .02, L * (.1 - i * .12)); g.add(bar); } }
     for (const z of [L * .08, -L * .38]) { const tr = trebleHook(L * 11); tr.position.set(0, -L * .12, z); g.add(tr); }
     g.add(lineTo()); moveMode = 'lure';
     let dart = 0; anim.push((t, sp2, dt) => { const m = Math.min(1, sp2 * 3); if (n === 'Jerkbait') { dart -= dt; if (dart < 0) dart = rnd(.5, 1.1); fb.rotation.y = Math.sin(dart * 9) * .5 * m; fb.rotation.z = Math.sin(t * 6) * .2 * m; } else { fb.rotation.z = Math.sin(t * 14) * .35 * m + Math.sin(t * 1.3) * .05; fb.rotation.y = Math.sin(t * 14 + 1) * .12 * m; } });
-  } else if (n === 'Soft shad' || n === 'Paddle-tail shad') {
-    const top = n === 'Soft shad' ? '#2f8f4f' : '#8a8470', bel = n === 'Soft shad' ? '#b8f0c0' : '#f4efe0';
+  } else if (n === 'Soft shad' || n === 'Paddle-tail shad' || n === 'Big swimbait') {
+    const top = n === 'Soft shad' ? '#2f8f4f' : n === 'Big swimbait' ? '#4a6070' : '#8a8470', bel = n === 'Soft shad' ? '#b8f0c0' : n === 'Big swimbait' ? '#e8ecef' : '#f4efe0';
     const fb = fishBody(.09, top, bel, { metal: .05, rough: .6, h: .2, w: .13 }); g.add(fb);
     const head = new THREE.Mesh(new THREE.SphereGeometry(.011, 12, 10), BM.mat(n === 'Soft shad' ? '#c8102e' : '#4a4a4a', { metalness: .5, roughness: .3 })); head.position.z = .05; g.add(head);
     const tail = new THREE.Group(); tail.position.z = -.045; g.add(tail);
@@ -3405,11 +3607,33 @@ function makeBaitModel(b) {
     for (let i = 0; i < 4; i++) { const tl = new THREE.Mesh(new THREE.CylinderGeometry(.0003, .0003, .016, 3).rotateX(Math.PI / 2), BM.mat('#b8864f')); tl.position.set((i - 1.5) * .0015, 0, -.018); tl.rotation.y = (i - 1.5) * .12; g.add(tl); }
     g.add(lineTo()); moveMode = 'lure';
     anim.push(t => { hackle.rotation.z = Math.sin(t * 3) * .1; g.children.forEach(c => { if (c.geometry && c.geometry.type === 'PlaneGeometry') c.rotation.y = Math.sin(t * 4) * .1; }); });
+  } else if (n === 'Fish chunks' || n === 'Beef heart' || n === 'Fruit & nuts') {
+    add(singleHook(1.4), 0, .035, 0);
+    const cols = n === 'Fish chunks' ? ['#c8606a', '#e8d8d8', '#b04a52'] : n === 'Beef heart' ? ['#7a1424', '#8a1a2a', '#a8283a'] : ['#e86a2a', '#c8302a', '#6a3a1a', '#f2c230'];
+    for (let i = 0; i < 3; i++) { const geo = n === 'Fruit & nuts' ? new THREE.SphereGeometry(.012, 12, 10) : new THREE.DodecahedronGeometry(.013, 0); const ch = add(new THREE.Mesh(geo, BM.mat(cols[i % cols.length], { roughness: .5, flatShading: n !== 'Fruit & nuts' })), .012, -.012 - i * .02, 0); ch.rotation.set(Math.random() * 3, Math.random() * 3, 0); }
+    if (n !== 'Fruit & nuts') { const cloud = []; for (let i = 0; i < 10; i++) { const c = add(new THREE.Mesh(new THREE.SphereGeometry(.012, 8, 6), new THREE.MeshBasicMaterial({ color: C('#a03030'), transparent: true, opacity: .2, depthWrite: false }))); c.userData.ph = Math.random(); c.userData.a = Math.random() * 6; cloud.push(c); }
+      anim.push(t => cloud.forEach(c => { const u = (t * .12 + c.userData.ph) % 1; c.position.set(.012 + Math.cos(c.userData.a) * u * .1, -.03 + u * .16, Math.sin(c.userData.a) * u * .1); c.scale.setScalar(1 + u * 4); c.material.opacity = .2 * (1 - u); })); }
+  } else if (n === 'Live baitfish') {
+    const f = add(makeFishModel('Roach', .14), 0, -.01, 0); add(singleHook(1.1), 0, .022, .03);
+    moveMode = 'swim'; anim.push(t => { f.userData.wig(t * 2.4, 1); g.rotation.y += .012; });
+  } else if (n === 'Bucktail jig') {
+    add(new THREE.Mesh(new THREE.SphereGeometry(.012, 12, 10), BM.mat('#c8102e', { metalness: .4, roughness: .3 })), 0, 0, .01);
+    for (const sd of [-1, 1]) { add(new THREE.Mesh(new THREE.SphereGeometry(.004, 8, 6), BM.mat('#fff')), sd * .009, .004, .016); }
+    const hair = new THREE.Group(); g.add(hair);
+    for (let i = 0; i < 24; i++) { const h = new THREE.Mesh(new THREE.CylinderGeometry(.0008, .0004, .06, 3).translate(0, -.03, 0).rotateX(-Math.PI / 2), BM.mat(i % 5 ? '#f4f0e0' : '#c8102e', { roughness: 1 })); h.rotation.set((Math.random() - .5) * .35, (Math.random() - .5) * .35, 0); hair.add(h); }
+    const hk = singleHook(1.2); hk.rotation.x = Math.PI / 2; hk.position.z = -.03; g.add(hk); g.add(lineTo()); moveMode = 'lure';
+    anim.push((t, sp2) => { g.position.y = Math.abs(Math.sin(t * 3)) * .04 * Math.min(1, sp2 * 3); hair.children.forEach((c, i) => c.rotation.y = Math.sin(t * 5 + i) * .15); });
+  } else if (n === 'Walk-the-dog' || n === 'Prop bait') {
+    const prop = n === 'Prop bait', fb = fishBody(.11, prop ? '#3a3a3a' : '#2a8a3a', prop ? '#f0f0f0' : '#f2d430', { h: .15, w: .14 }); g.add(fb);
+    const props = prop ? [.06, -.06].map(z => { const pr = new THREE.Mesh(new THREE.BoxGeometry(.03, .004, .002), BM.metal()); pr.position.z = z; g.add(pr); return pr; }) : [];
+    for (const z of [.01, -.035]) { const tr = trebleHook(1.1); tr.position.set(0, -.012, z); g.add(tr); }
+    g.add(lineTo()); moveMode = 'lure';
+    anim.push((t, sp2) => { const m = Math.min(1, sp2 * 3); if (prop) props.forEach(p => p.rotation.z += .9 * m + .02); else fb.rotation.y = Math.sin(t * 6) * .6 * m; });
   } else { // anything else: a simple painted lure
     const fb = fishBody(.1, b.col, '#f4f4f4'); g.add(fb); const tr = trebleHook(1.1); tr.position.set(0, -.012, -.02); g.add(tr); g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { fb.rotation.z = Math.sin(t * 12) * .3 * Math.min(1, sp2 * 3); });
   }
-  g.userData.sc = ['Maggots', 'Sweetcorn', 'Dry fly', 'Wet fly', 'Micro spinner'].includes(n) ? 1.6 : 1; // tiny ones shown a bit bigger
+  g.userData.sc = { Maggots: 1.6, Sweetcorn: 1.6, 'Dry fly': 1.6, 'Wet fly': 1.6, 'Micro spinner': 1.6, 'Giant spoon': 1.8, 'Big swimbait': 1.9 }[n] || 1; // tiny ones shown a bit bigger
   g.userData.mode = moveMode; g.userData.anim = (t, sp, dt) => { for (const f of anim) f(t, sp, dt); };
   g.traverse(o => { if (o.isMesh) o.castShadow = false; });
   return g;
@@ -3423,14 +3647,16 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
     bait.name = 'bait'; F.ug.add(bait); F.lureLook = bait.userData.mode === 'lure';
     const hook = new THREE.Mesh(new THREE.TorusGeometry(.025, .004, 5, 12, Math.PI * 1.3), new THREE.MeshStandardMaterial({ color: 0xc9ced4, metalness: .9, roughness: .2 })); hook.position.y = -.03; F.ug.add(hook);
     F.hookPos = new THREE.Vector3();
+    const lead = new THREE.Mesh(new THREE.SphereGeometry(.03, 10, 8).scale(1, .8, 1.4), new THREE.MeshStandardMaterial({ color: C('#6a6f75'), metalness: .5, roughness: .5 })); lead.name = 'lead'; F.ug.add(lead); // the bottom weight
   }
   F.ug.visible = inWater;
   if (!inWater) { if (F.visM) { scene.remove(F.visM); F.visM = null; } F.leaving = false; F.leaveT = 0; if (F.rigM) { scene.remove(F.rigM); F.rigM = null; } return; }
   // where the hook sits: under the float, or wherever the fish drags it
-  const floor = F.lake ? lakeBed(F.lake, bx, bz) : seabedY(bx, bz), depth = F.st === 'jig' ? Math.max(floor + .5, -2.4) : F.st === 'retrieve' || (F.lure && F.st !== 'reel') ? Math.max(floor + .4, -.7) : Math.max(floor + .6, -1.7);
+  const floor = F.lake ? waterBed(F.lake, bx, bz) : seabedY(bx, bz), depth = F.st === 'snag' ? floor + .1 : F.st === 'jig' ? Math.max(floor + .5, -2.4) : F.st === 'retrieve' || (F.lure && F.st !== 'reel') ? Math.max(floor + .15, -.7 - (F.sink || 0) * .9) : F.bottom && F.st !== 'reel' ? floor + .08 : Math.max(floor + .6, -1.7);
   F.hookPos.set(bx, depth, bz);
   const L = F.ug.children[0]; F.ug.position.set(bx, Math.min(by, 0), bz); L.scale.y = Math.max(.05, Math.min(by, 0) - depth); F.ug.children[1].position.y = F.ug.children[2].position.y = depth - Math.min(by, 0);
   F.ug.children[1].visible = F.st !== 'jig';
+  { const ld = F.ug.children[3]; ld.visible = !!F.bottom && !F.lureLook && F.st !== 'reel'; ld.position.set(.12, F.ug.children[1].position.y - .05, .05); }
   { // the bait wriggles and the lure swims: nose pointing back at you as you wind it in
     const bm = F.ug.children[1], pv = F.ugPrev || [bx, bz], sp = Math.hypot(bx - pv[0], bz - pv[1]) / Math.max(dt, 1e-3); F.ugPrev = [bx, bz];
     F.ugSp = lerp(F.ugSp || 0, sp, 1 - Math.exp(-dt * 6)); F.ugT = (F.ugT || 0) + dt;
@@ -3479,9 +3705,9 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
   // a few little fish always hang about near the bait when you're watching
   if (fishCam && !F.amb) {
     F.amb = [];
-    const ambT = F.lake ? ['Roach', 'Roach', 'Perch', 'Roach', 'Perch', 'Brown trout'].map(n => FISH_TYPES.find(t => t[0] === n)) : null;
+    const ambT = F.lake && F.lake.river ? ['Red-bellied piranha', 'Red-bellied piranha', 'Red-bellied piranha', 'Red-bellied piranha', 'Peacock bass', 'Pacu'].map(n => FISH_TYPES.find(t => t[0] === n)) : F.lake ? ['Roach', 'Roach', 'Perch', 'Roach', 'Perch', 'Brown trout'].map(n => FISH_TYPES.find(t => t[0] === n)) : null;
     for (let i = 0; i < 6; i++) { const t = ambT ? ambT[i] : FISH_TYPES[i % 3 === 0 ? 1 : 0], m = makeSwimmer(t, rnd(.05, .12)); m.rotation.order = 'YXZ'; scene.add(m); F.amb.push({ m, a: Math.random() * 6, r: rnd(1.5, 4), y: rnd(-.8, .5), s: rnd(.5, 1.1) * (Math.random() < .5 ? -1 : 1) }); }
-    if (ambT) { const bn = Math.random() < .5 ? 'Wels catfish' : 'Carp', big = makeSwimmer(FISH_TYPES.find(t => t[0] === bn), rnd(40, 90)); big.rotation.order = 'YXZ'; scene.add(big); F.amb.push({ m: big, a: Math.random() * 6, r: rnd(5, 7), y: -.6, s: .7 }); }
+    if (ambT) { const bn = F.lake.river ? pick3(['Arapaima', 'Piraíba', 'Redtail catfish']) : Math.random() < .5 ? 'Wels catfish' : 'Carp', big = makeSwimmer(FISH_TYPES.find(t => t[0] === bn), rnd(40, 90)); big.rotation.order = 'YXZ'; scene.add(big); F.amb.push({ m: big, a: Math.random() * 6, r: rnd(5, 7), y: -.6, s: .7 }); }
   }
   if (F.amb) for (const a of F.amb) {
     a.m.visible = fishCam; a.a += dt * a.s / a.r * 1.4;
@@ -3513,12 +3739,18 @@ function releaseCatch() {
   fishLog.released++; saveFish();
   show(`Adéu, ${F.type[1].toLowerCase()}!`, `You let the ${F.type[0].toLowerCase()} go. Fish let go: ${fishLog.released}`, 3);
 }
-const splashGeo = new THREE.RingGeometry(.6, 1, 28).rotateX(-Math.PI / 2);
+const splashGeo = new THREE.RingGeometry(.6, 1, 28).rotateX(-Math.PI / 2), dropGeo = new THREE.SphereGeometry(.035, 6, 4), dropMat = new THREE.MeshBasicMaterial({ color: 0xf4f8f8, transparent: true, opacity: .85 });
+function splashAt(x, y, z, k = 1) { // a ring on the water and a burst of spray
+  const r = new THREE.Mesh(splashGeo, new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: .8, depthWrite: false })); r.position.set(x, y + .02, z); scene.add(r); freed.push({ m: r, ring: true, t: 0, k: Math.max(.5, k) });
+  for (let i = 0, n = Math.round(6 + k * 10); i < n; i++) { const a = Math.random() * 6.28, sp = rnd(.6, 2.2) * Math.sqrt(k), d = new THREE.Mesh(dropGeo, dropMat); d.position.set(x, y, z); d.scale.setScalar(rnd(.6, 1.6) * Math.sqrt(k)); scene.add(d); freed.push({ m: d, drop: true, t: 0, y0: y, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, vy: rnd(1.5, 4) * Math.sqrt(k) }); }
+  audio.plop();
+}
 function updateFreed(dt) {
   const now = performance.now() / 1000;
   for (let k = freed.length - 1; k >= 0; k--) {
     const f = freed[k]; f.t += dt;
-    if (f.ring) { f.m.scale.setScalar(.3 + f.t * 2.2); f.m.material.opacity = Math.max(0, .8 - f.t); if (f.t > .8) { scene.remove(f.m); f.m.material.dispose(); freed.splice(k, 1); } continue; }
+    if (f.drop) { f.vy -= 9.8 * dt; f.m.position.x += f.vx * dt; f.m.position.y += f.vy * dt; f.m.position.z += f.vz * dt; if (f.m.position.y < f.y0 || f.t > 2) { scene.remove(f.m); freed.splice(k, 1); } continue; }
+    if (f.ring) { f.m.scale.setScalar((.3 + f.t * 2.2) * (f.k || 1)); f.m.material.opacity = Math.max(0, .8 - f.t); if (f.t > .8) { scene.remove(f.m); f.m.material.dispose(); freed.splice(k, 1); } continue; }
     const m = f.m;
     if (!f.wet) {
       f.vy -= 9.8 * dt; m.position.x += f.vx * dt; m.position.y += f.vy * dt; m.position.z += f.vz * dt;
@@ -3687,6 +3919,213 @@ const nearClub = (x, z) => Math.hypot(x - CLUB.x, z - CLUB.z) < 6;
 }
 const nearKiosk = (x, z) => Math.hypot(x - KIOSK.x, z - KIOSK.z) < 3.6;
 const nearDock = (x, z) => Math.hypot(x - DOCK.px, z - DOCK.pz) < 4;
+// ---------- building the rainforest (only the first time you go there) ----------
+JNG.trunks = new Map(); // a coarse grid of tree trunks you bump into
+JNG.addTrunk = (x, z, r) => { const k = Math.floor(x / 8) + ',' + Math.floor(z / 8); let l = JNG.trunks.get(k); if (!l) JNG.trunks.set(k, l = []); l.push([x, z, r]); };
+JNG.build = () => {
+  if (JNG.built) return; JNG.built = true;
+  const root = JNG.root = new THREE.Group(); scene.add(root);
+  const HS = JNG.HS, E = HS + 260, c = new THREE.Color(), pick = a => a[Math.random() * a.length | 0];
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3(), sc = new THREE.Vector3(), tv = new THREE.Vector3();
+  const lodgeClear = (x, z, pad = 0) => JNG.flat(x, z) > .05 - pad || Math.hypot(x - JNG.lodge.x, z - JNG.lodge.z) < 34;
+  // forest floor: dark leaf litter, mud by the water
+  { const N = 260, g = new THREE.PlaneGeometry(E * 2, E * 2, N, N).rotateX(-Math.PI / 2), p = g.attributes.position, col = new Float32Array(p.count * 3);
+    for (let k = 0; k < p.count; k++) {
+      const x = p.getX(k) + JNG.x, z = p.getZ(k) + JNG.z, r = JNG.rd(x, z), a = Math.abs(r.d) - r.w / 2; p.setY(k, JNG.h(x, z) - (a < 2 ? .08 : 0));
+      if (a < 0) c.set('#3a3020'); else if (a < 10) c.set('#5a4630').lerp(C('#3c3a22'), a / 10); else c.set(pick(['#2f3a1c', '#38401f', '#3e3a22', '#2c3418', '#45401f']));
+      if (JNG.flat(x, z) > .5) c.set(pick(['#4f6a2a', '#5a7230', '#4a6226'])); col.set([c.r, c.g, c.b], k * 3);
+    }
+    g.computeVertexNormals(); g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const m = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1 })); m.position.set(JNG.x, 0, JNG.z); m.receiveShadow = true; root.add(m); }
+  // the river: a strip of brown water from one end of the forest to the other, flowing, plus smooth muddy banks
+  const tex = SEA.mesh.material.normalMap.clone(); tex.repeat.set(1, 1); tex.needsUpdate = true; JNG.flow = tex;
+  { const STEP = 4, NV = Math.ceil(E * 2 / STEP), NC = 9, pos = [], col = [], uv = [], idx = [], bp = [], bcol = [], bidx = [], deep = C('#4a3a22'), edge = C('#7a6440');
+    const BC = [-6, -3, -1.5, -.5, 0, .6, 1.5, 3, 5, 8, 11]; // bank cross-section, metres from the water's edge
+    for (let i = 0; i <= NV; i++) {
+      const v = -E + i * STEP, s = JNG.ucd(v), k = 1 / Math.sqrt(1 + s * s), hw = JNG.w(v) / 2, cu = JNG.uc(v);
+      for (let j = 0; j < NC; j++) { const t = j / (NC - 1) * 2 - 1, d = t * (hw + 1.2), x = cu + d * k, z = v - d * s * k; pos.push(x, 0, z); uv.push(d / 9, v / 9); c.copy(deep).lerp(edge, Math.pow(Math.abs(t), 3)); col.push(c.r, c.g, c.b); }
+      for (const sd of [-1, 1]) for (let j = 0; j < BC.length; j++) { const d = sd * (hw + BC[j]), x = cu + d * k, z = v - d * s * k, wx = x + JNG.x, wz = z + JNG.z; bp.push(x, JNG.h(wx, wz) + .02, z); c.set(BC[j] < 1 ? '#4a3a26' : BC[j] < 4 ? '#5e4a30' : '#4a4426'); bcol.push(c.r, c.g, c.b); }
+    }
+    for (let i = 0; i < NV; i++) { for (let j = 0; j < NC - 1; j++) { const a = i * NC + j, b = a + NC; idx.push(a, b, a + 1, b, b + 1, a + 1); }
+      const NB = BC.length * 2; for (let sd = 0; sd < 2; sd++) for (let j = 0; j < BC.length - 1; j++) { const a = i * NB + sd * BC.length + j, b = a + NB; if (sd) bidx.push(a, b, a + 1, b, b + 1, a + 1); else bidx.push(a, a + 1, b, b, a + 1, b + 1); } }
+    const wg = new THREE.BufferGeometry(); wg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); wg.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); wg.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); wg.setIndex(idx);
+    const nr = new Float32Array(pos.length); for (let k = 1; k < nr.length; k += 3) nr[k] = 1; wg.setAttribute('normal', new THREE.BufferAttribute(nr, 3));
+    const water = new THREE.Mesh(wg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .2, envMapIntensity: .35, normalMap: tex, normalScale: new THREE.Vector2(.12, .12), transparent: true, opacity: .93, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -12 }));
+    water.position.set(JNG.x, JNG.WY, JNG.z); water.frustumCulled = false; root.add(water);
+    const bg = new THREE.BufferGeometry(); bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3)); bg.setAttribute('color', new THREE.Float32BufferAttribute(bcol, 3)); bg.setIndex(bidx); bg.computeVertexNormals();
+    const bank = new THREE.Mesh(bg, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -4 })); bank.position.set(JNG.x, 0, JNG.z); bank.receiveShadow = true; bank.frustumCulled = false; root.add(bank);
+  }
+  ANIM.push(dt => { if (JNG.on) { tex.offset.y -= dt * .035; tex.offset.x += dt * .004; } }); // the current flows downstream
+  // shared shapes
+  const jit = (g, a) => { const p = g.attributes.position; for (let k = 0; k < p.count; k++) p.setXYZ(k, p.getX(k) * rnd(1 - a, 1 + a), p.getY(k) * rnd(1 - a, 1 + a), p.getZ(k) * rnd(1 - a, 1 + a)); g.computeVertexNormals(); return g; };
+  const G = {
+    trunk: new THREE.CylinderGeometry(.55, .85, 1, 7).translate(0, .5, 0),
+    crown: jit(new THREE.IcosahedronGeometry(1, 1), .25).scale(1, .45, 1),
+    palmTrunk: new THREE.CylinderGeometry(.14, .2, 1, 6).translate(0, .5, 0),
+    bush: jit(new THREE.IcosahedronGeometry(1, 1), .3).translate(0, .6, 0),
+    liana: new THREE.CylinderGeometry(.04, .05, 1, 4).translate(0, -.5, 0),
+    buttress: new THREE.BoxGeometry(.25, 1, 2.6).translate(0, .5, 1.3),
+  };
+  { // a palm crown: drooping fronds, each a long leaf with a bend
+    const fr = []; for (let i = 0; i < 9; i++) { const g = new THREE.PlaneGeometry(.9, 4.2, 1, 6).translate(0, 2.1, 0), p = g.attributes.position;
+      for (let k = 0; k < p.count; k++) { const y = p.getY(k); p.setXYZ(k, p.getX(k) * (1 - Math.abs(y / 4.2 - .5) * 1.2), y * .8, -Math.pow(y / 4.2, 2) * 2.2); }
+      g.rotateX(-.45).rotateY(i / 9 * Math.PI * 2 + rnd(-.2, .2)); fr.push(g); }
+    const pos = []; for (const g of fr) pos.push(...g.toNonIndexed().attributes.position.array); G.palm = new THREE.BufferGeometry(); G.palm.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); G.palm.computeVertexNormals(); }
+  { const pos = []; for (let i = 0; i < 6; i++) { const g = new THREE.PlaneGeometry(.7, 1.6, 1, 3).translate(0, .8, 0); g.rotateX(-.5).rotateY(i / 6 * Math.PI * 2); pos.push(...g.toNonIndexed().attributes.position.array); } G.fern = new THREE.BufferGeometry(); G.fern.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); G.fern.computeVertexNormals(); }
+  { const pos = []; for (let i = 0; i < 3; i++) { const g = new THREE.PlaneGeometry(.12, 1, 1, 3).translate(0, .5, 0); g.rotateY(i / 3 * Math.PI); pos.push(...g.toNonIndexed().attributes.position.array); } G.reed = new THREE.BufferGeometry(); G.reed.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); G.reed.computeVertexNormals(); }
+  const MAT = {}; const mat = (col, o = {}) => MAT[col + JSON.stringify(o)] || (MAT[col + JSON.stringify(o)] = new THREE.MeshStandardMaterial(Object.assign({ color: C(col), roughness: .85 }, o)));
+  const LEAF = ['#1f4a1c', '#2a5a20', '#245218', '#33621f', '#1c4020', '#3a6a28', '#2c5a2a'], BARK = ['#5a4a38', '#6a5a46', '#4a3e30', '#7a6e5a'];
+  // the forest, in square chunks that switch off when they're far away
+  const CH = 260, chunks = JNG.chunks = [];
+  const put = (list, geo, matF, cast) => { // one instanced mesh per material in a chunk
+    const by = new Map(); for (const it of list) { const k = it.m; if (!by.has(k)) by.set(k, []); by.get(k).push(it); }
+    const out = []; for (const [k, arr] of by) { const im = new THREE.InstancedMesh(geo, matF(k), arr.length); arr.forEach((it, i) => im.setMatrixAt(i, it.M)); im.frustumCulled = false; if (cast) im.castShadow = true; out.push(im); } return out;
+  };
+  const M4 = (x, y, z, rx, ry, rz, sx, sy, sz) => { q.setFromEuler(new THREE.Euler(rx, ry, rz)); return new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), q.clone(), new THREE.Vector3(sx, sy, sz)); };
+  for (let ci = -HS - 130; ci < HS + 130; ci += CH) for (let cj = -HS - 130; cj < HS + 130; cj += CH) {
+    const grp = new THREE.Group(), L = { trunk: [], crown: [], palmT: [], palm: [], bush: [], fern: [], liana: [], butt: [], reed: [] };
+    const cx = JNG.x + ci + CH / 2, cz = JNG.z + cj + CH / 2;
+    const spot = (pad) => { for (let t = 0; t < 6; t++) { const x = JNG.x + ci + Math.random() * CH, z = JNG.z + cj + Math.random() * CH, r = JNG.rd(x, z), a = Math.abs(r.d) - r.w / 2; if (a > pad && !lodgeClear(x, z)) return [x, z, a]; } return null; };
+    for (let i = 0; i < 150; i++) { const s = spot(5); if (!s) continue; const [x, z] = s, y = JNG.h(x, z), h = rnd(16, 34), r = rnd(.6, 1.3) * (h / 25);
+      L.trunk.push({ m: pick(BARK), M: M4(x, y - .3, z, rnd(-.05, .05), Math.random() * 6, rnd(-.05, .05), r, h, r) }); JNG.addTrunk(x, z, .75 * r);
+      const cw = rnd(5, 10) * (h / 25); L.crown.push({ m: pick(LEAF), M: M4(x, y + h, z, 0, Math.random() * 6, 0, cw, cw * rnd(.8, 1.2), cw) });
+      if (Math.random() < .5) L.crown.push({ m: pick(LEAF), M: M4(x + rnd(-3, 3), y + h - rnd(2, 5), z + rnd(-3, 3), 0, Math.random() * 6, 0, cw * .7, cw * .6, cw * .7) });
+      if (Math.random() < .35) for (let k = 0; k < 3; k++) L.liana.push({ m: '#3a4a22', M: M4(x + rnd(-cw, cw) * .6, y + h - 1, z + rnd(-cw, cw) * .6, rnd(-.08, .08), 0, rnd(-.08, .08), 1, rnd(h * .5, h - 1), 1) }); }
+    for (let i = 0; i < 4; i++) { const s = spot(14); if (!s) continue; const [x, z] = s, y = JNG.h(x, z), h = rnd(38, 48); // giant kapok trees with buttress roots
+      L.trunk.push({ m: '#8a8070', M: M4(x, y - .3, z, 0, Math.random() * 6, 0, 2.6, h, 2.6) }); JNG.addTrunk(x, z, 2.4);
+      for (let k = 0; k < 5; k++) L.butt.push({ m: '#8a8070', M: M4(x, y - .2, z, 0, k / 5 * Math.PI * 2 + rnd(-.2, .2), 0, 1, rnd(3, 5), rnd(1.3, 2)) });
+      L.crown.push({ m: '#2f5a24', M: M4(x, y + h, z, 0, Math.random() * 6, 0, 22, 9, 22) }); L.crown.push({ m: '#3a6a28', M: M4(x + 6, y + h + 3, z - 4, 0, 1, 0, 13, 7, 13) }); }
+    for (let i = 0; i < 70; i++) { const s = spot(2); if (!s) continue; const [x, z, a] = s, y = JNG.h(x, z), h = a < 14 ? rnd(8, 15) : rnd(6, 13), lean = a < 14 ? .25 : .1, ry = Math.random() * 6; // açaí palms, leaning out over the river
+      q.setFromEuler(new THREE.Euler(rnd(-lean, lean), ry, rnd(-lean, lean))); tv.set(0, h, 0).applyQuaternion(q);
+      L.palmT.push({ m: '#7a6a50', M: new THREE.Matrix4().compose(new THREE.Vector3(x, y - .2, z), q.clone(), new THREE.Vector3(1, h, 1)) }); JNG.addTrunk(x, z, .25);
+      L.palm.push({ m: pick(['#3a7a2a', '#2f6a24', '#4a8a30']), M: M4(x + tv.x, y + tv.y - .3, z + tv.z, 0, Math.random() * 6, 0, rnd(.9, 1.3), rnd(.9, 1.2), rnd(.9, 1.3)) }); }
+    for (let i = 0; i < 380; i++) { const s = spot(1.5); if (!s) continue; const [x, z] = s, y = JNG.h(x, z), b = rnd(.6, 2.6); L.bush.push({ m: pick(['#2a5a20', '#1f4a1c', '#3a6a28', '#2f5a24', '#476a2a']), M: M4(x, y - .2, z, 0, Math.random() * 6, 0, b * rnd(.8, 1.3), b * rnd(.6, 1.1), b * rnd(.8, 1.3)) }); }
+    for (let i = 0; i < 320; i++) { const s = spot(.5); if (!s) continue; const [x, z] = s, y = JNG.h(x, z); L.fern.push({ m: pick(['#3a7a2a', '#4a8a30', '#2f6a24', '#5a8a34']), M: M4(x, y - .05, z, 0, Math.random() * 6, 0, rnd(.7, 1.6), rnd(.6, 1.4), rnd(.7, 1.6)) }); }
+    for (let i = 0; i < 26; i++) { const v = cj + Math.random() * CH; if (Math.abs(v) > HS + 120) continue; const sd = Math.random() < .5 ? -1 : 1, [x0, z0] = JNG.edge(v, sd, rnd(-1.5, 2)); if (Math.abs(x0 - JNG.x - ci - CH / 2) > CH / 2 || lodgeClear(x0, z0) || JNG.onJetty(x0, z0)) continue; // reeds and tall grass on the banks
+      for (let k = 0; k < 14; k++) { const x = x0 + rnd(-1.5, 1.5), z = z0 + rnd(-1.5, 1.5); L.reed.push({ m: pick(['#5a7a2a', '#6a8a34', '#4a6a24', '#7a8a40']), M: M4(x, JNG.h(x, z) - .1, z, rnd(-.15, .15), Math.random() * 6, rnd(-.15, .15), rnd(1, 2), rnd(1, 2.4), 1) }); } }
+    const parts = [...put(L.trunk, G.trunk, k => mat(k, { roughness: 1 })), ...put(L.crown, G.crown, k => mat(k, { flatShading: true })), ...put(L.palmT, G.palmTrunk, k => mat(k)), ...put(L.palm, G.palm, k => mat(k, { side: THREE.DoubleSide })), ...put(L.bush, G.bush, k => mat(k, { flatShading: true })), ...put(L.fern, G.fern, k => mat(k, { side: THREE.DoubleSide })), ...put(L.liana, G.liana, k => mat(k)), ...put(L.butt, G.buttress, k => mat(k, { roughness: 1 })), ...put(L.reed, G.reed, k => mat(k, { side: THREE.DoubleSide }))];
+    parts.forEach(p => grp.add(p)); root.add(grp); chunks.push({ g: grp, x: cx, z: cz });
+  }
+  // on the water: giant Amazon water lilies with turned-up rims, floating water hyacinth and old logs
+  { const lil = [], rim = [], hy = [], fl = [];
+    for (let i = 0; i < 220; i++) { const v = rnd(-HS, HS), near = Math.abs(v) < 160, sd = Math.random() < .5 ? -1 : 1, off = near ? rnd(3, JNG.w(v) / 2 - 4) : rnd(1.5, 7), [x, z] = JNG.edge(v, sd, -off); if (!JNG.water(x, z) || JNG.onJetty(x, z) || Math.hypot(x - JNG.jet.x - JNG.jet.dx * 24, z - JNG.jet.z - JNG.jet.dz * 24) < 6) continue;
+      if (Math.random() < .6) { const r = rnd(.7, 1.6); lil.push(M4(x, JNG.WY + .03, z, 0, Math.random() * 6, 0, r, 1, r)); rim.push(M4(x, JNG.WY + .03, z, 0, Math.random() * 6, 0, r, 1, r)); if (Math.random() < .12) fl.push([x + r * .3, z]); }
+      else for (let k = 0; k < 5; k++) hy.push(M4(x + rnd(-1, 1), JNG.WY + .1, z + rnd(-1, 1), 0, Math.random() * 6, 0, rnd(.25, .45), rnd(.25, .4), rnd(.25, .45))); }
+    const mk = (geo, m, list) => { const im = new THREE.InstancedMesh(geo, m, list.length); list.forEach((M, i) => im.setMatrixAt(i, M)); im.frustumCulled = false; root.add(im); };
+    mk(new THREE.CircleGeometry(1, 24).rotateX(-Math.PI / 2), mat('#4a7a2a', { roughness: .5, side: THREE.DoubleSide }), lil);
+    mk(new THREE.CylinderGeometry(1, .97, .12, 24, 1, true).translate(0, .06, 0), mat('#8a3a2a', { side: THREE.DoubleSide }), rim);
+    mk(G.bush, mat('#3f8a2a', { flatShading: true }), hy);
+    mk(new THREE.SphereGeometry(.18, 8, 6), mat('#f4e8ee', { emissive: C('#3a2a2a') }), fl.map(([x, z]) => M4(x, JNG.WY + .2, z, 0, 0, 0, 1, .7, 1)));
+    for (let i = 0; i < 14; i++) { const v = rnd(-HS, HS), sd = Math.random() < .5 ? -1 : 1, [x, z] = JNG.edge(v, sd, rnd(-3, 1)), lg = new THREE.Mesh(new THREE.CylinderGeometry(.3, .4, rnd(5, 10), 7).rotateZ(Math.PI / 2), mat('#4e3c28', { roughness: 1 })); lg.position.set(x, JNG.WY + .05, z); lg.rotation.y = Math.random() * 6; root.add(lg); }
+  }
+  // the lodge: a wooden house on stilts with a palm-thatched roof, a jetty, a sign, and a grass airstrip with a bush plane
+  { const Lg = JNG.lodge, g = new THREE.Group(); g.position.set(Lg.x, .6, Lg.z); g.rotation.y = Lg.h; root.add(g);
+    const plank = canvasTex(128, 128, (cx, w, h) => { for (let y = 0; y < h; y += 12) { const v = 110 + Math.random() * 40 | 0; cx.fillStyle = `rgb(${v},${v * .72 | 0},${v * .48 | 0})`; cx.fillRect(0, y, w, 11); } }, 2, 2);
+    const wood = new THREE.MeshStandardMaterial({ map: plank, roughness: .9 }), thatch = mat('#b8964f', { roughness: 1, flatShading: true });
+    const fl = new THREE.Mesh(new THREE.BoxGeometry(12, .3, 16), wood); fl.position.y = 1.4; fl.castShadow = fl.receiveShadow = true; g.add(fl);
+    for (const x of [-5.6, 0, 5.6]) for (const z of [-7.6, -2.5, 2.5, 7.6]) { const p = new THREE.Mesh(new THREE.CylinderGeometry(.15, .18, 2.4, 6), mat('#4e3c28')); p.position.set(x, .3, z); g.add(p); }
+    const walls = new THREE.Mesh(new THREE.BoxGeometry(9, 3, 12), wood); walls.position.set(0, 3.05, -1); walls.castShadow = true; g.add(walls);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(10.5, 4.5, 4, 1).rotateY(Math.PI / 4).scale(1, 1, 1.35), thatch); roof.position.set(0, 6.7, -.5); roof.castShadow = true; g.add(roof);
+    for (const x of [-2.2, 2.2]) { const w = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 1.1), mat('#1a2a2a', { roughness: .2, metalness: .3 })); w.position.set(x, 3.3, 5.01); g.add(w); }
+    const door = new THREE.Mesh(new THREE.PlaneGeometry(1.4, 2.3), mat('#3a2a1a')); door.position.set(0, 2.7, 5.01); g.add(door);
+    const stair = new THREE.Mesh(new THREE.BoxGeometry(2, .2, 3).rotateX(-.45), wood); stair.position.set(0, .7, 9.2); g.add(stair);
+    for (const [sx, txt, sub] of [[3.5, '✈ VOOS', 'Flights home'], [-3.5, '🎣 LOJA', 'Tackle shop']]) {
+      const ct = new THREE.Mesh(new THREE.BoxGeometry(2.6, 1.1, 1.1), wood); ct.position.set(sx, -.05, 7.4); g.add(ct);
+      const sT = canvasTex(256, 128, (cx, w, h) => { cx.fillStyle = '#2f4a26'; cx.fillRect(0, 0, w, h); cx.fillStyle = '#f9c80e'; cx.font = '800 40px Arial'; cx.textAlign = 'center'; cx.fillText(txt, w / 2, 58); cx.fillStyle = '#f4efe0'; cx.font = '600 22px Arial'; cx.fillText(sub, w / 2, 100); }, 1, 1);
+      const sg = new THREE.Mesh(new THREE.PlaneGeometry(1.8, .9), new THREE.MeshStandardMaterial({ map: sT, side: THREE.DoubleSide })); sg.position.set(sx, 1.4, 7.4); g.add(sg); }
+    const bT = canvasTex(512, 128, (cx, w, h) => { cx.fillStyle = '#5a3a1e'; cx.fillRect(0, 0, w, h); cx.fillStyle = '#f9e8b0'; cx.font = '800 46px Arial'; cx.textAlign = 'center'; cx.fillText('AMAZON RIVER LODGE', w / 2, 58); cx.font = '600 26px Arial'; cx.fillText('Pousada do Rio · River monster fishing', w / 2, 100); }, 1, 1);
+    const bs = new THREE.Mesh(new THREE.PlaneGeometry(6, 1.5), new THREE.MeshStandardMaterial({ map: bT })); bs.position.set(0, 5.2, 5.05); g.add(bs);
+    // the jetty
+    const J = JNG.jet, jg = new THREE.Group(); jg.position.set(J.x, 0, J.z); jg.rotation.y = Math.atan2(J.dx, J.dz); root.add(jg);
+    const deck = new THREE.Mesh(new THREE.BoxGeometry(2.6, .15, J.len + 2), wood); deck.position.set(0, .47, J.len / 2 - 1); deck.receiveShadow = deck.castShadow = true; jg.add(deck);
+    for (let a = 0; a <= J.len; a += 4) for (const sd of [-1, 1]) { const po = new THREE.Mesh(new THREE.CylinderGeometry(.12, .12, 3, 6), mat('#4e3c28')); po.position.set(sd * 1.2, -.9, a); jg.add(po); }
+    // a little wooden boat tied up at the jetty
+    { const cg = new THREE.SphereGeometry(1, 16, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), canoe = new THREE.Mesh(cg, mat('#6a4a2a', { side: THREE.DoubleSide })); canoe.scale.set(.55, .35, 2.6); canoe.position.set(2.3, JNG.WY + .2, J.len * .6); jg.add(canoe);
+      const rim = new THREE.Mesh(new THREE.TorusGeometry(1, .06, 6, 24).rotateX(Math.PI / 2), mat('#4e3420')); rim.scale.set(.55, 1, 2.6); rim.position.set(2.3, JNG.WY + .2, J.len * .6); jg.add(rim);
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(.1, .04, 1.6), mat('#8a6a40')); pad.position.set(2.1, JNG.WY + .25, J.len * .6 - .4); pad.rotation.y = .3; jg.add(pad); } // a dugout canoe tied up
+    // the airstrip and the bush plane
+    const S = JNG.strip, st = new THREE.Mesh(new THREE.PlaneGeometry(S.w, S.len).rotateX(-Math.PI / 2), mat('#6a8a3a', { roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 })); st.position.set(S.x, .62, S.z); st.rotation.y = Math.atan2(S.ax, S.az); root.add(st);
+    const bp = new THREE.Group(); bp.position.set(JNG.plane.x, .6, JNG.plane.z); bp.rotation.y = Math.atan2(S.ax, S.az) + .4; root.add(bp);
+    const white = mat('#f4f4f0', { roughness: .4 }), red = mat('#c8102e', { roughness: .4 });
+    const fus = new THREE.Mesh(new THREE.CylinderGeometry(.7, .4, 8, 10).rotateX(Math.PI / 2), white); fus.position.y = 1.8; bp.add(fus);
+    const wing = new THREE.Mesh(new THREE.BoxGeometry(12, .15, 1.6), white); wing.position.set(0, 2.6, .8); bp.add(wing);
+    const stripe = new THREE.Mesh(new THREE.BoxGeometry(12.05, .16, .4), red); stripe.position.set(0, 2.62, .2); bp.add(stripe);
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(4, .12, 1), white); tl.position.set(0, 2, -3.7); bp.add(tl);
+    const fin = new THREE.Mesh(new THREE.BoxGeometry(.12, 1.6, 1.2), red); fin.position.set(0, 2.7, -3.7); bp.add(fin);
+    const prop = new THREE.Mesh(new THREE.BoxGeometry(2.2, .15, .06), mat('#222')); prop.position.set(0, 1.8, 4.05); bp.add(prop);
+    for (const sx of [-1.4, 1.4]) { const wh = new THREE.Mesh(new THREE.CylinderGeometry(.35, .35, .25, 12).rotateZ(Math.PI / 2), mat('#222')); wh.position.set(sx, .35, 1.2); bp.add(wh); }
+    const wst = new THREE.Mesh(new THREE.BoxGeometry(.08, 2.2, .08), white); wst.position.set(0, 1.2, 1.2); bp.add(wst);
+    const sock = new THREE.Mesh(new THREE.ConeGeometry(.35, 1.6, 8, 1, true).rotateZ(Math.PI / 2), mat('#ff6a2a', { side: THREE.DoubleSide })); sock.position.set(S.x + S.bx * 25, 6, S.z + S.bz * 25); root.add(sock);
+    const sp = new THREE.Mesh(new THREE.CylinderGeometry(.08, .08, 6, 6), white); sp.position.set(S.x + S.bx * 25, 3, S.z + S.bz * 25); root.add(sp);
+  }
+  // animals: scarlet macaws flying over the river, pink river dolphins, caimans on the banks, blue morpho butterflies
+  const ani = JNG.ani = { birds: [], dol: [], fly: [], cai: [] };
+  for (let i = 0; i < 9; i++) { const b = new THREE.Group(), cols = i % 3 === 0 ? ['#2a6ad0', '#f2c230'] : ['#d42a1e', '#2a6ad0'];
+    const body = new THREE.Mesh(new THREE.ConeGeometry(.12, .9, 6).rotateX(Math.PI / 2), mat(cols[0])); b.add(body);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(.08, .7, 4).rotateX(-Math.PI / 2), mat(cols[0])); tail.position.z = -.7; b.add(tail);
+    const wings = [-1, 1].map(sd => { const w = new THREE.Mesh(new THREE.PlaneGeometry(.9, .35).translate(sd * .45, 0, 0), mat(cols[1], { side: THREE.DoubleSide })); w.rotation.x = -Math.PI / 2; b.add(w); return w; });
+    root.add(b); ani.birds.push({ b, wings, v: rnd(-HS, HS), sp: rnd(9, 14) * (Math.random() < .5 ? -1 : 1), y: rnd(14, 30), o: rnd(-20, 20), ph: Math.random() * 6 }); }
+  for (let i = 0; i < 4; i++) { const d = new THREE.Group(), pink = mat('#e8a0b0', { roughness: .4 });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 10), pink); body.scale.set(.32, .3, 1.1); d.add(body);
+    const beak = new THREE.Mesh(new THREE.CylinderGeometry(.04, .07, .6, 6).rotateX(Math.PI / 2), pink); beak.position.z = 1.3; d.add(beak);
+    const hump = new THREE.Mesh(new THREE.ConeGeometry(.12, .25, 6), pink); hump.position.set(0, .3, -.1); d.add(hump);
+    root.add(d); ani.dol.push({ d, v: rnd(-260, 260), t: Math.random() * 8, off: rnd(-10, 10) }); }
+  for (let i = 0; i < 7; i++) { const g = new THREE.Group(), cm = mat('#4a4a30', { flatShading: true });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), cm); body.scale.set(.4, .22, 1.3); g.add(body);
+    const head = new THREE.Mesh(new THREE.BoxGeometry(.4, .2, 1).translate(0, 0, .5), cm); head.position.z = 1.1; g.add(head);
+    const tl = new THREE.Mesh(new THREE.ConeGeometry(.22, 2, 5).rotateX(-Math.PI / 2), cm); tl.position.z = -2.2; g.add(tl);
+    for (let k = 0; k < 8; k++) { const sp = new THREE.Mesh(new THREE.ConeGeometry(.05, .12, 4), cm); sp.position.set(0, .22, .8 - k * .3); g.add(sp); }
+    for (const sd of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(.06, 6, 5), mat('#c8a020', { emissive: C('#3a2a00') })); e.position.set(sd * .14, .14, 1.25); g.add(e); }
+    const v = rnd(-HS + 50, HS - 50); if (Math.abs(v) < 120) continue; const sd = Math.random() < .5 ? -1 : 1, inW = i % 2, [x, z] = JNG.edge(v, sd, inW ? -2 : 1.5);
+    g.position.set(x, inW ? JNG.WY - .12 : JNG.h(x, z) + .15, z); g.rotation.y = Math.atan2(...JNG.normal(x, z)) + rnd(-.4, .4) + (inW ? 0 : Math.PI); root.add(g); ani.cai.push({ g, y0: g.position.y, ph: Math.random() * 6 }); }
+  for (let i = 0; i < 8; i++) { const f = new THREE.Group(), wm = mat('#2a7aff', { emissive: C('#0a3aa0'), side: THREE.DoubleSide, roughness: .2, metalness: .4 });
+    const ws = [-1, 1].map(sd => { const w = new THREE.Mesh(new THREE.CircleGeometry(.09, 8).translate(sd * .08, 0, 0), wm); w.rotation.x = -Math.PI / 2; f.add(w); return w; });
+    root.add(f); ani.fly.push({ f, ws, a: Math.random() * 6, r: rnd(2, 6), y: rnd(.8, 2.2), ph: Math.random() * 6 }); }
+  // river monsters: giant arapaima come up to gulp air, huge dark shapes roll at the surface
+  ani.mon = []; for (let i = 0; i < 6; i++) { const nm = i < 3 ? 'Arapaima' : i < 5 ? 'Piraíba' : 'Redtail catfish', m = makeSwimmer(FISH_TYPES.find(t => t[0] === nm), nm === 'Redtail catfish' ? 60 : rnd(160, 260)); m.rotation.order = 'YXZ'; m.visible = false; root.add(m);
+    const ring = new THREE.Mesh(splashGeo, new THREE.MeshBasicMaterial({ color: 0xe8e0d0, transparent: true, opacity: 0, depthWrite: false })); root.add(ring); ani.mon.push({ m, ring, t: rnd(0, 10), per: rnd(9, 18), x: 0, z: 0, h: 0, placed: false }); }
+  // rain: streaks that fall around you when a shower comes over
+  { const N = 1400, pos = new Float32Array(N * 6); for (let i = 0; i < N; i++) { const x = rnd(-35, 35), y = rnd(0, 30), z = rnd(-35, 35); pos.set([x, y, z, x + .05, y + .9, z], i * 6); }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    JNG.rainM = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: 0xc8d8e0, transparent: true, opacity: 0, depthWrite: false })); JNG.rainM.frustumCulled = false; root.add(JNG.rainM); JNG.rainT = 0; JNG.rain = 0; }
+  root.visible = JNG.on;
+};
+JNG.update = (dt) => {
+  if (!JNG.built || !JNG.on) return;
+  const cp = camera.position, t = performance.now() / 1000, A = JNG.ani;
+  for (const ch of JNG.chunks) ch.g.visible = Math.abs(ch.x - cp.x) < 560 && Math.abs(ch.z - cp.z) < 560;
+  for (const b of A.birds) { b.v += b.sp * dt; if (Math.abs(b.v) > JNG.HS) b.sp = -b.sp; const x = JNG.x + JNG.uc(b.v) + b.o + Math.sin(t * .3 + b.ph) * 15, z = JNG.z + b.v, y = b.y + Math.sin(t * .7 + b.ph) * 3;
+    b.b.rotation.y = Math.atan2(x - b.b.position.x, z - b.b.position.z) || 0; b.b.position.set(x, y, z); const f = Math.sin(t * 9 + b.ph) * .7; b.wings[0].rotation.y = f; b.wings[1].rotation.y = -f; }
+  for (const d of A.dol) { d.t += dt; const per = 7, u = d.t % per; if (u < .1 && !d.moved) { d.v = clamp(d.v + rnd(-40, 40), -JNG.HS + 50, JNG.HS - 50); d.off = rnd(-JNG.w(d.v) * .3, JNG.w(d.v) * .3); d.moved = true; } if (u > 1) d.moved = false;
+    const k = clamp((u - 2) / 1.6, 0, 1), s = JNG.ucd(d.v), kk = 1 / Math.sqrt(1 + s * s), x = JNG.x + JNG.uc(d.v) + d.off * kk, z = JNG.z + d.v - d.off * s * kk + k * 3;
+    d.d.visible = k > 0 && k < 1; d.d.position.set(x, JNG.WY - .5 + Math.sin(k * Math.PI) * .75, z); d.d.rotation.x = -Math.cos(k * Math.PI) * .7; d.d.rotation.y = 0; }
+  for (const c of A.cai) c.g.position.y = c.y0 + Math.sin(t * .8 + c.ph) * .015;
+  for (const M of A.mon) { // rise, roll at the surface with a gulp of air, and sink again
+    M.t += dt; const u = M.t % M.per;
+    if (!M.placed || u < dt) { const cv = cp.z - JNG.z + rnd(-110, 110), vv = clamp(cv, -JNG.HS + 30, JNG.HS - 30), hw = JNG.w(vv) / 2, off = rnd(-hw + 6, hw - 6), s = JNG.ucd(vv), k = 1 / Math.sqrt(1 + s * s); M.x = JNG.x + JNG.uc(vv) + off * k; M.z = JNG.z + vv - off * s * k; M.h = Math.atan2(s, 1) * (Math.random() < .5 ? 1 : -1) + (Math.random() < .5 ? 0 : Math.PI); M.placed = true; M.splashed = false; }
+    const k = clamp((u - 1) / 2.6, 0, 1), L = M.m.userData.len; M.m.visible = k > 0 && k < 1;
+    if (M.m.visible) { const a = k * Math.PI, fx = Math.sin(M.h), fz = Math.cos(M.h); M.m.position.set(M.x + fx * (k - .5) * L * 1.4, JNG.WY - L * .22 + Math.sin(a) * L * .3, M.z + fz * (k - .5) * L * 1.4); M.m.rotation.set(-Math.cos(a) * .45, M.h, Math.sin(a * 2) * .15); // the back and head roll up out of the water M.m.userData.wig(t, .5);
+      if (!M.splashed && k > .35) { M.splashed = true; M.ring.position.set(M.x, JNG.WY + .02, M.z); M.rt = 0; if (foot.on && Math.hypot(foot.x - M.x, foot.z - M.z) < 60) audio.plop(); } }
+    if (M.rt != null) { M.rt += dt; M.ring.scale.setScalar(.5 + M.rt * 2.5 * (L / 1.5)); M.ring.material.opacity = Math.max(0, .7 - M.rt * .45); if (M.rt > 1.6) M.rt = null; }
+  }
+  const F = foot.on ? foot : camera.position; for (const b of A.fly) { b.a += dt * .6; const x = F.x + Math.cos(b.a + b.ph) * b.r, z = F.z + Math.sin(b.a * 1.3 + b.ph) * b.r, y = JNG.h(x, z) + b.y + Math.sin(t * 2 + b.ph) * .3;
+    b.f.rotation.y = Math.atan2(x - b.f.position.x, z - b.f.position.z) || 0; b.f.position.set(x, y, z); const f = Math.sin(t * 18 + b.ph) * 1.1; b.ws[0].rotation.y = f; b.ws[1].rotation.y = -f; }
+  // showers come and go
+  JNG.rainT -= dt; if (JNG.rainT <= 0) { JNG.rainOn = !JNG.rainOn && Math.random() < .6; JNG.rainT = JNG.rainOn ? rnd(25, 60) : rnd(30, 80); }
+  JNG.rain = clamp(JNG.rain + (JNG.rainOn ? dt : -dt) * .25, 0, 1);
+  const R = JNG.rainM; R.visible = JNG.rain > .02 && cp.y > 0; R.material.opacity = JNG.rain * .4;
+  if (R.visible) { R.position.set(cp.x, cp.y - 12, cp.z); const p = R.geometry.attributes.position, a = p.array; for (let i = 0; i < a.length; i += 6) { a[i + 1] -= 22 * dt; a[i + 4] -= 22 * dt; if (a[i + 1] < 0) { a[i + 1] += 30; a[i + 4] += 30; } } p.needsUpdate = true; }
+};
+JNG.collide = (f) => { // the river (except the jetty), the lodge, tree trunks and the edge of the jungle
+  const L = JNG.lodge, HS = JNG.HS - 15;
+  f.x = clamp(f.x, JNG.x - HS, JNG.x + HS); f.z = clamp(f.z, JNG.z - HS, JNG.z + HS);
+  if (!JNG.onJetty(f.x, f.z)) for (let it = 0; it < 2; it++) { const r = JNG.rd(f.x, f.z), a = r.w / 2 - Math.abs(r.d); if (a <= -.02) break; const [nx, nz] = JNG.normal(f.x, f.z); f.x -= nx * (a + .05); f.z -= nz * (a + .05); }
+  { const c = Math.cos(L.h), s = Math.sin(L.h), dx = f.x - L.x, dz = f.z - L.z, lx = dx * c - dz * s, lz = dx * s + dz * c; // lodge footprint (local x across, z towards the water)
+    if (Math.abs(lx) < 6.4 && lz > -8.4 && lz < 6.4) { const px = 6.4 - Math.abs(lx), pz1 = lz + 8.4, pz2 = 6.4 - lz, m = Math.min(px, pz1, pz2); let nlx = lx, nlz = lz; if (m === px) nlx = Math.sign(lx || 1) * 6.4; else if (m === pz2) nlz = 6.4; else nlz = -8.4; f.x = L.x + nlx * c + nlz * s; f.z = L.z - nlx * s + nlz * c; } }
+  for (let i = Math.floor(f.x / 8) - 1; i <= Math.floor(f.x / 8) + 1; i++) for (let j = Math.floor(f.z / 8) - 1; j <= Math.floor(f.z / 8) + 1; j++) { const l = JNG.trunks.get(i + ',' + j); if (l) for (const [x, z, r] of l) { const dx = f.x - x, dz = f.z - z, d = Math.hypot(dx, dz), m = r + .3; if (d < m && d > 1e-3) { f.x = x + dx / d * m; f.z = z + dz / d * m; } } }
+};
+const nearJDesk = (x, z) => JNG.built && Math.hypot(x - JNG.desk.x, z - JNG.desk.z) < 2.6;
+const nearJShop = (x, z) => JNG.built && Math.hypot(x - JNG.shop.x, z - JNG.shop.z) < 2.6;
 
 /* ---------- boats ---------- */
 function hullTex(s) {
@@ -3884,9 +4323,10 @@ function renderShop() {
     `<h3 class="shopH" id="shop-rodcol">Rod colour 🎨</h3><p class="lead">Paint your rod any colour you like. It's free!</p><div class="rodCols">${['', ...ROD_COLS].map(cl => `<button data-rodcol="${cl}" class="${(fishLog.rodCol || '') === cl ? 'sel' : ''}" title="${cl ? cl : 'The rod\'s own colour'}" style="background:${cl || gearOf('rod').col}">${cl ? '' : '↺'}</button>`).join('')}</div>` +
     sec('reel', 'Reels', 'A faster reel winds the fish in quicker.', GEAR.reel.map((r, k) => card('reel', k, r, stat('Speed', r.spd, 2.8, '×' + r.spd))).join('')) +
     sec('line', 'Lines', 'Stronger line lets you pull harder before it snaps.', GEAR.line.map((r, k) => card('line', k, r, stat('Strength', r.snap, 2, '×' + r.snap))).join('')) +
-    sec('bait', 'Sea bait', 'Put real bait on the hook. Each bait attracts different fish.', GEAR.bait.map((r, k) => r.kind === 'bait' && r.water !== 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
+    sec('bait', 'Sea bait', 'Put real bait on the hook. Each bait attracts different fish.', GEAR.bait.map((r, k) => r.kind === 'bait' && !r.water ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
     sec('lake', 'Lake lures and bait', 'For the lakes: pike, trout, perch, roach, carp and the giant wels catfish. Cast a lure and reel it back to make fish chase it!', GEAR.bait.map((r, k) => r.water === 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
-    sec('lure', 'Sea lures and rigs', 'Lures are fake fish that flash and wiggle. Cast them out and reel them back in. A sabiki rig catches lots of little fish at once.', GEAR.bait.map((r, k) => r.kind !== 'bait' && r.water !== 'lake' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`) + stat('Extra cast', r.cast, 6, '+' + r.cast + ' m')) : '').join('')) +
+    sec('river', 'Amazon river monster tackle 🐊', 'For the rainforest river: arapaima, piranhas, giant catfish, peacock bass, payara and more. Fly there free from the airport, or buy it at the lodge.', GEAR.bait.map((r, k) => r.water === 'river' ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`)) : '').join('')) +
+    sec('lure', 'Sea lures and rigs', 'Lures are fake fish that flash and wiggle. Cast them out and reel them back in. A sabiki rig catches lots of little fish at once.', GEAR.bait.map((r, k) => r.kind !== 'bait' && !r.water ? card('bait', k, r, stat('Bites', 10 - r.b[1], 8.5, `${r.b[0]}–${r.b[1]} s`) + stat('Extra cast', r.cast, 6, '+' + r.cast + ' m')) : '').join('')) +
     sec('gadgets', 'Gadgets', 'Handy extras: once you buy one it works all the time.', GADGETS.map((gd, k) => `<div class="card${fishLog.gadgets[gd.id] ? ' sel' : ''}"><img class="pic" src="${itemPic('gadget', k)}" alt=""><h3>${gd.name}</h3><div class="tag">${gd.desc}</div>${fishLog.gadgets[gd.id] ? '<button class="go" disabled>✓ You have this</button>' : `<button class="go${money < gd.price ? ' poor' : ''}" data-gadget="${k}">Buy · €${gd.price}</button>`}</div>`).join('')) +
     sec('boats', 'Boats & yachts', 'Small boats wait halfway along the pier; the big yachts moor at the Port Olímpic marina (search "marina"). Drive out to deep water for the biggest fish.', BOATS.map((b, k) => card('boat', k, b, stat('Top speed', b.vmax, 22, Math.round(b.vmax * 3.6) + ' km/h') + stat('Handling', b.turn, .85, Math.round(b.turn * 100) + '') + stat('Fish size', b.kg - 1, .2, '×' + b.kg))).join(''));
 }
@@ -3913,8 +4353,12 @@ $('shopGrid').addEventListener('click', e => {
   if (cat === 'boat') { if (foot.boat) leaveBoat(true); fishLog.boat = k; setBoatModel(); } else fishLog.gear[cat] = k;
   saveFish(); applyRodLook(); renderBaitBar(); renderShop();
 });
+function toggleBottom() { // fish your bait under a float, or let it sink to the bottom on a lead weight
+  fishLog.bottom = !fishLog.bottom; saveFish(); renderBaitBar();
+  show('', fishLog.bottom ? '⚓ Bottom fishing: your bait sinks to the bottom. Watch the rod tip for bites! (Lures always swim.)' : '🎈 Float fishing: your bait hangs under a float.', 2.4);
+}
 function renderBaitBar() { // swap bait or lure while you fish
-  $('baitBar').innerHTML = `<button class="bb camb${fishCam ? ' on' : ''}" data-cam="1">👁 ${fishCam ? 'Normal view' : 'Look under water'} <kbd>V</kbd></button>` + fishLog.own.bait.slice().sort((a, b) => a - b).map(k => { const it = GEAR.bait[k]; return `<button class="bb${fishLog.gear.bait === k ? ' on' : ''}" data-bait="${k}"><i style="background:${it.col}"></i>${it.name}</button>`; }).join('') + `<button class="bb shopb" data-shop="1"><kbd>K</kbd>Tackle shop</button>`;
+  $('baitBar').innerHTML = `<button class="bb camb${fishCam ? ' on' : ''}" data-cam="1">👁 ${fishCam ? 'Normal view' : 'Look under water'} <kbd>V</kbd></button><button class="bb camb${fishLog.bottom ? ' on' : ''}" data-bottom="1">${fishLog.bottom ? '⚓ On the bottom' : '🎈 Under a float'} <kbd>T</kbd></button>` + fishLog.own.bait.slice().sort((a, b) => a - b).map(k => { const it = GEAR.bait[k]; return `<button class="bb${fishLog.gear.bait === k ? ' on' : ''}" data-bait="${k}"><i style="background:${it.col}"></i>${it.name}</button>`; }).join('') + `<button class="bb shopb" data-shop="1"><kbd>K</kbd>Tackle shop</button>`;
 }
 function setBait(k) {
   if (!fishLog.own.bait.includes(k) || fishLog.gear.bait === k) return;
@@ -3924,7 +4368,7 @@ function setBait(k) {
   if (F && (F.st === 'wait' || F.st === 'bite' || F.st === 'jig')) { F.st = 'ready'; F.T = 0; F.spot = null; }
   show('', `${it.kind === 'lure' ? 'Lure' : 'Bait'}: ${it.name}${F && F.st === 'ready' ? ' · cast again!' : ''}`, 1.8);
 }
-$('baitBar').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.cam) toggleFishCam(); else if (b.dataset.shop) openShop('bait'); else setBait(+b.dataset.bait); });
+$('baitBar').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; if (b.dataset.cam) toggleFishCam(); else if (b.dataset.bottom) toggleBottom(); else if (b.dataset.shop) openShop('bait'); else setBait(+b.dataset.bait); });
 renderBaitBar();
 
 function nearCounter() { return room && room.counter && room.info.buy && Math.hypot(foot.x - room.counter.x, foot.z - room.counter.z) < 2; }
@@ -3942,7 +4386,7 @@ function updateFoot(dt) {
     f.x += Math.sin(f.h) * f.v * dt; f.z += Math.cos(f.h) * f.v * dt;
     if (f.inside) roomCollide(f);
     else {
-      for (let it = 0; it < 2; it++) { const pen = penOct(f.x, f.z, .32, true); if (pen) { f.x += pen.nx * pen.p; f.z += pen.nz * pen.p; } }
+      if (!JNG.here(f.x, f.z)) for (let it = 0; it < 2; it++) { const pen = penOct(f.x, f.z, .32, true); if (pen) { f.x += pen.nx * pen.p; f.z += pen.nz * pen.p; } } // (the Amazon is far outside Barcelona's walls)
       { // your parked car is solid
         const m = MODELS[player.spec.model], cfx = Math.sin(player.h), cfz = Math.cos(player.h);
         const dx = f.x - player.x, dz = f.z - player.z, al = dx * cfx + dz * cfz, lt = dx * cfz - dz * cfx;
@@ -3950,6 +4394,7 @@ function updateFoot(dt) {
         if (pa > 0 && pl > 0) { if (pa < pl) { f.x += cfx * pa * Math.sign(al); f.z += cfz * pa * Math.sign(al); } else { f.x += cfz * pl * Math.sign(lt); f.z -= cfx * pl * Math.sign(lt); } }
       }
       for (const a of agents) { const dx = f.x - a.x, dz = f.z - a.z, d = Math.hypot(dx, dz); if (d < 2.3 && d > .01) { f.x = a.x + dx / d * 2.3; f.z = a.z + dz / d * 2.3; } }
+      if (JNG.here(f.x, f.z)) JNG.collide(f);
       for (const L of LAKES) { // the lake is water: walk round it, or out along the jetty
         if (Math.abs(f.x - L.x) > L.rx + 60 || Math.abs(f.z - L.z) > L.rx + 60 || onJetty(f.x, f.z)) continue;
         for (let it = 0; it < 3; it++) { const e = lakeE(L, f.x, f.z); if (e >= .998) break; const [u, v] = lakeLocal(L, f.x, f.z), k = 1.002 / Math.sqrt(e); [f.x, f.z] = lakeWorld(L, u * k, v * k); }
@@ -3974,8 +4419,11 @@ function updateFoot(dt) {
       else if (nearKiosk(f.x, f.z)) openShop();
       else if (nearDock(f.x, f.z)) enterBoat();
       else if (dp) { f.x = dp.x; f.z = dp.z; f.y = -.35; f.h = Math.atan2(dp.nx, dp.nz); startSwim(); f.swim.vy = -1; show('Splash!', 'Hold Shift to dive down to the reef.', 2.5); }
+      else if (nearJDesk(f.x, f.z)) amazonHome();
+      else if (nearJShop(f.x, f.z)) openShop('river');
       else if (railNear(f.x, f.z)) startFishing();
       else if (lakeNear(f.x, f.z)) startLakeFishing(lakeNear(f.x, f.z));
+      else if (beachNear(f.x, f.z)) startBeachFishing();
       else { const d = nearDoor(f.x, f.z); if (d) enterDoor(d); }
     }
   }
@@ -3991,6 +4439,8 @@ function footPrompt() {
   if (foot.fish) {
     const st = foot.fish.st;
     if (st === 'ready') return IS_TOUCH ? 'Arrows aim · GAS/BRAKE nearer or further · tap to cast' : 'A/D aim · W/S nearer or further · E to cast · Q to stop';
+    if (st === 'snag') return IS_TOUCH ? 'Snagged! Hold DRIFT to pull it free · don\'t snap it' : 'Snagged! Hold E to pull it free (watch the tension) · Q cuts the line';
+    if (st === 'wait' && foot.fish.bottom) return IS_TOUCH ? 'Watch the rod tip for bites! · hold DRIFT to reel in' : 'Watch the rod tip for bites! · hold E to reel in · T float/bottom';
     if (st === 'retrieve') return IS_TOUCH ? 'Hold DRIFT to reel the lure in · let go to pause' : 'Hold E to reel the lure in · let go to pause';
     if (st === 'jig') return IS_TOUCH ? 'Hold DRIFT to reel the rig in slowly · let go to jig' : 'Hold E to reel the rig in slowly · let go to jig';
     return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in' : 'Hold E to reel in') : '';
@@ -4002,8 +4452,11 @@ function footPrompt() {
   if (nearKiosk(foot.x, foot.z)) return IS_TOUCH ? 'Tap here for the tackle shop' : 'Press E for the tackle shop (rods, bait, lures, boats)';
   if (nearDock(foot.x, foot.z)) return fishLog.boat >= 0 ? (IS_TOUCH ? 'Tap here to get in your boat' : 'Press E to get in your boat') : (IS_TOUCH ? 'Boat for sale! Tap to see the boats' : 'Boat for sale! Press E to see the boats');
   if (divePlatform(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to jump in and go scuba diving' : 'Press E to jump in and go scuba diving';
+  if (nearJDesk(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fly home to Barcelona ✈' : 'Press E to fly home to Barcelona ✈';
+  if (nearJShop(foot.x, foot.z)) return IS_TOUCH ? 'Tap here for river monster tackle' : 'Press E for the river monster tackle shop';
   if (railNear(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fish' : 'Press E to fish';
   { const L = lakeNear(foot.x, foot.z); if (L) return IS_TOUCH ? `Tap here to fish in ${L.name}` : `Press E to fish in ${L.name}`; }
+  if (beachNear(foot.x, foot.z)) return IS_TOUCH ? 'Tap here to fish from the beach' : 'Press E to fish from the beach (surf casting)';
   const d = nearDoor(foot.x, foot.z);
   if (d) { const what = d.type === 'lobby' ? 'the entrance hall' : d.name ? `${d.name} (${TYPE_INFO[d.type].label.toLowerCase()})` : `the ${TYPE_INFO[d.type].label.toLowerCase()}`; return IS_TOUCH ? `Tap here to go into ${what}` : `Press E to go into ${what}`; }
   if (Math.hypot(foot.x - player.x, foot.z - player.z) < 4.5) return IS_TOUCH ? 'Tap here to get in' : 'Press F to get in';
@@ -4537,12 +4990,20 @@ const ABOVE = { fogCol: scene.fog.color.clone(), fogD: scene.fog.density, bg: sc
 const UWCOL = C('#0d5b6b');
 const LAKECOL = C('#4b6b3a');
 let wasUnder = false;
-function setUnderwater(under, lake) {
-  const mode = under ? (lake ? 'lake' : 'sea') : false;
+const RIVERCOL = C('#7a6842');
+function setUnderwater(under, kind) {
+  const mode = under ? (kind || 'sea') : false;
   if (mode === wasUnder) return; wasUnder = mode;
-  if (mode === 'lake') { scene.fog.color.copy(LAKECOL); scene.fog.density = .11; scene.background = LAKECOL.clone(); sun.intensity = .8; sun.color.set(C('#d8f0a0')); HEMI.intensity = .6; HEMI.color.set(C('#b4d88a')); HEMI.groundColor.set(C('#2e3a1c')); sky.visible = false; }
+  if (mode === 'river') { scene.fog.color.copy(RIVERCOL); scene.fog.density = .15; scene.background = RIVERCOL.clone(); sun.intensity = .7; sun.color.set(C('#e8d8a0')); HEMI.intensity = .6; HEMI.color.set(C('#c8b888')); HEMI.groundColor.set(C('#3a2e1a')); sky.visible = false; }
+  else if (mode === 'lake') { scene.fog.color.copy(LAKECOL); scene.fog.density = .11; scene.background = LAKECOL.clone(); sun.intensity = .8; sun.color.set(C('#d8f0a0')); HEMI.intensity = .6; HEMI.color.set(C('#b4d88a')); HEMI.groundColor.set(C('#2e3a1c')); sky.visible = false; }
   else if (under) { scene.fog.color.copy(UWCOL); scene.fog.density = .045; scene.background = UWCOL.clone(); sun.intensity = .7; sun.color.set(C('#9fe8ff')); HEMI.intensity = .55; HEMI.color.set(C('#7fd6e6')); HEMI.groundColor.set(C('#23404a')); sky.visible = false; }
-  else { scene.fog.color.copy(ABOVE.fogCol); scene.fog.density = ABOVE.fogD; scene.background = ABOVE.bg.clone(); sun.intensity = ABOVE.sun; sun.color.copy(ABOVE.sunCol); HEMI.intensity = ABOVE.hemi; HEMI.color.copy(ABOVE.hemiSky); HEMI.groundColor.copy(ABOVE.hemiGround); sky.visible = true; }
+  else applyAbove();
+}
+const JSKY = { hor: C('#a8b8a2'), zen: C('#6f8fa0'), fog: C('#8fa28a') }, SKY0 = { hor: skyMat.uniforms.hor.value, zen: skyMat.uniforms.zen.value };
+function applyAbove() { // the normal look above water: Barcelona's warm haze, or the rainforest's misty green
+  sky.visible = true;
+  if (JNG.on) { scene.fog.color.copy(JSKY.fog); scene.fog.density = .0045; scene.background = JSKY.fog.clone(); sun.intensity = ABOVE.sun * .8; sun.color.set(C('#fff2d0')); HEMI.intensity = ABOVE.hemi * 1.05; HEMI.color.set(C('#cfe0c0')); HEMI.groundColor.set(C('#2a3418')); skyMat.uniforms.hor.value = JSKY.hor; skyMat.uniforms.zen.value = JSKY.zen; return; }
+  scene.fog.color.copy(ABOVE.fogCol); scene.fog.density = ABOVE.fogD; scene.background = ABOVE.bg.clone(); sun.intensity = ABOVE.sun; sun.color.copy(ABOVE.sunCol); HEMI.intensity = ABOVE.hemi; HEMI.color.copy(ABOVE.hemiSky); HEMI.groundColor.copy(ABOVE.hemiGround); skyMat.uniforms.hor.value = SKY0.hor; skyMat.uniforms.zen.value = SKY0.zen;
 }
 // ---------- the diver ----------
 function addScubaGear(p) {
@@ -4717,8 +5178,11 @@ $('prompt').onclick = () => {
     else if (nearKiosk(foot.x, foot.z)) openShop();
     else if (nearDock(foot.x, foot.z)) enterBoat();
     else if (divePlatform(foot.x, foot.z)) { input.act = 1; setTimeout(() => input.act = 0, 120); }
+    else if (nearJDesk(foot.x, foot.z)) amazonHome();
+    else if (nearJShop(foot.x, foot.z)) openShop('river');
     else if (railNear(foot.x, foot.z)) startFishing();
     else if (lakeNear(foot.x, foot.z)) startLakeFishing(lakeNear(foot.x, foot.z));
+    else if (beachNear(foot.x, foot.z)) startBeachFishing();
     else if (nearDoor(foot.x, foot.z)) enterDoor(nearDoor(foot.x, foot.z));
     else toggleFoot();
   } else if (nearMission >= 0) startMission(nearMission);
@@ -4752,6 +5216,7 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyJ') { $('airport').hidden ? openAirport() : closeAll(); }
   if (e.code === 'KeyK') { $('tackle').hidden ? openShop() : closeAll(); }
   if (e.code === 'KeyV' && foot.fish && !paused) toggleFishCam();
+  if (e.code === 'KeyT' && foot.fish && !paused) toggleBottom();
   if (e.code === 'KeyB' && foot.fish && !paused) { const o = fishLog.own.bait.slice().sort((a, b) => a - b); setBait(o[(o.indexOf(fishLog.gear.bait) + 1) % o.length]); }
   if (e.code === 'KeyP') $('design').hidden ? openDesign() : closeAll();
   if (e.code === 'KeyG') $('garage').hidden ? openPanel('garage') : closeAll();
@@ -4825,6 +5290,8 @@ function drawMap() {
   const zoom = mapZoom * (S / 360); // pixels per metre
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, S, S);
   g.save(); g.translate(S / 2, S / 2); g.rotate(phi); g.scale(zoom, zoom); g.translate(-me.x, -me.z);
+  if (JNG.on) { const E = JNG.HS + 260; g.drawImage(jungleMap(), JNG.x - E, JNG.z - E, E * 2, E * 2); g.restore();
+    g.save(); g.translate(S / 2, S / 2); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, -16); g.lineTo(11, 12); g.lineTo(0, 6); g.lineTo(-11, 12); g.closePath(); g.fill(); g.stroke(); g.restore(); return; }
   g.drawImage(mapWorld, MAPW.x0, MAPW.z0, MAPW.x1 - MAPW.x0, MAPW.z1 - MAPW.z0);
   g.drawImage(mapCity, BX0, BZ0, BX1 - BX0, BZ1 - BZ0); g.restore();
   const toS = (x, z, clampR) => {
@@ -4842,6 +5309,16 @@ function drawMap() {
   const t = missionTarget(); if (t) dot(t.x, t.z, '#4fd1ff', 11);
   g.save(); g.translate(S / 2, S / 2); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 3;
   g.beginPath(); g.moveTo(0, -16); g.lineTo(11, 12); g.lineTo(0, 6); g.lineTo(-11, 12); g.closePath(); g.fill(); g.stroke(); g.restore();
+}
+function jungleMap() { // the rainforest from above: the river, the lodge and the airstrip
+  if (JNG.mapC) return JNG.mapC;
+  const cv = JNG.mapC = document.createElement('canvas'); cv.width = cv.height = 1024; const g = cv.getContext('2d'), E = JNG.HS + 260, k = 1024 / (E * 2), X = x => (x - JNG.x + E) * k, Z = z => (z - JNG.z + E) * k;
+  g.fillStyle = '#1f3a18'; g.fillRect(0, 0, 1024, 1024);
+  for (let i = 0; i < 2500; i++) { g.fillStyle = Math.random() < .5 ? '#2a4a1e' : '#183014'; g.beginPath(); g.arc(Math.random() * 1024, Math.random() * 1024, 2 + Math.random() * 6, 0, 7); g.fill(); }
+  for (const [col, ex] of [['#6a5a3a', 6], ['#7a6a48', 0]]) { g.fillStyle = col; g.beginPath(); for (let v = -E; v <= E; v += 10) { const [x, z] = JNG.edge(v, 1, ex); v === -E ? g.moveTo(X(x), Z(z)) : g.lineTo(X(x), Z(z)); } for (let v = E; v >= -E; v -= 10) { const [x, z] = JNG.edge(v, -1, ex); g.lineTo(X(x), Z(z)); } g.closePath(); g.fill(); }
+  const S = JNG.strip; g.save(); g.translate(X(S.x), Z(S.z)); g.rotate(-Math.atan2(S.ax, S.az)); g.fillStyle = '#6a8a3a'; g.fillRect(-S.w / 2 * k, -S.len / 2 * k, S.w * k, S.len * k); g.restore();
+  g.fillStyle = '#f9c80e'; g.strokeStyle = '#111'; g.lineWidth = 2; g.beginPath(); g.arc(X(JNG.lodge.x), Z(JNG.lodge.z), 7, 0, 7); g.fill(); g.stroke();
+  return cv;
 }
 function district(x, z) { // Barcelona's districts, roughly: the number on the street plaques
   if (x < -2600) return 4;                                   // Les Corts
@@ -4972,6 +5449,33 @@ const PIC_DRAW = {
       for (const sd of [-1, 1]) { g.fillStyle = '#4fbf4a'; g.beginPath(); g.arc(cx + sd * 22, cy - 28, 11, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(cx + sd * 22, cy - 30, 7, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(cx + sd * 22, cy - 30, 3.5, 0, 7); g.fill();
         g.strokeStyle = '#3f9f3a'; g.lineWidth = 7; g.beginPath(); g.moveTo(cx + sd * 30, cy + 20); g.quadraticCurveTo(cx + sd * 70, cy + 30, cx + sd * 80, cy + 50); g.stroke(); }
       g.strokeStyle = '#c9ced4'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx - 10, cy - 32); g.quadraticCurveTo(cx, cy - 50, cx + 10, cy - 32); g.stroke();
+    } else if (it.name === 'Fish chunks' || it.name === 'Beef heart') {
+      const beef = it.name === 'Beef heart'; for (let i = 0; i < 5; i++) { const x = cx - 60 + i * 30, y = cy + (i % 2) * 14 - 6; g.fillStyle = beef ? '#7a1424' : '#c8606a'; g.beginPath(); g.moveTo(x - 14, y - 10); g.lineTo(x + 12, y - 14); g.lineTo(x + 16, y + 10); g.lineTo(x - 10, y + 14); g.closePath(); g.fill(); g.fillStyle = beef ? '#a8283a' : '#f0e0e0'; g.fillRect(x - 6, y - 4, 10, 4); }
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 3; g.beginPath(); g.moveTo(cx + 80, cy - 60); g.lineTo(cx + 80, cy + 20); g.arc(cx + 66, cy + 20, 14, 0, Math.PI); g.stroke();
+    } else if (it.name === 'Fruit & nuts') {
+      for (const [x, y, c, r] of [[-50, 0, '#e86a2a', 22], [0, 10, '#c8302a', 18], [42, -4, '#6a3a1a', 16], [70, 18, '#f2c230', 14], [-20, -26, '#5a8a2a', 12]]) { g.fillStyle = c; g.beginPath(); g.arc(cx + x, cy + y, r, 0, 7); g.fill(); g.fillStyle = 'rgba(255,255,255,.3)'; g.beginPath(); g.arc(cx + x - r * .3, cy + y - r * .3, r * .3, 0, 7); g.fill(); }
+    } else if (it.name === 'Live baitfish') {
+      fishShape(g, cx, cy, 130, 40, '#4a6a7a', '#d8e0e4'); g.fillStyle = '#c8402a'; g.beginPath(); g.moveTo(cx - 60, cy); g.lineTo(cx - 76, cy - 14); g.lineTo(cx - 76, cy + 14); g.fill(); treble(g, cx + 20, cy - 30, 1.2);
+    } else if (it.name === 'Bucktail jig') {
+      g.fillStyle = '#f4f0e0'; for (let i = 0; i < 30; i++) { g.save(); g.translate(cx - 10, cy); g.rotate(Math.PI + (i / 30 - .5) * .7); g.fillRect(0, -1, 70 + Math.random() * 20, 2); g.restore(); }
+      g.fillStyle = '#c8102e'; g.beginPath(); g.arc(cx + 10, cy, 20, 0, 7); g.fill(); g.fillStyle = '#fff'; g.beginPath(); g.arc(cx + 18, cy - 5, 6, 0, 7); g.fill(); g.fillStyle = '#111'; g.beginPath(); g.arc(cx + 19, cy - 5, 3, 0, 7); g.fill();
+    } else if (it.name === 'Wire spinnerbait') {
+      g.strokeStyle = '#c9ced4'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx - 60, cy + 20); g.lineTo(cx, cy - 30); g.lineTo(cx + 50, cy + 20); g.stroke();
+      const gr = g.createLinearGradient(cx - 80, cy, cx - 40, cy + 40); gr.addColorStop(0, '#fff'); gr.addColorStop(1, '#c0a020'); g.fillStyle = gr; g.beginPath(); g.ellipse(cx - 62, cy + 30, 14, 24, .4, 0, 7); g.fill();
+      for (let i = 0; i < 18; i++) { g.strokeStyle = i % 2 ? '#ff3a8a' : '#ffffff'; g.lineWidth = 2; g.beginPath(); g.moveTo(cx + 50, cy + 20); g.lineTo(cx + 90 + Math.random() * 20, cy + 6 + i * 2); g.stroke(); }
+      g.fillStyle = '#ff3a8a'; g.beginPath(); g.arc(cx + 50, cy + 20, 10, 0, 7); g.fill();
+    } else if (it.name === 'Walk-the-dog' || it.name === 'Prop bait') {
+      const prop = it.name === 'Prop bait'; fishShape(g, cx, cy, 140, 30, prop ? '#3a3a3a' : '#2a8a3a', prop ? '#f0f0f0' : '#f2d430');
+      if (prop) for (const x of [cx + 76, cx - 76]) { g.fillStyle = '#c9ced4'; g.beginPath(); g.ellipse(x, cy, 4, 16, 0, 0, 7); g.fill(); }
+      treble(g, cx + 20, cy + 14, 1.1); treble(g, cx - 40, cy + 14, 1.1);
+    } else if (it.name === 'Giant spoon') {
+      const gr = g.createLinearGradient(cx - 60, cy - 30, cx + 60, cy + 30); gr.addColorStop(0, '#fff3b0'); gr.addColorStop(.5, '#e0a020'); gr.addColorStop(1, '#fff0a0');
+      g.fillStyle = gr; g.beginPath(); g.ellipse(cx, cy, 80, 32, -.2, 0, 7); g.fill(); g.fillStyle = '#c8102e'; g.beginPath(); g.ellipse(cx + 10, cy - 2, 40, 10, -.2, 0, 7); g.fill(); treble(g, cx - 80, cy + 20, 1.4);
+    } else if (it.name === 'Big swimbait') {
+      fishShape(g, cx + 10, cy, 170, 52, '#4a6070', '#e8ecef'); g.fillStyle = '#8aa0b0'; g.beginPath(); g.ellipse(cx - 84, cy, 10, 26, 0, 0, 7); g.fill();
+    } else if (it.name === 'Monster plug') {
+      fishShape(g, cx, cy, 170, 50, '#d42a1e', '#f4f0e0'); g.fillStyle = 'rgba(220,240,255,.6)'; g.beginPath(); g.moveTo(cx + 78, cy + 8); g.lineTo(cx + 118, cy + 34); g.lineTo(cx + 104, cy + 42); g.lineTo(cx + 72, cy + 18); g.closePath(); g.fill();
+      treble(g, cx + 20, cy + 22, 1.6); treble(g, cx - 50, cy + 20, 1.6);
     } else if (it.name === 'Catfish pellets') {
       g.fillStyle = '#3a2a18'; for (let i = 0; i < 22; i++) { const x = cx - 70 + Math.random() * 140, y = cy - 30 + Math.random() * 64; g.beginPath(); g.arc(x, y, 11, 0, 7); g.fill(); g.fillStyle = 'rgba(255,220,160,.25)'; g.beginPath(); g.arc(x - 3, y - 4, 4, 0, 7); g.fill(); g.fillStyle = i % 3 ? '#5a3e22' : '#6a4a2a'; }
     } else if (it.name === 'Maggots') {
@@ -5739,7 +6243,7 @@ function tripNote(alt) {
 function postcard(id) {
   const key = 'pc' + id; if (picCache[key]) return picCache[key];
   const cv = document.createElement('canvas'); cv.width = PIC_W * 2; cv.height = PIC_H * 2; const g = cv.getContext('2d'); g.scale(2, 2);
-  const W = PIC_W, H = PIC_H, sky = { bcn: ['#f6c48a', '#8fc3ea'], mallorca: ['#bfe6ff', '#4fa7e0'], pyrenees: ['#e8f2ff', '#7fb0e0'], egypt: ['#ffd98a', '#f0a45a'], paris: ['#f3d6d0', '#8fa9d6'] }[id];
+  const W = PIC_W, H = PIC_H, sky = { bcn: ['#f6c48a', '#8fc3ea'], mallorca: ['#bfe6ff', '#4fa7e0'], pyrenees: ['#e8f2ff', '#7fb0e0'], egypt: ['#ffd98a', '#f0a45a'], paris: ['#f3d6d0', '#8fa9d6'], amazon: ['#d8e4c8', '#8fb0b8'] }[id];
   const gr = g.createLinearGradient(0, 0, 0, H); gr.addColorStop(0, sky[1]); gr.addColorStop(1, sky[0]); g.fillStyle = gr; g.fillRect(0, 0, W, H);
   const poly = (col, pts) => { g.fillStyle = col; g.beginPath(); pts.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fill(); };
   if (id === 'bcn') {
@@ -5754,6 +6258,11 @@ function postcard(id) {
     poly('#5d7d3a', [[0, 150], [0, 110], [W, 105], [W, 150]]);
     for (const [x, y, w] of [[60, 30, 80], [150, 22, 90], [230, 44, 70]]) { poly('#7c7570', [[x - w, 115], [x, y], [x + w, 115]]); poly('#f4f6f8', [[x - w * .3, y + (115 - y) * .3], [x, y], [x + w * .3, y + (115 - y) * .3]]); }
     for (let k = 0; k < 14; k++) poly('#2f4a26', [[k * 20 + 5, 128], [k * 20 + 12, 106], [k * 20 + 19, 128]]);
+  } else if (id === 'amazon') {
+    poly('#2a5a20', [[0, 150], [0, 70], [W, 64], [W, 150]]);
+    for (let k = 0; k < 40; k++) { g.fillStyle = ['#1f4a1c', '#2f6a24', '#3a7a2a', '#245218'][k % 4]; g.beginPath(); g.arc((k * 37) % W + 5, 62 + (k * 13) % 30, 14 + (k * 7) % 12, 0, 7); g.fill(); }
+    poly('#8a6a40', [[W * .3, 150], [W * .44, 100], [W * .56, 100], [W * .8, 150]]); poly('#a08050', [[W * .4, 150], [W * .47, 108], [W * .53, 108], [W * .62, 150]]);
+    g.fillStyle = '#d42a1e'; g.beginPath(); g.ellipse(220, 30, 9, 4, -.3, 0, 7); g.fill(); g.fillStyle = '#2a6ad0'; g.fillRect(210, 28, 10, 3);
   } else if (id === 'egypt') {
     g.fillStyle = '#fff3c0'; g.beginPath(); g.arc(230, 38, 18, 0, 7); g.fill();
     poly('#e3c48a', [[0, 150], [0, 112], [W, 106], [W, 150]]);
@@ -5765,7 +6274,7 @@ function postcard(id) {
     g.strokeStyle = '#4a3f33'; g.lineWidth = 3; g.beginPath(); g.moveTo(110, 125); g.quadraticCurveTo(132, 70, 140, 14); g.quadraticCurveTo(148, 70, 170, 125); g.stroke();
     g.lineWidth = 2; for (const y of [96, 66]) { g.beginPath(); g.moveTo(140 - (125 - y) * .45, y); g.lineTo(140 + (125 - y) * .45, y); g.stroke(); }
   }
-  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, H - 26, W, 26); g.fillStyle = '#fff'; g.font = '800 16px Arial'; g.fillText((id === 'bcn' ? 'BARCELONA' : WORLDS[id].name.toUpperCase()) + '  ✈', 10, H - 8);
+  g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, H - 26, W, 26); g.fillStyle = '#fff'; g.font = '800 16px Arial'; g.fillText((id === 'bcn' ? 'BARCELONA' : id === 'amazon' ? 'AMAZÔNIA' : WORLDS[id].name.toUpperCase()) + '  ✈', 10, H - 8);
   return picCache[key] = cv.toDataURL();
 }
 function openAirport() {
@@ -5774,6 +6283,7 @@ function openAirport() {
   $('apWallet').textContent = '€' + money.toFixed(2);
   const dest = [['bcn', 'Fly around Barcelona', 'Take off from El Prat and fly over the whole city, the mountain and the sea.'], ...Object.entries(WORLDS).map(([id, W]) => [id, W.name, W.sub])];
   $('apDest').innerHTML = dest.map(([id, n, sub]) => `<div class="card${(AWAY ? AWAY.id : (plane.on ? 'bcn' : '')) === id ? ' sel' : ''}"><img class="pic" src="${postcard(id)}" alt=""><h3>${n}</h3><div class="tag">${sub}</div><button class="go" data-fly="${id}">${AWAY && AWAY.id === id ? 'Back to the runway' : 'Fly there'} ✈</button></div>`).join('')
+    + `<div class="card"><img class="pic" src="${postcard('amazon')}" alt=""><h3>Amazon rainforest 🐊</h3><div class="tag">A free fishing trip! Fly to a jungle lodge on a huge river full of river monsters: arapaima, piranhas, giant catfish and more.</div><button class="go" data-amazon="1">Go fishing there 🎣</button></div>`
     + (AWAY || plane.on ? `<div class="card"><h3>Walk into El Prat</h3><div class="tag">Land back at Barcelona airport and walk out of the terminal to your car.</div><button class="go" data-fly="home">Go home</button></div>` : '');
   { const from = AWAY ? AWAY.id : 'bcn', S = PLANES[fishLog.plane], avg = Math.max(1, Math.round(S.seats * .87));
     $('tkLead').textContent = S.seats > 3 ? `Your ${S.name} has ${S.seats} seats. Sell tickets, take off, fly them there and land on the runway to get paid.` : `Your ${S.name} only has ${S.seats} seat${S.seats > 1 ? 's' : ''}. Buy the Airbus A380 to carry 500 passengers at once!`;
@@ -5822,9 +6332,23 @@ function flyTo(id) {
     setTimeout(() => { $('transit').hidden = true; paused = false; show(name, IS_TOUCH ? 'GAS speeds up, BRAKE slows down. ▲ climbs, ▼ dives, arrows turn.' : 'W speeds up and S slows down, like a car. ↑ climbs, ↓ dives, A/D turn. Shift = boost, Space = brakes. J for departures.', 4); }, 1300);
   }, 700);
 }
+function goAmazon() { // fly to the rainforest lodge
+  closeAll(); trip = null; $('transitT').textContent = 'Flying to the Amazon rainforest…'; $('transit').hidden = false; paused = true;
+  setTimeout(() => {
+    goHome(); clearForFlight(); flyMode(false); plane.on = false; planeStart(false); JNG.build();
+    const L = JNG.lodge, [wx, wz] = JNG.wdir; footTo(L.x + wx * 12, L.z + wz * 12, Math.atan2(wx, wz));
+    cam.fh = cam.fx = cam.fz = cam.fy = undefined; camera.position.set(foot.x - wx * 6, foot.y + 3, foot.z - wz * 6);
+    JNG.on = true; JNG.root.visible = true; applyAbove();
+    setTimeout(() => { $('transit').hidden = true; paused = false; show('Bem-vindo à Amazônia!', 'Fish anywhere on the riverbank, or off the end of the jetty. River monster tackle is at the lodge shop. Fly home from the ✈ VOOS counter.', 6); audio.ding(); }, 1300);
+  }, 700);
+}
+function amazonHome() { // back to Barcelona airport
+  closeAll(); $('transitT').textContent = 'Flying home to Barcelona…'; $('transit').hidden = false; paused = true;
+  setTimeout(() => { if (foot.fish) stopFishing(); flyTo('home'); setTimeout(() => { $('transit').hidden = true; paused = false; }, 900); }, 700);
+}
 function goHome() { if (!AWAY) return; AWAY = null; camera.far = 7000; camera.updateProjectionMatrix(); scene.add(plane.g); $('mapWrap').hidden = false; $('plaque').hidden = true; }
 $('apTickets').addEventListener('click', e => { const b = e.target.closest('[data-ticket]'); if (b) sellTickets(b.dataset.ticket); });
-$('apDest').addEventListener('click', e => { const b = e.target.closest('[data-fly]'); if (b) flyTo(b.dataset.fly); });
+$('apDest').addEventListener('click', e => { if (e.target.closest('[data-amazon]')) return goAmazon(); const b = e.target.closest('[data-fly]'); if (b) flyTo(b.dataset.fly); });
 $('apPlanes').addEventListener('click', e => {
   const pb = e.target.closest('[data-paint]'); if (pb) return openHangar(+pb.dataset.paint);
   const b = e.target.closest('[data-plane]'); if (!b) return; const k = +b.dataset.plane, p = PLANES[k];
@@ -5905,6 +6429,7 @@ const PLACES = [
     const n = MR.length, a = MR[n - 4], b = MR[n - 1]; carTo(b.x, b.z, Math.atan2(b.x - a.x, b.z - a.z));
   }, 'mountain top summit ferris wheel theme park collserola'],
   ['Carretera de la Rabassada', 'Mountain road with five hairpins', [MR[0].x, MR[0].z], () => carTo(MR[0].x, MR[0].z, Math.atan2(MR[3].x - MR[0].x, MR[3].z - MR[0].z)), 'mountain road hairpins hill climb'],
+  ['Amazon rainforest', 'River monster fishing at a jungle lodge (a free flight)', [JNG.x, JNG.z], () => { JNG.build(); const L = JNG.lodge, [wx, wz] = JNG.wdir; footTo(L.x + wx * 12, L.z + wz * 12, Math.atan2(wx, wz)); return 'Bem-vindo! Fish from the riverbank. Fly home from the ✈ counter at the lodge.'; }, 'amazon jungle rainforest river monsters brazil piranha arapaima fishing'],
   ['Race circuit', 'A race track out in the Vallès', [CIRC.x, CIRC.z], () => carTo(CIRC.x - 230, CIRC.z + 200, Math.PI / 2), 'race track circuit f1 formula racing'],
 ].map(([n, sub, p, go, alias]) => ({ n, sub, x: p[0], z: p[1], go, kind: 0, key: norm(n), short: norm(n).replace(/^(la|el|les|els|l) /, ''), alias: norm(alias || '') }));
 const AREAS = [
@@ -6223,8 +6748,11 @@ function loop() {
   }
   if (!paused && !plane.on) updatePeds(dt, false);
   if (room) updateRoom(dt);
-  { const cp = camera.position; SEA.mesh.visible = !LAKES.some(L => Math.abs(cp.x - L.x) < L.rx + 400 && Math.abs(cp.z - L.z) < L.rx + 400); // the sea's waves would poke up through the lakes
-    const under = camera.position.y < -.15 && !foot.inside, inLake = under && !!lakeAt(camera.position.x, camera.position.z, 5); setUnderwater(under, inLake); UW.visible = !!foot.swim || under && !inLake;
+  { const cp = camera.position, jn = !AWAY && JNG.here(cp.x, cp.z);
+    if (jn !== JNG.on) { JNG.on = jn; if (jn) JNG.build(); JNG.root.visible = jn; if (!wasUnder) applyAbove(); }
+    JNG.update(dt);
+    SEA.mesh.visible = !jn && !LAKES.some(L => Math.abs(cp.x - L.x) < L.rx + 400 && Math.abs(cp.z - L.z) < L.rx + 400); // the sea's waves would poke up through the lakes
+    const under = camera.position.y < -.15 && !foot.inside, inLake = under && (jn ? (JNG.water(cp.x, cp.z) ? 'river' : false) : lakeAt(cp.x, cp.z, 5) ? 'lake' : false); setUnderwater(under, inLake); UW.visible = !!foot.swim || under && !inLake && !jn;
     if (UW.visible) { updateSea(dt, foot.swim ? foot : null); updateUnderwaterFx(dt, foot.swim ? foot : null); } }
   // skids and smoke
   const fx = Math.sin(c.h), fz = Math.cos(c.h), lx = Math.cos(c.h), lz = -Math.sin(c.h);
@@ -6280,7 +6808,7 @@ function loop() {
     cam.fh = cam.fh === undefined ? aim : cam.fh + angDiff(cam.fh, aim) * (1 - Math.exp(-dt * 4));
     let ftx = F.x - Math.sin(cam.fh) * (F.inside ? 3.2 : d), ftz = F.z - Math.cos(cam.fh) * (F.inside ? 3.2 : d);
     if (F.inside) { ftx = clamp(ftx, -room.W / 2 + .3, room.W / 2 - .3); ftz = clamp(ftz, -room.D / 2 + .3, room.D / 2 - .3); }
-    else if (F.swim) { /* open water */ }
+    else if (F.swim || JNG.here(F.x, F.z)) { /* open water, or the jungle (outside the city's walls) */ }
     else for (let s2 = 1; s2 <= 8; s2++) { const px = lerp(F.x, ftx, s2 / 8), pz = lerp(F.z, ftz, s2 / 8), pc = penOct(px, pz, .4, true); if (pc && pc.p > .6) { ftx = lerp(F.x, ftx, (s2 - 1) / 8); ftz = lerp(F.z, ftz, (s2 - 1) / 8); break; } }
     cam.fx = lerp(cam.fx ?? ftx, ftx, 1 - Math.exp(-dt * 8)); cam.fz = lerp(cam.fz ?? ftz, ftz, 1 - Math.exp(-dt * 8));
     const camYf = F.swim ? (F.y < -1 ? clamp(F.y + 1.3, seabedY(cam.fx, cam.fz) + .5, -.45) : .9) : F.inside ? Math.min(F.y + 2, room.H - .3) : Math.max(F.y + hh, walkY(cam.fx, cam.fz) + 1);
@@ -6322,16 +6850,18 @@ function loop() {
     $('spd').textContent = Math.round(Math.abs(foot.on ? foot.v : c.u) * 3.6);
     $('gear').textContent = c.gear === -1 ? 'R' : sp < .3 && !c.throttle ? 'N' : c.spec.ev ? 'D' : c.gear;
     $('rpmFill').style.width = clamp(c.rpm / c.spec.redline, 0, 1) * 100 + '%';
-    const st = plane.on ? streetName(plane.x, plane.z) : foot.inside ? [foot.inside.name || room.info.label, district(foot.inside.x, foot.inside.z)] : foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
+    const st = JNG.on && foot.on ? ['Floresta Amazônica · ' + (Math.hypot(foot.x - JNG.lodge.x, foot.z - JNG.lodge.z) < 60 ? 'Amazon River Lodge' : 'Rio Amazonas'), 'BR'] : plane.on ? streetName(plane.x, plane.z) : foot.inside ? [foot.inside.name || room.info.label, district(foot.inside.x, foot.inside.z)] : foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
     const SW = foot.swim; $('scuba').hidden = !SW;
     if (SW) { $('sDepth').textContent = (-Math.min(0, foot.y + .35)).toFixed(1) + ' m'; $('sAir').textContent = Math.round(SW.air) + '%'; $('sAir').style.color = SW.air < 25 ? 'var(--bad)' : ''; $('sSpot').textContent = `${spotted.size}/${Object.keys(SPECIES).length}`; }
     const F = foot.fish; $('fishing').hidden = !F; $('baitBar').hidden = !F || F.st === 'show';
     if (F) {
       $('fState').textContent = F.st === 'reel' ? `Fighting a fish: ${Math.max(0, F.D).toFixed(1)} m to go` : F.st === 'bite' ? 'Bite!' : F.st === 'wait' ? 'Float is out' : F.st === 'show' ? 'Nice catch!' : 'Ready to cast';
       const SN = gearOf('line').snap;
-      $('fTen').style.width = clamp(F.st === 'reel' ? F.tension / SN : F.st === 'jig' ? F.hooked.length / 7 : 0, 0, 1) * 100 + '%';
+      $('fTen').style.width = clamp(F.st === 'reel' || F.st === 'snag' ? F.tension / SN : F.st === 'jig' ? F.hooked.length / 7 : 0, 0, 1) * 100 + '%';
       if (F.st === 'jig') $('fState').textContent = `Sabiki rig: ${F.hooked.length}/7 fish · ${Math.max(0, F.D).toFixed(0)} m out`;
       if (F.st === 'ready' && F.aim) $('fState').textContent = `Aim: ${F.aim.d.toFixed(0)} m${F.lake ? ' · ' + F.lake.name : ''}`;
+      if (F.st === 'snag') $('fState').textContent = 'Snagged on the bottom!';
+      if (F.st === 'wait' && F.bottom) $('fState').textContent = '⚓ On the bottom: watch the rod tip';
       if (F.st === 'retrieve') $('fState').textContent = `Reeling in the lure: ${Math.max(0, F.D).toFixed(0)} m to go`;
       $('fTen').style.background = F.tension > .85 * SN ? 'var(--bad)' : F.tension < .2 ? 'var(--muted)' : 'var(--good)';
       $('fCount').textContent = `${gearOf('bait').kind === 'lure' ? 'Lure' : 'Bait'}: ${gearOf('bait').name} · Catches: ${fishLog.count}${fishLog.gadgets.sonar ? ' · 📡 Sonar on' : ''}`;
@@ -6356,7 +6886,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { JNG, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
