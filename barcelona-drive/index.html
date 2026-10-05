@@ -479,7 +479,7 @@ function rasAt(x, z) {
 }
 const coastSide = (x, z) => (x - COAST.x) * COAST.nx + (z - COAST.z) * COAST.nz; // > 0 out at sea (beyond the map)
 function seaDist(x, z) { // metres of water between this point and the shore; 0 on land
-  if (DUB.here(x, z)) return DUB.seaD(x, z);
+  { const RG = regionAt(x, z); if (RG) return RG.seaD(x, z); }
   if (!inBox(x, z)) return Math.max(0, coastSide(x, z));
   const fx = (x - BX0) / RAS.res - .5, fz = (z - BZ0) / RAS.res - .5, i = Math.floor(fx), j = Math.floor(fz), tx = fx - i, tz = fz - j;
   const s = (ii, jj) => { ii = clamp(ii, 0, RAS.nx - 1); jj = clamp(jj, 0, RAS.nz - 1); const v = RASD[jj * RAS.nx + ii]; return v >= 10 ? (v - 10) * RAS.res + RAS.res * .5 : -RAS.res * .5; };
@@ -632,9 +632,26 @@ JNG.flat = (x, z) => { // the clearing round the lodge and the grass airstrip ar
 };
 JNG.onJetty = (x, z) => { const J = JNG.jet, a = (x - J.x) * J.dx + (z - J.z) * J.dz, b = (x - J.x) * J.dz - (z - J.z) * J.dx; return a > -2 && a < J.len && Math.abs(b) < 1.4; };
 const waterBed = (L, x, z) => L.river ? JNG.bed(x, z) : lakeBed(L, x, z);
-// Dublin & Wicklow live far away in the same world (see DUBLIN & WICKLOW further down); declared early because the ground code asks about it
-const DUB = { ox: 0, oz: -200000, on: false, ready: false, loading: null, tiles: new Map(), blocks: [], queue: [] };
-DUB.here = (x, z, pad = 0) => DUB.ready && x > DUB.X0 - pad && x < DUB.X1 + pad && z > DUB.Z0 - pad && z < DUB.Z1 + pad;
+// Real-map regions (Dublin & Wicklow, Paris, Andorra, Mallorca, Giza) live far away in the same world (see REAL MAP REGIONS further down); declared early because the ground code asks about them
+const REGIONS = [];
+function newRegion(cfg) { const R = Object.assign({ on: false, ready: false, loading: null, tiles: new Map(), blocks: [], queue: [], left: false, look: 'dublin', tints: [], conH: 1e9, conP: .3 }, cfg); R.here = (x, z, pad = 0) => R.ready && x > R.X0 - pad && x < R.X1 + pad && z > R.Z0 - pad && z < R.Z1 + pad; REGIONS.push(R); return R; }
+const DUB = newRegion({ id: 'dublin', title: 'Dublin & Wicklow', ox: 0, oz: -200000, file: 'dublin-data.txt', left: true, look: 'dublin', country: 'Ireland', code: 'IE', alias: 'dublin wicklow ireland', tints: [[420, 200, '#7a6a52']], conH: 110, conP: .55,
+  sky: { fog: '#bcc8d0', d: .00026, hor: '#c8d2da', zen: '#5a82b4', sun: .85 }, hello: ['Fáilte go Baile Átha Cliath!', 'Every street, building, river and mountain is from the real map. Remember: in Ireland you drive on the LEFT!'],
+  spots: { dublin: [-60, -330, 'O\'Connell Street, Dublin'], laragh: [-2548, 37703, 'Laragh, Co. Wicklow'], glendalough: [-4400, 37390, 'Glendalough'], airport: [1700, -8400, 'Dublin Airport'], bray: [9888, 16225, 'Bray'], howth: [12700, -4600, 'Howth'], enniskerry: [5911, 17196, 'Enniskerry'], roundwood: [2297, 31577, 'Roundwood'], phoenix: [-2700, -600, 'The Phoenix Park'], dunlaoghaire: [8450, 5600, 'Dún Laoghaire'], sallygap: [-3570, 23620, 'Sally Gap'] } });
+const PAR = newRegion({ id: 'paris', title: 'Paris', ox: 250000, oz: 0, file: 'paris-data.txt', look: 'paris', country: 'France', code: 'FR', alias: 'paris france', ground0: '#8a9a74',
+  sky: { fog: '#c4ccd6', d: .0003, hor: '#cfd6de', zen: '#5f86bc', sun: .92 }, hello: ['Bienvenue à Paris !', 'Every street and building is from the real map of Paris: drive round the Arc de Triomphe, along the Seine and up to the Eiffel Tower.'],
+  spots: { centre: [81, 160, 'Notre-Dame & Hôtel de Ville'], eiffel: [-3900, -380, 'The Eiffel Tower'], arc: [-3800, -2200, 'Arc de Triomphe'], champs: [-3064, -1824, 'Champs-Élysées'], louvre: [-946, -760, 'The Louvre'], montmartre: [-418, -3600, 'Montmartre & Sacré-Cœur'], montparnasse: [-1972, 1257, 'Tour Montparnasse'] } });
+const ADR = newRegion({ id: 'andorra', title: 'Andorra (Pyrenees)', ox: 250000, oz: -250000, file: 'andorra-data.txt', look: 'alpine', country: 'Andorra', code: 'AD', alias: 'andorra pyrenees pirineus mountains', ground0: '#7a9a58', tints: [[2050, 450, '#8a8478']], conH: 0, conP: 1,
+  sky: { fog: '#c8d8e8', d: .00012, hor: '#d8e4f0', zen: '#3a6ab8', sun: 1 }, hello: ['Benvinguts a Andorra!', 'High in the real Pyrenees: every road, village and mountain is from real maps. Try the climb up to Pas de la Casa!'],
+  spots: { vella: [0, 100, 'Andorra la Vella'], caldea: [1313, -345, 'Escaldes-Engordany'], ordino: [927, -5507, 'Ordino'], soldeu: [11933, -7832, 'Soldeu'], pas: [17350, -3994, 'Pas de la Casa'] } });
+const MAL = newRegion({ id: 'mallorca', title: 'Mallorca', ox: -320000, oz: 0, file: 'mallorca-data.txt', look: 'med', country: 'Spain', code: 'IB', alias: 'mallorca majorca balears palma island', ground0: '#a8a46a', tints: [[650, 500, '#9a9484']], conH: 150, conP: .7,
+  sky: { fog: '#d8e0e8', d: .00014, hor: '#e4ecf2', zen: '#3a78c8', sun: 1.05 }, hello: ['Benvinguts a Mallorca!', 'The whole island from real maps: Palma, the mountain roads of the Serra de Tramuntana, Sa Calobra and Formentor.'],
+  spots: { palma: [200, -300, 'Palma'], soller: [5588, -21927, 'Sóller'], valldemossa: [-2369, -15687, 'Valldemossa'], calobra: [13477, -31261, 'Sa Calobra road'], pollenca: [37290, -37381, 'Port de Pollença'], formentor: [46500, -42000, 'Cap de Formentor'] } });
+const GIZ = newRegion({ id: 'giza', title: 'Giza & Cairo', ox: -250000, oz: -250000, file: 'giza-data.txt', look: 'desert', country: 'Egypt', code: 'EG', alias: 'egypt giza cairo pyramids sphinx nile', ground0: '#cdb68a', conH: 1e9, conP: 0,
+  sky: { fog: '#e0d4bc', d: .0003, hor: '#e8dcc4', zen: '#6a9ad0', sun: 1.1 }, hello: ['Ahlan wa sahlan!', 'The real Giza and Cairo: drive up to the Great Pyramid and the Sphinx, then along the Nile into Cairo.'],
+  spots: { pyramids: [700, 600, 'The Pyramids of Giza'], sphinx: [420, 700, 'The Sphinx'], tahrir: [9789, -7253, 'Tahrir Square, Cairo'], tower: [8400, -7200, 'Cairo Tower'] } });
+const regionAt = (x, z, pad = 0) => { for (const R of REGIONS) if (R.here(x, z, pad)) return R; return null; };
+const regOn = () => { for (const R of REGIONS) if (R.on) return R; return null; };
 function placeJetty(L, P) { // the jetty faces the road: it runs from the bank 24 m out over the water
   const [u, v] = lakeLocal(L, P[0], P[1]); L.ja = Math.atan2(v / L.rz, u / L.rx);
   const [sx, sz] = lakeEdge(L, L.ja, 1.03), dx = L.x - sx, dz = L.z - sz, d = Math.hypot(dx, dz);
@@ -791,7 +808,7 @@ function pierConstrain(px, pz, rad) { // keep things between the railings (worke
 
 /* ---------- height of the ground anywhere ---------- */
 function groundH(x, z) {
-  if (DUB.ready && x > DUB.X0 - 2000 && x < DUB.X1 + 2000 && z > DUB.Z0 - 2000 && z < DUB.Z1 + 2000) return DUB.h(clamp(x, DUB.X0, DUB.X1), clamp(z, DUB.Z0, DUB.Z1)); // Dublin & Wicklow
+  for (const RG of REGIONS) if (RG.ready && x > RG.X0 - 2000 && x < RG.X1 + 2000 && z > RG.Z0 - 2000 && z < RG.Z1 + 2000) return RG.h(clamp(x, RG.X0, RG.X1), clamp(z, RG.Z0, RG.Z1)); // the real-map regions
   if (JNG.here(x, z, 600)) return JNG.onJetty(x, z) ? .55 : JNG.h(x, z); // the Amazon
   if (onJetty(x, z)) return .5; // lake jetties
   { const [mu, mv] = marLocal(x, z); if (mv > -13 && mv < 207 && Math.abs(mu) < 59 && onMarinaL(mu, mv)) return mv < 0 ? MAR_H * clamp((mv + 12) / 12, 0, 1) : MAR_H; } // marina pontoons
@@ -1787,7 +1804,7 @@ function stepCar(c, dt, inp) {
 
 /* ---------- collisions ---------- */
 function penOct(px, pz, rad, wet = false) { // how far a circle is pushed into anything solid (buildings, trees, walls, the sea)
-  if (DUB.here(px, pz, 500)) return DUB.pen(px, pz, rad, wet);
+  { const RG = regionAt(px, pz, 500); if (RG) return RG.pen(px, pz, rad, wet); }
   let best = null;
   const bl = gridGet(bldGrid, px, pz);
   if (bl) for (const i of bl) { const r = bldPen(BLD[i], px, pz, rad); if (r && (!best || r.p > best.p)) best = r; }
@@ -4146,9 +4163,11 @@ function jungleTakeoff() { // your own plane, lined up on the grass strip
 }
 const nearJDesk = (x, z) => JNG.built && Math.hypot(x - JNG.desk.x, z - JNG.desk.z) < 2.6;
 const nearJShop = (x, z) => JNG.built && Math.hypot(x - JNG.shop.x, z - JNG.shop.z) < 2.6;
-/* ================= DUBLIN & WICKLOW: real OpenStreetMap streets, buildings, water and land cover, on real elevation data =================
-   The data (dublin-data.txt, gzipped and base64) loads the first time you go there. It sits far from Barcelona in the same world, like the Amazon.
+/* ================= REAL MAP REGIONS: Dublin & Wicklow, Paris, Andorra, Mallorca, Giza — real OpenStreetMap streets, buildings, water and land cover on real elevation data =================
+   Each region's data (<id>-data.txt, gzipped and base64) loads the first time you go there. They sit far from Barcelona in the same world, like the Amazon.
+   regionCode(DUB) runs once for each region; inside it DUB is that region.
    Map data © OpenStreetMap contributors (ODbL); elevation: Mapzen/AWS terrain tiles. */
+function regionCode(DUB) {
 class DVR { // varint reader matching the python packer
   constructor(b) { this.b = b; this.p = 0; }
   u() { let v = 0, s = 1, c; do { c = this.b[this.p++]; v += (c & 127) * s; s *= 128; } while (c & 128); return v; }
@@ -4156,7 +4175,7 @@ class DVR { // varint reader matching the python packer
   line(q = 2) { const n = this.u(), out = new Float64Array(n * 2); let x = 0, z = 0; for (let k = 0; k < n; k++) { x += this.i(); z += this.i(); out[2 * k] = x / q + DUB.fx0; out[2 * k + 1] = z / q + DUB.fz0; } return out; }
 }
 DUB.load = () => DUB.loading || (DUB.loading = (async () => {
-  const res = await fetch('dublin-data.txt'); if (!res.ok) throw new Error('Dublin map data missing (' + res.status + ')');
+  const res = await fetch(DUB.file); if (!res.ok) throw new Error(DUB.title + ' map data missing (' + res.status + ')');
   const b64 = (await res.text()).trim(); let buf = Uint8Array.from(atob(b64), ch => ch.charCodeAt(0)); // base64 text, so it can be served anywhere
   if (buf[0] === 0x1f && buf[1] === 0x8b) buf = new Uint8Array(await new Response(new Blob([buf]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
   const hl = buf[0] | buf[1] << 8 | buf[2] << 16 | buf[3] << 24, hdr = JSON.parse(new TextDecoder().decode(buf.subarray(4, 4 + hl)));
@@ -4257,17 +4276,28 @@ DUB.mats = () => {
     tinS: canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 10) { g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(x, 0, 3, h); } }),
     tinG: canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 10) { g.fillStyle = 'rgba(0,0,0,.12)'; g.fillRect(x, 0, 3, h); } g.fillStyle = '#8a9096'; g.fillRect(50, 40, 150, 152); g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = 44; y < 190; y += 9) g.fillRect(50, y, 150, 2); }),
   };
+  T.medS = canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (let k = 0; k < 1800; k++) { g.fillStyle = `rgba(120,90,50,${Math.random() * .06})`; g.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
+    g.fillStyle = '#2a2a26'; g.fillRect(92, 40, 72, 104); for (const sx of [58, 166]) { g.fillStyle = '#3f6a3a'; g.fillRect(sx, 38, 32, 108); g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = 42; y < 144; y += 7) g.fillRect(sx + 2, y, 28, 3); } g.fillStyle = '#e8dcc0'; g.fillRect(86, 144, 84, 8); });
+  T.medG = canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); g.fillStyle = '#d8c8a0'; g.fillRect(70, 30, 116, 162); g.beginPath(); g.arc(128, 70, 58, Math.PI, 0); g.fill();
+    g.fillStyle = '#6a4a2a'; g.fillRect(82, 70, 92, 122); g.beginPath(); g.arc(128, 72, 46, Math.PI, 0); g.fill(); g.fillStyle = 'rgba(0,0,0,.25)'; for (let x = 90; x < 172; x += 12) g.fillRect(x, 60, 3, 132); });
+  T.desS = canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (let k = 0; k < 2200; k++) { g.fillStyle = `rgba(90,70,40,${Math.random() * .08})`; g.fillRect(Math.random() * w, Math.random() * h, 3, 3); }
+    g.fillStyle = '#2a2a2e'; g.fillRect(70, 46, 110, 92); g.fillStyle = 'rgba(160,190,200,.3)'; g.fillRect(74, 50, 50, 40); g.strokeStyle = '#5a5048'; g.lineWidth = 3; for (let x = 66; x < 190; x += 10) { g.beginPath(); g.moveTo(x, 140); g.lineTo(x, 168); g.stroke(); } g.fillRect(62, 166, 128, 4);
+    g.fillStyle = '#dcdcd4'; g.fillRect(190, 60, 40, 30); g.fillStyle = '#9a9a92'; for (let y = 64; y < 88; y += 5) g.fillRect(194, y, 32, 2); });
+  T.desG = canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); g.fillStyle = '#8a8e90'; g.fillRect(20, 40, 216, 152); g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = 44; y < 190; y += 8) g.fillRect(20, y, 216, 2);
+    g.fillStyle = ['#1f6a4a', '#8a2a1a', '#1f3a6a', '#c89a2a'][Math.random() * 4 | 0]; g.fillRect(20, 12, 216, 26); });
   const GH = 3.4; // the ground floor is a bit taller than the floors above
-  const wall = (s, gname, bay = 4) => { const m = new THREE.MeshStandardMaterial({ map: T[s], vertexColors: true, roughness: .9 });
-    m.customProgramCacheKey = () => 'dubwall' + s + gname;
+  T.hausS = facadeTex; T.hausG = shopTex; // the Eixample facades are the same family as Paris's Haussmann blocks
+  const wall = (s, gname, um = 1, gh = GH, sh_ = 3, gm = 1) => { const m = new THREE.MeshStandardMaterial({ map: T[s], vertexColors: true, roughness: .9 });
+    m.customProgramCacheKey = () => 'dubwall' + s + gname + um + gm;
     m.onBeforeCompile = sh => { sh.uniforms.gMap = { value: T[gname] }; sh.fragmentShader = sh.fragmentShader.replace('#include <map_pars_fragment>', '#include <map_pars_fragment>\nuniform sampler2D gMap;')
-      .replace('#include <map_fragment>', `vec4 texelColor = vUv.y < ${GH.toFixed(1)} ? texture2D(gMap, vec2(vUv.x, vUv.y / ${GH.toFixed(1)})) : texture2D(map, vec2(vUv.x, (vUv.y - ${GH.toFixed(1)}) / 3.0));
+      .replace('#include <map_fragment>', `vec4 texelColor = vUv.y < ${gh.toFixed(1)} ? texture2D(gMap, vec2(vUv.x * ${gm.toFixed(4)}, vUv.y / ${gh.toFixed(1)})) : texture2D(map, vec2(vUv.x * ${um.toFixed(4)}, (vUv.y - ${gh.toFixed(1)}) / ${sh_.toFixed(1)}));
         texelColor = mapTexelToLinear(texelColor); diffuseColor *= texelColor;`); };
     return m; };
   const grassT = canvasTex(256, 256, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (let k = 0; k < 9000; k++) { const v = Math.random(); g.fillStyle = `rgba(${v < .5 ? '0,0,0' : '255,255,255'},${Math.random() * .1})`; g.fillRect(Math.random() * w, Math.random() * h, 2 + Math.random() * 3, 2 + Math.random() * 3); } }, 1, 1);
   grassT.wrapS = grassT.wrapT = THREE.RepeatWrapping;
   const rt = roadTexW.clone(); rt.needsUpdate = true;
   DUB.M = {
+    haus: wall('hausS', 'hausG', 1 / 3, 4.2, 15, .5), med: wall('medS', 'medG'), desert: wall('desS', 'desG'),
     brick: wall('brickS', 'brickG'), ...Object.fromEntries([0, 1, 2, 3, 4, 5, 6, 7].map(i => ['shop' + i, wall('brickS', 'shopG' + i)])), render: wall('renderS', 'renderG'), glass: wall('glassS', 'glassG'), stone: wall('stoneS', 'stoneG'), tin: wall('tinS', 'tinG'),
     roof: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8, flatShading: true }),
     road: new THREE.MeshStandardMaterial({ map: rt, color: C('#e4e6e8'), roughness: .9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 }),
@@ -4282,7 +4312,7 @@ DUB.mats = () => {
   return DUB.M;
 };
 // land cover colours: fields, houses and gardens, town, parks, forest, heather, scrub, rock, sand, bog, graveyard, water, sea, airport, building sites, meadow
-DUB.COVER = ['#6f9a48', '#8a9a74', '#8e8c86', '#5f9a44', '#2f5a2a', '#7a6a52', '#5a7040', '#8a8a82', '#d8c89a', '#6a7a5a', '#6a8a50', '#4a6a72', '#2a4a5a', '#9aa08a', '#8a7a62', '#86a858'].map(c => C(c));
+DUB.COVER = [DUB.ground0 || '#6f9a48', '#8a9a74', '#8e8c86', '#5f9a44', '#2f5a2a', '#7a6a52', '#5a7040', '#8a8a82', '#d8c89a', '#6a7a5a', '#6a8a50', '#4a6a72', '#2a4a5a', '#9aa08a', '#8a7a62', '#86a858'].map(c => C(c));
 // ---------- the terrain: 128-cell blocks, finer close by ----------
 DUB.buildBlock = (B, step) => {
   const G = DUB.G, NX = DUB.NX, NZ = DUB.NZ, i0 = B.i0, j0 = B.j0, i1 = Math.min(NX - 1, i0 + 128), j1 = Math.min(NZ - 1, j0 + 128);
@@ -4290,7 +4320,7 @@ DUB.buildBlock = (B, step) => {
   const vtx = (i, j, drop) => { const h = DUB.H[j * NX + i], x = DUB.X0 + i * G, z = DUB.Z0 + j * G; pos.push(x - B.cx, h - drop, z - B.cz); uv.push(x / 7, z / 7);
     const cv = DUB.cover[j * NX + i], hs = (i * 73856093 ^ j * 19349663) >>> 0;
     c.copy(DUB.COVER[cv]); if (cv === 0 || cv === 15) c.offsetHSL(((hs % 13) - 6) * .004, 0, ((hs >> 4) % 11 - 5) * .012);
-    if (h > 420 && (cv === 0 || cv === 15 || cv === 5)) c.lerp(DUB.COVER[5], clamp((h - 420) / 200, 0, .8)); // the bare tops of the Wicklow mountains
+    for (const [h0, hr, tc] of DUB.tints) if (h > h0 && (cv === 0 || cv === 15 || cv === 5 || cv === 3 || cv === 6)) c.lerp(C(tc), clamp((h - h0) / hr, 0, .85)); // bare mountain tops
     const sl = i > 0 && i < NX - 1 && j > 0 && j < NZ - 1 ? Math.hypot(DUB.H[j * NX + i + 1] - DUB.H[j * NX + i - 1], DUB.H[(j + 1) * NX + i] - DUB.H[(j - 1) * NX + i]) / (2 * G) : 0;
     if (sl > .45) c.lerp(DUB.COVER[7], clamp((sl - .45) * 2, 0, .7)); // rocky crags on steep slopes
     col.push(c.r, c.g, c.b); return pos.length / 3 - 1; };
@@ -4320,11 +4350,12 @@ DUB.pen = (px, pz, rad, wet) => { // like penOct, for Dublin: buildings, trees, 
   if (l) for (const o of l) { if (o.r) { const dx = px - o.x, dz = pz - o.z, d = Math.hypot(dx, dz), p = o.r + rad - d; if (p > 0 && (!best || p > best.p)) best = { nx: dx / (d || 1), nz: dz / (d || 1), p }; } else { const r = bldPen(o, px, pz, rad); if (r && (!best || r.p > best.p)) best = r; } }
   if (px < DUB.X0 + 40 + rad) best = { nx: 1, nz: 0, p: DUB.X0 + 40 + rad - px }; if (px > DUB.X1 - 40 - rad) best = { nx: -1, nz: 0, p: px - DUB.X1 + 40 + rad };
   if (pz < DUB.Z0 + 40 + rad) best = { nx: 0, nz: 1, p: DUB.Z0 + 40 + rad - pz }; if (pz > DUB.Z1 - 40 - rad) best = { nx: 0, nz: -1, p: pz - DUB.Z1 + 40 + rad };
+  if (DUB.solids) for (const o of DUB.solids) { const dx = px - o.x, dz = pz - o.z; if (o.sq) { const ax = Math.abs(dx) - o.sq - rad, az = Math.abs(dz) - o.sq - rad; if (ax < 0 && az < 0) { const p = -Math.max(ax, az); if (!best || p > best.p) best = ax > az ? { nx: Math.sign(dx), nz: 0, p } : { nx: 0, nz: Math.sign(dz), p }; } } else { const d = Math.hypot(dx, dz), p = o.r + rad - d; if (p > 0 && (!best || p > best.p)) best = { nx: dx / (d || 1), nz: dz / (d || 1), p }; } } // monuments
   if (!wet && DUB.deckAt(px, pz) == null) { const sd = DUB.seaD(px, pz); if (sd > .3 && (!best || sd > best.p)) { let gx = DUB.seaD(px + 3, pz) - DUB.seaD(px - 3, pz), gz = DUB.seaD(px, pz + 3) - DUB.seaD(px, pz - 3), gl = Math.hypot(gx, gz); if (gl < 1e-3) { gx = 1; gz = 0; gl = 1; } best = { nx: -gx / gl, nz: -gz / gl, p: Math.min(sd, 3) }; } }
   return best;
 };
 // ---------- building one 512 m tile of the city or countryside ----------
-DUB.SKIP = /^(Wellington Monument|Glendalough Round Tower|Poolbeg.*Chimney)/i;
+DUB.SKIP = DUB.skip || /^(Wellington Monument|Glendalough Round Tower|Poolbeg.*Chimney)/i;
 DUB.buildTile = (key) => {
   const TS = DUB.TS, [ti, tj] = key.split(',').map(Number), tcx = DUB.X0 + (ti + .5) * TS, tcz = DUB.Z0 + (tj + .5) * TS, M = DUB.mats(), TD = DUB.tileData.get(key);
   const grp = new THREE.Group(); grp.position.set(tcx, 0, tcz); const T = { key, grp, ckeys: [], cx: tcx, cz: tcz }; DUB.curTile = key;
@@ -4337,18 +4368,28 @@ DUB.buildTile = (key) => {
     const r = new DVR(DUB.bblob); r.p = cell[0]; const n = r.u();
     const BRICK = ['#a8563c', '#9a4a34', '#b8684a', '#8a4430', '#c07a58', '#a0624a', '#c8a07a', '#7a3a2a'].map(c => C(c)), RENDER = ['#efe8da', '#e8e0cc', '#d8d4c8', '#f2ecdc', '#e8d8b8', '#d0d8d8', '#f0e0d0', '#c8ccc4', '#e8c8a8', '#b8c8b8'].map(c => C(c));
     const GLASS = ['#c8d8e8', '#b8c8d0', '#d0d8d0', '#a8b8c8'].map(c => C(c)), STONE = ['#c8c4b8', '#b8b4aa', '#d8d4c8', '#a8a49a'].map(c => C(c)), TIN = ['#9aa0a6', '#7a8a7a', '#8a96a6', '#a8a8a0', '#6a7a6a'].map(c => C(c));
-    const SLATE = ['#4a4e56', '#52565e', '#44484e', '#5a5e66', '#6a4a3a'].map(c => C(c)), FLAT = ['#7a7a76', '#6a6a68', '#8a8884', '#5a5a5a'].map(c => C(c));
+    let SLATE = ['#4a4e56', '#52565e', '#44484e', '#5a5e66', '#6a4a3a'].map(c => C(c)), FLAT = ['#7a7a76', '#6a6a68', '#8a8884', '#5a5a5a'].map(c => C(c));
+    const CREAM = ['#efe5d2', '#e9dcc4', '#e4d6bc', '#f0e6d4', '#ddd0b8', '#e8dcc8'].map(c => C(c)), MED = ['#f4f0e6', '#efe4cc', '#e8cf9a', '#e0c08a', '#f2e6d8', '#e8d8c0', '#f0d8c8'].map(c => C(c)), DESERT = ['#d8c8a8', '#c8b490', '#e0d4b8', '#b8a080', '#c89878', '#d0c0a0'].map(c => C(c));
+    if (DUB.look === 'paris') SLATE = FLAT = ['#6f7a86', '#7a8490', '#68727c', '#5f6a76'].map(c => C(c));
+    if (DUB.look === 'med') { SLATE = ['#b5653d', '#a85a38', '#c0704a', '#9a5032'].map(c => C(c)); FLAT = ['#d8d0c0', '#c8c0b0', '#e0d8c8'].map(c => C(c)); }
+    if (DUB.look === 'alpine') SLATE = ['#3e4248', '#4a4e54', '#5a5048', '#46484c'].map(c => C(c));
+    if (DUB.look === 'desert') FLAT = ['#c8b898', '#b8a888', '#d0c0a0', '#a89878'].map(c => C(c));
     const cityDist = Math.hypot(tcx - DUB.ox, tcz - DUB.oz);
     for (let b = 0; b < n; b++) {
       const typ = r.u(); let h = r.u() / 2; const mh = r.u() / 2, rf = r.u(), roof = rf & 7, isp = rf >> 3, ni = r.u(), P = r.line(2), N = P.length / 2;
       const name = ni ? DUB.names[ni - 1] : '';
       if (name && DUB.SKIP.test(name)) continue;
+      if (DUB.skipAt) { let cx0 = 0, cz0 = 0; for (let k = 0; k < N; k++) { cx0 += P[2 * k]; cz0 += P[2 * k + 1]; } cx0 = cx0 / N - DUB.ox; cz0 = cz0 / N - DUB.oz; if (DUB.skipAt.some(([x, z, r]) => (cx0 - x) ** 2 + (cz0 - z) ** 2 < r * r)) continue; } // our own model stands here
       let base = 1e9; for (let k = 0; k < N; k++) base = Math.min(base, DUB.th(P[2 * k], P[2 * k + 1]));
       if (/aviva stadium/i.test(name)) h = Math.max(h, 45); if (/^croke park$/i.test(name)) h = Math.max(h, 40);
       let area2 = 0, cx = 0, cz = 0; for (let k = 0; k < N; k++) { const j = (k + 1) % N; area2 += P[2 * k] * P[2 * j + 1] - P[2 * j] * P[2 * k + 1]; cx += P[2 * k]; cz += P[2 * k + 1]; } cx /= N; cz /= N;
       const area = Math.abs(area2) / 2, hs = hash(Math.round(cx), Math.round(cz));
       let style = 'render', pal = RENDER;
-      if (typ === 7 || typ === 14 || typ === 16 || typ === 17) { style = 'stone'; pal = STONE; }
+      if (DUB.look === 'paris') { if ([7, 14, 16, 17].includes(typ)) { style = 'stone'; pal = STONE; } else if (typ === 5 && h > 30 || h > 45) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else if (typ === 1 && h < 10) { style = 'render'; } else { style = 'haus'; pal = CREAM; } }
+      else if (DUB.look === 'med') { if ([7, 14, 16, 17].includes(typ)) { style = 'stone'; pal = STONE; } else if (typ === 5 && h > 20) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else if ((typ === 12 || cityDist > 9000) && hs % 3 === 0) { style = 'stone'; pal = STONE; } else { style = 'med'; pal = MED; } }
+      else if (DUB.look === 'alpine') { if ([7, 14, 16, 17].includes(typ)) { style = 'stone'; pal = STONE; } else if (typ === 5 && h > 15 || h > 40) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else if (typ === 4) { style = 'shop' + (hs >> 3) % 8; pal = STONE; } else { style = hs % 5 < 2 ? 'stone' : 'render'; pal = style === 'stone' ? STONE : RENDER; } }
+      else if (DUB.look === 'desert') { if (typ === 7) { style = 'stone'; pal = DESERT; } else if (typ === 5 && h > 25 || h > 60) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else { style = 'desert'; pal = DESERT; } }
+      else if (typ === 7 || typ === 14 || typ === 16 || typ === 17) { style = 'stone'; pal = STONE; }
       else if (typ === 5 && h > 9 || h > 24 || /aviva/i.test(name)) { style = 'glass'; pal = GLASS; }
       else if (typ === 6 || typ === 11 || typ === 13 || typ === 15 || typ === 18) { style = 'tin'; pal = TIN; }
       else if (typ === 4 || (typ === 0 && cityDist < 2600 && area > 60)) { style = cityDist < 6000 || hs % 3 === 0 ? 'shop' + (hs >> 3) % 8 : 'render'; pal = style !== 'render' ? BRICK : RENDER; }
@@ -4364,7 +4405,7 @@ DUB.buildTile = (key) => {
         run += L;
       }
       // roof: slate hips on houses, flat elsewhere
-      const rb = BF('roof'), pitched = roof === 2 || roof === 3 || roof === 4 || (roof === 0 && !isp && h <= 11.5 && area < 700 && [0, 1, 2, 3, 11, 12].includes(typ));
+      const rb = BF('roof'), pitched = DUB.look === 'desert' ? false : roof === 2 || roof === 3 || roof === 4 || (roof === 0 && !isp && (DUB.look === 'alpine' ? h <= 30 && area < 2500 : DUB.look === 'paris' ? h <= 10 && area < 400 : DUB.look === 'med' ? h <= 9 && area < 450 : h <= 11.5 && area < 700) && [0, 1, 2, 3, 4, 10, 11, 12].includes(typ));
       if (pitched && N >= 3) {
         let sxx = 0, szz = 0, sxz = 0; for (let k = 0; k < N; k++) { const dx = P[2 * k] - cx, dz = P[2 * k + 1] - cz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
         const an = .5 * Math.atan2(2 * sxz, sxx - szz), ax_ = Math.cos(an), az_ = Math.sin(an); let amax = 0, cmax = 0;
@@ -4457,7 +4498,7 @@ DUB.buildTile = (key) => {
       if (cy < 0) { const t = b.idx[k + 1]; b.idx[k + 1] = b.idx[k + 2]; b.idx[k + 2] = t; } }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(b.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(b.n, 3));
     if (b.uv.length) g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2)); if (b.c.length) g.setAttribute('color', new THREE.Float32BufferAttribute(b.c, 3)); g.setIndex(b.idx);
-    const m = new THREE.Mesh(g, M[name]); m.castShadow = /^(brick|shop|render|glass|stone|tin|roof)/.test(name); m.receiveShadow = true; grp.add(m);
+    const m = new THREE.Mesh(g, M[name]); m.castShadow = /^(brick|shop|render|glass|stone|tin|roof|haus|med|desert)/.test(name); m.receiveShadow = true; grp.add(m);
   }
   DUB.trees(T, TD, tcx, tcz);
   DUB.root.add(grp); return T;
@@ -4493,18 +4534,20 @@ DUB.trees = (T, TD, tcx, tcz) => {
   const G = DUB.G, i0 = Math.floor((tcx - DUB.TS / 2 - DUB.X0) / G), j0 = Math.floor((tcz - DUB.TS / 2 - DUB.Z0) / G), nc = Math.ceil(DUB.TS / G);
   for (let j = j0; j < j0 + nc; j++) for (let i = i0; i < i0 + nc; i++) {
     if (i < 0 || j < 0 || i >= DUB.NX || j >= DUB.NZ) continue;
+    for (let rep = 0, reps = Math.max(1, Math.round((G / 30) ** 2)); rep < reps; rep++) {
     const cv = DUB.cover[j * DUB.NX + i], h = DUB.H[j * DUB.NX + i], n = cv === 4 ? 5 : cv === 3 ? (rnd1() < .3 ? 1 : 0) : cv === 6 ? (rnd1() < .5 ? 1 : 0) : cv === 1 ? (rnd1() < .2 ? 1 : 0) : cv === 9 ? (rnd1() < .1 ? 1 : 0) : (cv === 0 || cv === 15) ? (rnd1() < .05 ? 1 : 0) : 0;
     for (let t = 0; t < n; t++) {
       const x = DUB.X0 + (i + rnd1() - .5) * G, z = DUB.Z0 + (j + rnd1() - .5) * G;
       if (DUB.seaD(x, z) > 0 || inBld(x, z)) continue; const rn = DUB.roadNear(x, z, 6); if (rn) continue;
-      const conifer = cv === 4 && (h > 110 || rnd1() < .55);
+      const conifer = cv === 4 && (h > DUB.conH || rnd1() < DUB.conP);
       put(x, z, conifer ? 'c' : 'b', cv === 6 ? 2.5 + rnd1() * 2 : conifer ? 12 + rnd1() * 10 : 8 + rnd1() * 7, cv !== 6);
+    }
     }
   }
   const G2 = DUB.treeG; for (const [k, list] of Object.entries(L)) { if (!list.length) continue; const im = new THREE.InstancedMesh(k === 't' ? G2.trk : k[0] === 'c' ? G2.con : G2.brd, G2.mats[k], list.length); list.forEach((M, i) => im.setMatrixAt(i, M)); im.frustumCulled = false; T.grp.add(im); }
 };
 // ---------- landmarks: the Spire, the Poolbeg chimneys, Wellington's obelisk, Glendalough's round tower, lighthouses, the Ha'penny Bridge ----------
-DUB.landmarks3D = () => {
+if (DUB.id === 'dublin') DUB.landmarks3D = () => {
   const g = new THREE.Group(); DUB.root.add(g);
   const at = (x, z) => [x + DUB.ox, z + DUB.oz], put = (m, x, z, dy = 0) => { const [wx, wz] = at(x, z); m.position.set(wx, DUB.th(wx, wz) + dy, wz); g.add(m); return m; };
   const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(c), roughness: .6 }, o));
@@ -4553,7 +4596,7 @@ DUB.setOn = (on) => {
       for (let k = 0; k < b.idx.length; k += 3) { const P = b.p, i = 3 * b.idx[k], j = 3 * b.idx[k + 1], l = 3 * b.idx[k + 2]; if ((P[j + 2] - P[i + 2]) * (P[l] - P[i]) - (P[j] - P[i]) * (P[l + 2] - P[i + 2]) < 0) { const t = b.idx[k + 1]; b.idx[k + 1] = b.idx[k + 2]; b.idx[k + 2] = t; } }
       const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(b.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(b.n, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2)); g.setIndex(b.idx);
       const m = new THREE.Mesh(g, DUB.mats().water); m.position.set(cx, 0, cz); m.frustumCulled = false; DUB.root.add(m); return { m, cx, cz, r: Math.hypot(W.x1 - W.x0, W.z1 - W.z0) / 2 }; });
-    DUB.landmarks3D();
+    if (DUB.landmarks3D) DUB.landmarks3D();
   }
   if (DUB.root) DUB.root.visible = on;
   camera.far = on ? 15000 : AWAY ? 16000 : 7000; camera.updateProjectionMatrix();
@@ -4568,7 +4611,7 @@ DUB.update = (dt) => {
   if (!jn) return;
   // terrain detail: fine near you, coarse in the distance
   let job = null, jd = 1e18;
-  for (const B of DUB.blocks) { const d = Math.max(0, Math.hypot(B.cx - cp.x, B.cz - cp.z) - 1900), want = d < 1400 ? 1 : d < 6500 ? 4 : 16; if (want !== B.lod && d < jd) { jd = d; job = [B, want]; } }
+  for (const B of DUB.blocks) { const d = Math.max(0, Math.hypot(B.cx - cp.x, B.cz - cp.z) - 64 * DUB.G * 1.05), want = d < 1400 ? 1 : d < 6500 ? 4 : 16; if (want !== B.lod && d < jd) { jd = d; job = [B, want]; } }
   if (job) { const [B, want] = job, m = DUB.buildBlock(B, want); DUB.root.remove(B.mesh); B.mesh.geometry.dispose(); B.mesh = m; B.lod = want; DUB.root.add(m); }
   // streets, buildings and trees in 512 m tiles around you
   const R = DUB.tileR(), TS = DUB.TS, ci = Math.floor((cp.x - DUB.X0) / TS), cj = Math.floor((cp.z - DUB.Z0) / TS), n = Math.ceil(R / TS);
@@ -4591,7 +4634,7 @@ DUB.fill = (x, z, r) => { // build the tiles right around a spot straight away (
 DUB.mapCanvas = () => {
   if (DUB.mapC) return DUB.mapC;
   const cv = DUB.mapC = document.createElement('canvas'); cv.width = DUB.NX; cv.height = DUB.NZ; const g = cv.getContext('2d'), im = g.createImageData(DUB.NX, DUB.NZ);
-  const pal = ['#86a868', '#a8a49a', '#9a968e', '#6aa858', '#2f6a34', '#8a7a68', '#6a8a4a', '#9a9a92', '#e0d0a0', '#7a8a6a', '#7a9a68', '#4a88b0', '#2a5a80', '#b8b8b0', '#a89a80', '#98b870'].map(c => C(c));
+  const pal = [DUB.ground0 || '#86a868', '#a8a49a', '#9a968e', '#6aa858', '#2f6a34', '#8a7a68', '#6a8a4a', '#9a9a92', '#e0d0a0', '#7a8a6a', '#7a9a68', '#4a88b0', '#2a5a80', '#b8b8b0', '#a89a80', '#98b870'].map(c => C(c));
   for (let k = 0; k < DUB.NX * DUB.NZ; k++) { const c = pal[DUB.cover[k]], h = DUB.H[k], sh = DUB.cover[k] >= 11 ? 1 : clamp(1 + ((DUB.H[k + 1] || h) - h) * .02, .75, 1.2); im.data[4 * k] = c.r * 255 * sh; im.data[4 * k + 1] = c.g * 255 * sh; im.data[4 * k + 2] = c.b * 255 * sh; im.data[4 * k + 3] = 255; }
   g.putImageData(im, 0, 0); return cv;
 };
@@ -4604,13 +4647,13 @@ DUB.drawRoads = (g, x, z, rad, px) => { // roads near (x,z) in world units; px =
   const list = [...seen].sort((a, b) => b.cls - a.cls); g.lineCap = g.lineJoin = 'round';
   for (const pass of [0, 1]) for (const R of list) { const p = R.p; g.strokeStyle = pass ? DUB.ROADCOL[R.cls] : 'rgba(40,40,40,.55)'; g.lineWidth = Math.max(R.w * (pass ? 1 : 1.5), (pass ? 2.2 : 3.6) / px * (R.cls <= 2 ? 1.4 : R.cls <= 4 ? 1.1 : .8)); g.beginPath(); g.moveTo(p[0], p[1]); for (let k = 2; k < p.length; k += 2) g.lineTo(p[k], p[k + 1]); g.stroke(); }
 };
-// ---------- getting to Ireland: fly from El Prat, your car comes with you ----------
-DUB.SPOTS = { dublin: [-60, -330, 'O\'Connell Street, Dublin'], laragh: [-2548, 37703, 'Laragh, Co. Wicklow'], glendalough: [-4400, 37390, 'Glendalough'], airport: [1700, -8400, 'Dublin Airport'], bray: [9888, 16225, 'Bray'], howth: [12700, -4600, 'Howth'], enniskerry: [5911, 17196, 'Enniskerry'], roundwood: [2297, 31577, 'Roundwood'], phoenix: [-2700, -600, 'The Phoenix Park'], dunlaoghaire: [8450, 5600, 'Dún Laoghaire'] };
+// ---------- getting there: fly from El Prat, your car comes with you ----------
+DUB.SPOTS = DUB.spots;
 DUB.snap = (x, z) => { // the nearest proper road, and which way it runs
   let r = DUB.roadNear(x, z, 400) || DUB.roadNear(x, z, 2000); if (!r) return [x, z, 0];
   const p = r.R.p; let bk = 0, bd = 1e18; for (let k = 0; k < p.length - 2; k += 2) { const mx = (p[k] + p[k + 2]) / 2, mz = (p[k + 1] + p[k + 3]) / 2, d = (mx - x) ** 2 + (mz - z) ** 2; if (d < bd) { bd = d; bk = k; } }
   const dx = p[bk + 2] - p[bk], dz = p[bk + 3] - p[bk + 1], L = Math.hypot(dx, dz) || 1, t = clamp(((x - p[bk]) * dx + (z - p[bk + 1]) * dz) / (L * L), 0, 1);
-  const off = r.R.ow ? 0 : -r.R.w / 4; // keep left!
+  const off = r.R.ow ? 0 : (DUB.left ? -1 : 1) * r.R.w / 4; // keep to your side of the road (left in Ireland)
   return [p[bk] + dx * t - dz / L * off, p[bk + 1] + dz * t + dx / L * off, Math.atan2(dx, dz)];
 };
 DUB.carTo = (x, z, label) => {
@@ -4620,23 +4663,74 @@ DUB.carTo = (x, z, label) => {
   cam.h = h; cam.x = sx - Math.sin(h) * 7.2; cam.z = sz - Math.cos(h) * 7.2; cam.y = DUB.h(sx, sz) + 2.5; cam.fh = cam.fx = cam.fz = cam.fy = undefined;
   camera.position.set(cam.x, cam.y, cam.z);
   DUB.on = true; DUB.setOn(true); DUB.fill(sx, sz, 700);
-  { const rn = DUB.roadNear(sx, sz, 30), pl = DUB.placeNear(sx, sz); DUB.plq = [rn && rn.R.name ? DUB.names[rn.R.name - 1] : pl ? pl.n : 'Ireland', pl ? pl.n.slice(0, 12) : 'IE']; }
+  { const rn = DUB.roadNear(sx, sz, 30), pl = DUB.placeNear(sx, sz); DUB.plq = [rn && rn.R.name ? DUB.names[rn.R.name - 1] : pl ? pl.n : DUB.country, pl ? pl.n.slice(0, 12) : DUB.code]; }
   return label;
 };
-async function goDublin(where = 'dublin') {
-  closeAll(); trip = null; $('transitT').textContent = 'Flying to Dublin… loading the real map of Dublin & Wicklow'; $('transit').hidden = false; paused = true;
-  try { await DUB.load(); } catch (e) { $('transit').hidden = true; paused = false; show('Dublin', 'Sorry, the map of Dublin could not load: ' + e.message, 5); return; }
+DUB.go = async (where) => {
+  closeAll(); trip = null; $('transitT').textContent = `Flying to ${DUB.title}… loading the real map`; $('transit').hidden = false; paused = true;
+  try { await DUB.load(); } catch (e) { $('transit').hidden = true; paused = false; show(DUB.title, 'Sorry, the map could not load: ' + e.message, 5); return; }
   goHome(); clearForFlight(); flyMode(false); plane.on = false; plane.jg = false; planeStart(false); if (M) finishMission(false, 'Mission abandoned.');
-  const S = DUB.SPOTS[where] || DUB.SPOTS.dublin; DUB.carTo(S[0] + DUB.ox, S[1] + DUB.oz, S[2]); DUB.addSearch();
-  setTimeout(() => { $('transit').hidden = true; paused = false; show(where === 'laragh' || where === 'glendalough' ? 'Fáilte go Cill Mhantáin!' : 'Fáilte go Baile Átha Cliath!', `${S[2]}. Every street, building, river and mountain is from the real map. Remember: in Ireland you drive on the LEFT! J for departures to fly home.`, 6); audio.ding(); }, 400);
-}
+  for (const O of REGIONS) if (O !== DUB && O.on) { O.on = false; O.setOn(false); }
+  const S = DUB.SPOTS[where] || Object.values(DUB.SPOTS)[0]; DUB.carTo(S[0] + DUB.ox, S[1] + DUB.oz, S[2]); DUB.addSearch();
+  setTimeout(() => { $('transit').hidden = true; paused = false; show(where === 'laragh' || where === 'glendalough' ? 'Fáilte go Cill Mhantáin!' : DUB.hello[0], `${S[2]}. ${DUB.hello[1]} J for departures to fly home.`, 6); audio.ding(); }, 400);
+};
 DUB.addSearch = () => { // put Dublin and Wicklow's places and streets into the search
   if (DUB.searched) return; DUB.searched = true;
-  const add = (n, sub, x, z, kind) => INDEX.push({ n, sub, x, z, kind, key: norm(n), short: norm(n), alias: 'dublin wicklow ireland', go: () => { if (!DUB.ready) return goDublin(); DUB.carTo(x, z, n); return sub; } });
-  for (const P of DUB.places) if (P.k !== 'locality') add(P.n, `${P.k[0].toUpperCase() + P.k.slice(1)} in ${P.z - DUB.oz > 20000 ? 'Co. Wicklow' : 'Dublin'}, Ireland`, P.x, P.z, 1);
+  const add = (n, sub, x, z, kind) => INDEX.push({ n, sub, x, z, kind, key: norm(n), short: norm(n), alias: DUB.alias, go: () => { if (!DUB.ready) return DUB.go(); DUB.carTo(x, z, n); return sub; } });
+  for (const P of DUB.places) if (P.k !== 'locality') add(P.n, `${P.k[0].toUpperCase() + P.k.slice(1)} in ${DUB.id === 'dublin' ? (P.z - DUB.oz > 20000 ? 'Co. Wicklow, ' : 'Dublin, ') : ''}${DUB.country}`, P.x, P.z, 1);
   const seen = new Map(); for (const R of DUB.roads) { if (!R.name || R.cls > 6) continue; const n = DUB.names[R.name - 1]; if (!seen.has(n)) seen.set(n, R); }
-  for (const [n, R] of seen) { const p = R.p, k = (p.length / 2 | 0) & ~1; const pl = DUB.placeNear(p[k], p[k + 1]); add(n, `Street in ${pl ? pl.n : 'Dublin'}, Ireland`, p[k], p[k + 1], 2); }
+  for (const [n, R] of seen) { const p = R.p, k = (p.length / 2 | 0) & ~1; const pl = DUB.placeNear(p[k], p[k + 1]); add(n, `Street in ${pl ? pl.n + ', ' : ''}${DUB.country}`, p[k], p[k + 1], 2); }
 };
+}
+PAR.skip = /^(Tour Eiffel|Pyramide du Louvre|La Pyramide)/i; PAR.skipAt = [[-3980, -541, 80], [-948, -844, 24]]; GIZ.skipAt = [[3, 4, 125], [-325, 342, 115], [-590, 744, 58], [324, 437, 32], [8678, -7420, 14]]; ADR.skipAt = [[1316, -339, 14]]; GIZ.skip = /pyramid|هرم|sphinx|أبو الهول|cairo tower|برج القاهرة/i; ADR.skip = /^Caldea$/i;
+for (const R of REGIONS) regionCode(R);
+const goDublin = w => DUB.go(w);
+// ---------- landmarks of the other real maps ----------
+{ const lm = (R, fn) => { R.landmarks3D = () => { const g = new THREE.Group(); R.root.add(g); fn(g, (m, x, z, dy = 0) => { const wx = x + R.ox, wz = z + R.oz; m.position.set(wx, R.th(wx, wz) + dy, wz); g.add(m); return m; }, (x, z) => [x + R.ox, z + R.oz]); }; };
+  const mat = (c, o = {}) => new THREE.MeshStandardMaterial(Object.assign({ color: C(c), roughness: .7 }, o));
+  lm(PAR, (g, put, W) => {
+    // the Eiffel Tower: three iron lattice stages, platforms and the top
+    const lat = canvasTex(128, 128, (c, w, h) => { c.clearRect(0, 0, w, h); c.strokeStyle = '#ffffff'; c.lineWidth = 6; c.strokeRect(3, 3, w - 6, h - 6); c.lineWidth = 4; c.beginPath(); c.moveTo(0, 0); c.lineTo(w, h); c.moveTo(w, 0); c.lineTo(0, h); c.stroke(); c.lineWidth = 2; c.beginPath(); c.moveTo(w / 2, 0); c.lineTo(w / 2, h); c.moveTo(0, h / 2); c.lineTo(w, h / 2); c.stroke(); }, 1, 1);
+    const iron = (rx, ry) => { const t = lat.clone(); t.needsUpdate = true; t.repeat.set(rx, ry); return new THREE.MeshStandardMaterial({ color: C('#6b5a45'), map: t, alphaTest: .5, transparent: false, side: THREE.DoubleSide, roughness: .8, metalness: .3 }); };
+    const T = new THREE.Group(), stage = (r0, r1, y0, y1, rx, ry) => { const m = new THREE.Mesh(new THREE.CylinderGeometry(r1, r0, y1 - y0, 4, 1, true).rotateY(Math.PI / 4).translate(0, (y0 + y1) / 2, 0), iron(rx, ry)); T.add(m); };
+    // four legs that meet under the first platform, with the big arches between them
+    for (const [sx, sz] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { const leg = new THREE.Mesh(new THREE.CylinderGeometry(9, 15, 60, 4, 1, true).rotateY(Math.PI / 4), iron(2, 4)); leg.position.set(sx * 45, 28, sz * 45); leg.rotation.set(sz * .5, 0, -sx * .5); T.add(leg); }
+    for (let k = 0; k < 4; k++) { const arch = new THREE.Mesh(new THREE.TorusGeometry(37, 1.4, 6, 24, Math.PI), mat('#6b5a45', { metalness: .3 })); arch.rotation.y = k * Math.PI / 2; arch.position.set(Math.sin(k * Math.PI / 2) * 52, 18, Math.cos(k * Math.PI / 2) * 52); arch.scale.set(1, .9, 1); T.add(arch); }
+    stage(46, 33, 50, 58, 8, 1); stage(33, 15, 58, 116, 6, 6); stage(14, 4.5, 116, 276, 3, 16); stage(4.5, 1.2, 276, 300, 1, 3);
+    for (const [y, s] of [[57.6, 70], [115.7, 42], [276, 11]]) { const pl = new THREE.Mesh(new THREE.BoxGeometry(s, 2.2, s), mat('#5a4a38', { metalness: .3 })); pl.position.y = y; T.add(pl); }
+    const ant = new THREE.Mesh(new THREE.CylinderGeometry(.4, .8, 30, 6).translate(0, 315, 0), mat('#c8c8c8', { metalness: .6 })); T.add(ant);
+    T.rotation.y = -.35; put(T, -3980, -541);
+    // the Louvre's glass pyramid
+    const py = new THREE.Mesh(new THREE.ConeGeometry(24.7, 21.6, 4, 1).rotateY(Math.PI / 4).translate(0, 10.8, 0), new THREE.MeshStandardMaterial({ color: C('#a8c8d8'), transparent: true, opacity: .55, metalness: .6, roughness: .1 })); py.rotation.y = -.45; put(py, -948, -844);
+    PAR.solids = [{ x: -3980 + PAR.ox, z: -541 + PAR.oz, r: 9 }, ...[[1, 1], [1, -1], [-1, 1], [-1, -1]].map(([a, b]) => { const r = -.35, x = a * 52, z = b * 52; return { x: -3980 + PAR.ox + x * Math.cos(r) + z * Math.sin(r), z: -541 + PAR.oz - x * Math.sin(r) + z * Math.cos(r), r: 13 }; }), { x: -948 + PAR.ox, z: -844 + PAR.oz, sq: 17 }];
+  });
+  lm(GIZ, (g, put) => {
+    // the pyramids: limestone courses, square to north, east, south and west
+    const stone = canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#d8c08a'; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 8) { c.fillStyle = 'rgba(80,60,30,.35)'; c.fillRect(0, y, w, 2); for (let x = (y / 8 % 2) * 12; x < w; x += 24) { c.fillStyle = `rgba(${Math.random() < .5 ? '255,240,210' : '90,70,40'},${Math.random() * .12})`; c.fillRect(x, y + 2, 22, 6); } } }, 1, 1);
+    const pyr = (x, z, base, hgt, cap) => { const t = stone.clone(); t.needsUpdate = true; t.repeat.set(base / 30, hgt / 30); const m = new THREE.Mesh(new THREE.ConeGeometry(base / Math.SQRT2, hgt, 4, 1).rotateY(Math.PI / 4).translate(0, hgt / 2, 0), new THREE.MeshStandardMaterial({ map: t, roughness: .95, flatShading: true })); put(m, x, z, -1);
+      if (cap) { const cp = new THREE.Mesh(new THREE.ConeGeometry(base * .16 / Math.SQRT2, hgt * .16, 4, 1).rotateY(Math.PI / 4).translate(0, hgt * .92, 0), mat('#ece0c4', { flatShading: true })); put(cp, x, z, -1); }
+      return { x: x + GIZ.ox, z: z + GIZ.oz, sq: base / 2 }; };
+    GIZ.solids = [pyr(3, 4, 230.3, 139, false), pyr(-325, 342, 215.3, 136.4, true), pyr(-590, 744, 102.2, 61, false), pyr(232, 60, 46, 30, false), pyr(232, 130, 46, 30, false), pyr(232, 200, 46, 29, false), pyr(-570, 900, 44, 21, false), pyr(-640, 900, 44, 21, false), pyr(-710, 900, 44, 21, false)];
+    // the Sphinx, looking east
+    { const sx = new THREE.Group(), lime = mat('#c8a870', { roughness: .95, flatShading: true });
+      const body = new THREE.Mesh(new THREE.BoxGeometry(19, 13, 52).translate(0, 6.5, -6), lime); sx.add(body);
+      const paws = new THREE.Mesh(new THREE.BoxGeometry(14, 4, 22).translate(0, 2, 28), lime); sx.add(paws);
+      const chest = new THREE.Mesh(new THREE.BoxGeometry(14, 14, 8).translate(0, 7, 18), lime); sx.add(chest);
+      const head = new THREE.Mesh(new THREE.BoxGeometry(8, 9, 8).translate(0, 18.5, 18), lime); sx.add(head);
+      const nemes = new THREE.Mesh(new THREE.BoxGeometry(11, 7, 6).translate(0, 16, 15), mat('#b89860', { flatShading: true })); sx.add(nemes);
+      sx.rotation.y = Math.PI / 2; put(sx, 324, 437, -1); GIZ.solids.push({ x: 324 + GIZ.ox, z: 437 + GIZ.oz, r: 28 }); }
+    // the Cairo Tower: a lotus-shaped lattice of concrete on Gezira island
+    { const tw = new THREE.Group(), lat = canvasTex(64, 128, (c, w, h) => { c.fillStyle = '#e8e0d0'; c.fillRect(0, 0, w, h); c.strokeStyle = '#8a7a64'; c.lineWidth = 3; for (let k = -h; k < h * 2; k += 16) { c.beginPath(); c.moveTo(0, k); c.lineTo(w, k + 32); c.moveTo(w, k); c.lineTo(0, k + 32); c.stroke(); } }, 6, 20);
+      tw.add(new THREE.Mesh(new THREE.CylinderGeometry(7, 8.5, 160, 24).translate(0, 80, 0), new THREE.MeshStandardMaterial({ map: lat, roughness: .8 })));
+      tw.add(new THREE.Mesh(new THREE.CylinderGeometry(11, 7, 14, 24).translate(0, 166, 0), mat('#d8d0c0')), new THREE.Mesh(new THREE.CylinderGeometry(1, 2, 14, 8).translate(0, 180, 0), mat('#c8c0b0')));
+      put(tw, 8678, -7420); GIZ.solids.push({ x: 8678 + GIZ.ox, z: -7420 + GIZ.oz, r: 10 }); }
+  });
+  lm(ADR, (g, put) => { // Caldea's glass spire in Escaldes
+    const sp = new THREE.Mesh(new THREE.ConeGeometry(16, 80, 8, 1).translate(0, 40, 0), new THREE.MeshStandardMaterial({ color: C('#b8d0e0'), metalness: .7, roughness: .12, transparent: true, opacity: .85 })); put(sp, 1316, -339);
+    ADR.solids = [{ x: 1316 + ADR.ox, z: -339 + ADR.oz, r: 16 }];
+  });
+}
+
 
 /* ---------- boats ---------- */
 function hullTex(s) {
@@ -5516,7 +5610,8 @@ const DSKY = { hor: C('#c8d2da'), zen: C('#5a82b4') };
 const JSKY = { hor: C('#a8b8a2'), zen: C('#6f8fa0'), fog: C('#8fa28a') }, SKY0 = { hor: skyMat.uniforms.hor.value, zen: skyMat.uniforms.zen.value };
 function applyAbove() { // the normal look above water: Barcelona's warm haze, or the rainforest's misty green
   sky.visible = true;
-  if (DUB.on) { scene.fog.color.set(C('#bcc8d0')); scene.fog.density = plane.on ? .00016 : .00026; scene.background = scene.fog.color.clone(); sun.intensity = ABOVE.sun * .85; sun.color.set(C('#fff2e0')); HEMI.intensity = ABOVE.hemi * 1.05; HEMI.color.set(C('#d4e0ec')); HEMI.groundColor.set(C('#3a4a30')); skyMat.uniforms.hor.value = DSKY.hor; skyMat.uniforms.zen.value = DSKY.zen; return; }
+  const RO = regOn();
+  if (RO) { const K = RO.sky; scene.fog.color.set(C(K.fog)); scene.fog.density = plane.on ? K.d * .6 : K.d; scene.background = scene.fog.color.clone(); sun.intensity = ABOVE.sun * K.sun; sun.color.set(C('#fff2e0')); HEMI.intensity = ABOVE.hemi * 1.05; HEMI.color.set(C('#d4e0ec')); HEMI.groundColor.set(C('#3a4a30')); DSKY.hor.set(C(K.hor)); DSKY.zen.set(C(K.zen)); skyMat.uniforms.hor.value = DSKY.hor; skyMat.uniforms.zen.value = DSKY.zen; return; }
   if (JNG.on) { scene.fog.color.copy(JSKY.fog); scene.fog.density = plane.on ? .0018 : .0045; scene.background = JSKY.fog.clone(); sun.intensity = ABOVE.sun * .8; sun.color.set(C('#fff2d0')); HEMI.intensity = ABOVE.hemi * 1.05; HEMI.color.set(C('#cfe0c0')); HEMI.groundColor.set(C('#2a3418')); skyMat.uniforms.hor.value = JSKY.hor; skyMat.uniforms.zen.value = JSKY.zen; return; }
   scene.fog.color.copy(ABOVE.fogCol); scene.fog.density = ABOVE.fogD; scene.background = ABOVE.bg.clone(); sun.intensity = ABOVE.sun; sun.color.copy(ABOVE.sunCol); HEMI.intensity = ABOVE.hemi; HEMI.color.copy(ABOVE.hemiSky); HEMI.groundColor.copy(ABOVE.hemiGround); skyMat.uniforms.hor.value = SKY0.hor; skyMat.uniforms.zen.value = SKY0.zen;
 }
@@ -5806,7 +5901,8 @@ function drawMap() {
   const zoom = mapZoom * (S / 360); // pixels per metre
   g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, S, S);
   g.save(); g.translate(S / 2, S / 2); g.rotate(phi); g.scale(zoom, zoom); g.translate(-me.x, -me.z);
-  if (DUB.on) { g.drawImage(DUB.mapCanvas(), DUB.X0, DUB.Z0, DUB.NX * DUB.G, DUB.NZ * DUB.G); DUB.drawRoads(g, me.x, me.z, S / 2 / zoom * 1.5, zoom); g.restore();
+  const RM = regOn();
+  if (RM) { g.drawImage(RM.mapCanvas(), RM.X0, RM.Z0, RM.NX * RM.G, RM.NZ * RM.G); RM.drawRoads(g, me.x, me.z, S / 2 / zoom * 1.5, zoom); g.restore();
     g.save(); g.translate(S / 2, S / 2); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, -16); g.lineTo(11, 12); g.lineTo(0, 6); g.lineTo(-11, 12); g.closePath(); g.fill(); g.stroke(); g.restore(); return; }
   if (JNG.on) { const E = JNG.HS + 260; g.drawImage(jungleMap(), JNG.x - E, JNG.z - E, E * 2, E * 2); g.restore();
     g.save(); g.translate(S / 2, S / 2); g.fillStyle = '#fff'; g.strokeStyle = '#111'; g.lineWidth = 3; g.beginPath(); g.moveTo(0, -16); g.lineTo(11, 12); g.lineTo(0, 6); g.lineTo(-11, 12); g.closePath(); g.fill(); g.stroke(); g.restore(); return; }
@@ -6536,7 +6632,7 @@ function worldHit(x, y, z) { // did you fly into something tall?
     return AWAY.hit ? AWAY.hit(x, y, z) : false;
   }
   if (JNG.here(x, z)) return JNG.built && JNG.hit(x, y, z);
-  if (DUB.here(x, z)) return false;
+  if (regionAt(x, z)) return false;
   if (inBox(x, z)) for (const i of gridGet(bldGrid, x, z) || []) { const b = BLD[i]; if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && inPoly(b.pts, x, z) && y < groundH(b.cx, b.cz) + 4.2 + Math.max(0, b.lv - 1) * 3.1) return true; }
   for (const [k, r, h] of [['sagrada', 45, 172], ['glories', 22, 144], ['wvela', 35, 99], ['colom', 5, 60]]) if (LM[k] && Math.hypot(x - LM[k][0], z - LM[k][1]) < r && y < h) return true;
   if (Math.abs(x - TERM.x) < 200 && Math.abs(z - TERM.z) < 52 && y < 21) return true;
@@ -6806,15 +6902,22 @@ function postcard(id) {
   g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(0, H - 26, W, 26); g.fillStyle = '#fff'; g.font = '800 16px Arial'; g.fillText((id === 'bcn' ? 'BARCELONA' : id === 'amazon' ? 'AMAZÔNIA' : id === 'dublin' ? 'DUBLIN & WICKLOW' : WORLDS[id].name.toUpperCase()) + '  ✈', 10, H - 8);
   return picCache[key] = cv.toDataURL();
 }
+const REAL_CARDS = [ // drivable real maps: [region, title, words, [spot, button]...]
+  ['paris', 'Paris (real map) 🇫🇷', 'Drive the real Paris: every boulevard and building, the Seine, the Arc de Triomphe and the Eiffel Tower.', [['eiffel', 'Eiffel Tower 🗼'], ['arc', 'Arc de Triomphe 🚗']]],
+  ['mallorca', 'Mallorca (real map) 🏝️', 'The whole island from real maps: Palma, the hairpins of Sa Calobra and the cliffs of Formentor.', [['palma', 'Drive Palma 🚗'], ['calobra', 'Sa Calobra ⛰️']]],
+  ['andorra', 'Pyrenees: Andorra (real map) 🏔️', 'Real mountain roads up to 2,400 m through the Pyrenees, from Andorra la Vella to Pas de la Casa.', [['vella', 'Andorra la Vella 🚗'], ['pas', 'Pas de la Casa ⛰️']]],
+  ['giza', 'Egypt: Giza & Cairo (real map) 🇪🇬', 'Drive up to the real Pyramids of Giza and the Sphinx, then along the Nile into Cairo.', [['pyramids', 'The Pyramids 🔺'], ['tahrir', 'Cairo 🚗']]],
+];
 function openAirport() {
   openPanel('airport');
   const money = fishLog.money;
   $('apWallet').textContent = '€' + money.toFixed(2);
   const dest = [['bcn', 'Fly around Barcelona', 'Take off from El Prat and fly over the whole city, the mountain and the sea.'], ...Object.entries(WORLDS).map(([id, W]) => [id, W.name, W.sub])];
   $('apDest').innerHTML = dest.map(([id, n, sub]) => `<div class="card${(AWAY ? AWAY.id : (plane.on ? 'bcn' : '')) === id ? ' sel' : ''}"><img class="pic" src="${postcard(id)}" alt=""><h3>${n}</h3><div class="tag">${sub}</div><button class="go" data-fly="${id}">${AWAY && AWAY.id === id ? 'Back to the runway' : 'Fly there'} ✈</button></div>`).join('')
-    + `<div class="card"><img class="pic" src="${postcard('dublin')}" alt=""><h3>Dublin & Wicklow 🇮🇪</h3><div class="tag">Drive your own car around the REAL Dublin and the Wicklow Mountains: every street, building, river and hill from real maps, all the way to Laragh and Glendalough.</div><button class="go" data-dublin="dublin">Drive Dublin 🚗</button> <button class="go" data-dublin="laragh">Drive Laragh ⛰️</button></div>`
+    + `<div class="card"><img class="pic" src="${postcard('dublin')}" alt=""><h3>Dublin & Wicklow 🇮🇪</h3><div class="tag">Drive your own car around the REAL Dublin and the Wicklow Mountains: every street, building, river and hill from real maps, all the way to Laragh and Glendalough.</div><button class="go" data-region="dublin:dublin">Drive Dublin 🚗</button> <button class="go" data-region="dublin:laragh">Drive Laragh ⛰️</button></div>`
+    + REAL_CARDS.map(([id, t, d, btns]) => `<div class="card"><img class="pic" src="${postcard(id === 'andorra' ? 'pyrenees' : id === 'giza' ? 'egypt' : id)}" alt=""><h3>${t}</h3><div class="tag">${d}</div>${btns.map(([sp, lab]) => `<button class="go" data-region="${id}:${sp}">${lab}</button>`).join(' ')}</div>`).join('')
     + `<div class="card"><img class="pic" src="${postcard('amazon')}" alt=""><h3>Amazon rainforest 🐊</h3><div class="tag">A free fishing trip! Fly to a jungle lodge on a huge river full of river monsters: arapaima, piranhas, giant catfish and more.</div><button class="go" data-amazon="1">Go fishing there 🎣</button></div>`
-    + (AWAY || plane.on || DUB.on ? `<div class="card"><h3>${DUB.on ? 'Fly home to Barcelona' : 'Walk into El Prat'}</h3><div class="tag">Land back at Barcelona airport and walk out of the terminal to your car.</div><button class="go" data-fly="home">Go home</button></div>` : '');
+    + (AWAY || plane.on || regOn() ? `<div class="card"><h3>${regOn() ? 'Fly home to Barcelona' : 'Walk into El Prat'}</h3><div class="tag">Land back at Barcelona airport and walk out of the terminal to your car.</div><button class="go" data-fly="home">Go home</button></div>` : '');
   { const from = AWAY ? AWAY.id : 'bcn', S = PLANES[fishLog.plane], avg = Math.max(1, Math.round(S.seats * .87));
     $('tkLead').textContent = S.seats > 3 ? `Your ${S.name} has ${S.seats} seats. Sell tickets, take off, fly them there and land on the runway to get paid.` : `Your ${S.name} only has ${S.seats} seat${S.seats > 1 ? 's' : ''}. Buy the Airbus A380 to carry 500 passengers at once!`;
     $('apTickets').innerHTML = ['bcn', ...Object.keys(WORLDS)].filter(id => id !== from).map(id => `<div class="card"><img class="pic" src="${postcard(id)}" alt=""><h3>${cityName(from)} → ${cityName(id)}</h3><div class="tag">€${TICKET[id]} a ticket · about ${avg} passenger${avg > 1 ? 's' : ''} · about €${(avg * TICKET[id]).toLocaleString()}</div><button class="go" data-ticket="${id}">Sell tickets 🎫</button></div>`).join(''); }
@@ -6878,7 +6981,7 @@ function amazonHome() { // back to Barcelona airport
 }
 function goHome() { if (!AWAY) return; AWAY = null; camera.far = 7000; camera.updateProjectionMatrix(); scene.add(plane.g); $('mapWrap').hidden = false; $('plaque').hidden = true; }
 $('apTickets').addEventListener('click', e => { const b = e.target.closest('[data-ticket]'); if (b) sellTickets(b.dataset.ticket); });
-$('apDest').addEventListener('click', e => { if (e.target.closest('[data-amazon]')) return goAmazon(); const db = e.target.closest('[data-dublin]'); if (db) return goDublin(db.dataset.dublin); const b = e.target.closest('[data-fly]'); if (b) flyTo(b.dataset.fly); });
+$('apDest').addEventListener('click', e => { if (e.target.closest('[data-amazon]')) return goAmazon(); const db = e.target.closest('[data-region]'); if (db) { const [id, sp] = db.dataset.region.split(':'); return REGIONS.find(R => R.id === id).go(sp); } const b = e.target.closest('[data-fly]'); if (b) flyTo(b.dataset.fly); });
 $('apPlanes').addEventListener('click', e => {
   const pb = e.target.closest('[data-paint]'); if (pb) return openHangar(+pb.dataset.paint);
   const b = e.target.closest('[data-plane]'); if (!b) return; const k = +b.dataset.plane, p = PLANES[k];
@@ -6963,6 +7066,10 @@ const PLACES = [
   ['Laragh', 'Co. Wicklow, Ireland: a village in the Wicklow Mountains', [-1e6, -1e6], () => { goDublin('laragh'); return 'Loading the real map of Wicklow…'; }, 'laragh wicklow ireland mountains'],
   ['Glendalough', 'Co. Wicklow, Ireland: the valley of two lakes and the round tower', [-1e6, -1e6], () => { goDublin('glendalough'); return 'Loading the real map of Wicklow…'; }, 'glendalough wicklow ireland lakes round tower monastery'],
   ['Wicklow Mountains', 'Ireland: mountain roads, forests and lakes', [-1e6, -1e6], () => { goDublin('roundwood'); return 'Loading the real map of Wicklow…'; }, 'wicklow mountains ireland sally gap military road'],
+  ['Paris (real map)', 'France: drive the real Paris (a free flight, your car comes too)', [-1e6, -1e6], () => { PAR.go('eiffel'); return 'Loading the real map of Paris…'; }, 'paris france eiffel tower'],
+  ['Mallorca (real map)', 'Spain: the whole island of Mallorca', [-1e6, -1e6], () => { MAL.go('palma'); return 'Loading the real map of Mallorca…'; }, 'mallorca majorca palma balears island'],
+  ['Andorra (real map)', 'The Pyrenees: real mountain roads', [-1e6, -1e6], () => { ADR.go('vella'); return 'Loading the real map of Andorra…'; }, 'andorra pyrenees mountains pirineus'],
+  ['Pyramids of Giza (real map)', 'Egypt: the pyramids, the Sphinx and Cairo', [-1e6, -1e6], () => { GIZ.go('pyramids'); return 'Loading the real map of Giza…'; }, 'egypt giza pyramids sphinx cairo nile'],
   ['Amazon rainforest', 'River monster fishing at a jungle lodge (a free flight)', [JNG.x, JNG.z], () => { JNG.build(); const L = JNG.lodge, [wx, wz] = JNG.wdir; footTo(L.x + wx * 12, L.z + wz * 12, Math.atan2(wx, wz)); return 'Bem-vindo! Fish from the riverbank. Fly home from the ✈ counter at the lodge.'; }, 'amazon jungle rainforest river monsters brazil piranha arapaima fishing'],
   ['Race circuit', 'A race track out in the Vallès', [CIRC.x, CIRC.z], () => carTo(CIRC.x - 230, CIRC.z + 200, Math.PI / 2), 'race track circuit f1 formula racing'],
 ].map(([n, sub, p, go, alias]) => ({ n, sub, x: p[0], z: p[1], go, kind: 0, key: norm(n), short: norm(n).replace(/^(la|el|les|els|l) /, ''), alias: norm(alias || '') }));
@@ -7056,7 +7163,7 @@ const FK0 = .025, FK1 = 2.2;
 function openMap(focus) {
   closeAll(); $('bigmap').hidden = false; paused = true; for (const k in input) input[k] = 0;
   const me = foot.inside ? foot.inside : foot.on ? foot : player;
-  FV.x = me.x; FV.z = me.z; FV.k = inBox(me.x, me.z) || DUB.on ? .16 : .05; fmPin = null; $('fmPin').hidden = true;
+  FV.x = me.x; FV.z = me.z; FV.k = inBox(me.x, me.z) || regOn() ? .16 : .05; fmPin = null; $('fmPin').hidden = true;
   $('q').value = ''; renderResults();
   if (focus) setTimeout(() => $('q').focus(), 0);
   cancelAnimationFrame(fmRaf); const tick = () => { if ($('bigmap').hidden) return; drawBig(); fmRaf = requestAnimationFrame(tick); }; tick();
@@ -7071,19 +7178,20 @@ function drawBig() {
   g.setTransform(dpr, 0, 0, dpr, 0, 0); g.fillStyle = '#1f5870'; g.fillRect(0, 0, W, H);
   g.save(); g.translate(W / 2, H / 2); g.scale(k, k); g.translate(-FV.x, -FV.z);
   g.imageSmoothingEnabled = true;
-  if (DUB.on) { g.drawImage(DUB.mapCanvas(), DUB.X0, DUB.Z0, DUB.NX * DUB.G, DUB.NZ * DUB.G); DUB.drawRoads(g, FV.x, FV.z, Math.max(W, H) / k * .6, k); }
+  const RB = regOn();
+  if (RB) { g.drawImage(RB.mapCanvas(), RB.X0, RB.Z0, RB.NX * RB.G, RB.NZ * RB.G); RB.drawRoads(g, FV.x, FV.z, Math.max(W, H) / k * .6, k); }
   else { g.drawImage(mapWorld, MAPW.x0, MAPW.z0, MAPW.x1 - MAPW.x0, MAPW.z1 - MAPW.z0);
   g.drawImage(mapCity, BX0, BZ0, BX1 - BX0, BZ1 - BZ0); }
   g.restore();
   g.textAlign = 'center'; g.lineJoin = 'round';
   const label = (x, z, text, font, col, dy = 0) => { const [a, b] = toScr(x, z); g.font = font; g.lineWidth = 3.5; g.strokeStyle = 'rgba(10,12,15,.85)'; g.strokeText(text, a, b + dy); g.fillStyle = col; g.fillText(text, a, b + dy); };
-  if (DUB.on) for (const P of DUB.places) { if ({ city: 0, town: .004, village: .012, suburb: .03, quarter: .1, neighbourhood: .12, hamlet: .05 }[P.k] > k || P.k === 'locality') continue; const [a, b] = toScr(P.x, P.z); if (a > -60 && a < W + 60 && b > -20 && b < H + 20) label(P.x, P.z, P.n, `700 ${P.k === 'city' || P.k === 'town' ? 14 : 11}px Barlow, sans-serif`, P.k === 'city' || P.k === 'town' || P.k === 'village' ? '#ffe27a' : 'rgba(255,255,255,.85)'); }
-  if (k < .35 && !DUB.on) for (const a of AREAS) label(a.x, a.z, a.n.toUpperCase(), `700 ${k < .08 ? 10 : 12}px Barlow, sans-serif`, 'rgba(255,255,255,.75)');
-  if (k > .5 && !DUB.on) { // street names when zoomed in
+  if (RB) for (const P of RB.places) { if ({ city: 0, town: .004, village: .012, suburb: .03, quarter: .1, neighbourhood: .12, hamlet: .05 }[P.k] > k || P.k === 'locality') continue; const [a, b] = toScr(P.x, P.z); if (a > -60 && a < W + 60 && b > -20 && b < H + 20) label(P.x, P.z, P.n, `700 ${P.k === 'city' || P.k === 'town' ? 14 : 11}px Barlow, sans-serif`, P.k === 'city' || P.k === 'town' || P.k === 'village' ? '#ffe27a' : 'rgba(255,255,255,.85)'); }
+  if (k < .35 && !RB) for (const a of AREAS) label(a.x, a.z, a.n.toUpperCase(), `700 ${k < .08 ? 10 : 12}px Barlow, sans-serif`, 'rgba(255,255,255,.75)');
+  if (k > .5 && !RB) { // street names when zoomed in
     g.font = '600 11px Barlow, sans-serif';
     for (const s of STREETS) { const [a, b] = toScr(s.x, s.z); if (a > -80 && a < W + 80 && b > -20 && b < H + 20) label(s.x, s.z, s.n, '600 11px Barlow, sans-serif', '#f4f1ea'); }
   }
-  for (const p of DUB.on ? [] : PLACES) {
+  for (const p of RB ? [] : PLACES) {
     const [a, b] = toScr(p.x, p.z); if (a < -60 || a > W + 60 || b < -30 || b > H + 30) continue;
     g.fillStyle = '#c8102e'; g.strokeStyle = '#fff'; g.lineWidth = 2; g.beginPath(); g.arc(a, b, 5, 0, 7); g.fill(); g.stroke();
     if (k > .045 || p.x < BX0 || p.x > BX1) label(p.x, p.z, p.n, '700 12px Barlow, sans-serif', '#ffe27a', -10);
@@ -7240,7 +7348,7 @@ function loop() {
     c.hitCd -= dt;
     if (impact > 3 && c.hitCd <= 0) { c.hv -= Math.min(impact, 20) * .012; audio.crash(impact); cam.shake = Math.min(1, impact / 15); c.hitCd = .35; if (M && M.def.type === 'taxi' && M.count <= 0) M.fare = Math.max(0, M.fare - 3); if (M && M.def.type === 'drift') { M.combo = 0; $('drift').hidden = true; } }
     }
-    if (!DUB.on) for (const a of agents) a.police ? updateCop(a, dt) : updateAgent(a, dt);
+    if (!regOn()) for (const a of agents) a.police ? updateCop(a, dt) : updateAgent(a, dt);
     updatePolice(dt); updateHeli(dt);
     updateMission(dt);
     // mission start proximity
@@ -7282,13 +7390,13 @@ function loop() {
     syncVis(a.vis, a.x, a.z, a.h, a.spin, 0, a.police ? groundH(a.x, a.z) : 0);
     if (a.vis.lightbar) { const on = Math.floor(performance.now() / 160) % 2; a.vis.lightbar[0].emissiveIntensity = on ? 3 : .1; a.vis.lightbar[1].emissiveIntensity = on ? .1 : 3; }
   }
-  if (!paused && !plane.on && !DUB.on) updatePeds(dt, false);
+  if (!paused && !plane.on && !regOn()) updatePeds(dt, false);
   if (room) updateRoom(dt);
-  DUB.update(dt);
+  for (const RG of REGIONS) RG.update(dt);
   { const cp = camera.position, jn = !AWAY && JNG.here(cp.x, cp.z);
     if (jn !== JNG.on) { JNG.on = jn; if (jn) JNG.build(); JNG.root.visible = jn; if (!wasUnder) applyAbove(); }
     JNG.update(dt);
-    SEA.mesh.visible = !jn && !DUB.on && !LAKES.some(L => Math.abs(cp.x - L.x) < L.rx + 400 && Math.abs(cp.z - L.z) < L.rx + 400); // the sea's waves would poke up through the lakes
+    SEA.mesh.visible = !jn && !regOn() && !LAKES.some(L => Math.abs(cp.x - L.x) < L.rx + 400 && Math.abs(cp.z - L.z) < L.rx + 400); // the sea's waves would poke up through the lakes
     const under = camera.position.y < -.15 && !foot.inside, inLake = under && (jn ? (JNG.water(cp.x, cp.z) ? 'river' : false) : lakeAt(cp.x, cp.z, 5) ? 'lake' : false); setUnderwater(under, inLake); UW.visible = !!foot.swim || under && !inLake && !jn;
     if (UW.visible) { updateSea(dt, foot.swim ? foot : null); updateUnderwaterFx(dt, foot.swim ? foot : null); } }
   // skids and smoke
@@ -7387,9 +7495,9 @@ function loop() {
     $('spd').textContent = Math.round(Math.abs(foot.on ? foot.v : c.u) * 3.6);
     $('gear').textContent = c.gear === -1 ? 'R' : sp < .3 && !c.throttle ? 'N' : c.spec.ev ? 'D' : c.gear;
     $('rpmFill').style.width = clamp(c.rpm / c.spec.redline, 0, 1) * 100 + '%';
-    const dme = foot.on ? foot : plane.on ? plane : c, drn = DUB.on && frame % 6 === 0 ? DUB.roadNear(dme.x, dme.z, 30) : null;
-    if (DUB.on && frame % 6 === 0) { const pl = DUB.placeNear(dme.x, dme.z); DUB.plq = [drn && drn.R.name ? DUB.names[drn.R.name - 1] + (drn.R.ref ? ' (' + DUB.names[drn.R.ref - 1] + ')' : '') : drn && drn.R.ref ? DUB.names[drn.R.ref - 1] : pl ? pl.n : 'Ireland', pl ? pl.n.slice(0, 12) : 'IE']; }
-    const st = DUB.on ? DUB.plq : JNG.on && foot.on ? ['Floresta Amazônica · ' + (Math.hypot(foot.x - JNG.lodge.x, foot.z - JNG.lodge.z) < 60 ? 'Amazon River Lodge' : 'Rio Amazonas'), 'BR'] : plane.on ? streetName(plane.x, plane.z) : foot.inside ? [foot.inside.name || room.info.label, district(foot.inside.x, foot.inside.z)] : foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
+    const RP = regOn(), dme = foot.on ? foot : plane.on ? plane : c, drn = RP && frame % 6 === 0 ? RP.roadNear(dme.x, dme.z, 30) : null;
+    if (RP && frame % 6 === 0) { const pl = RP.placeNear(dme.x, dme.z); RP.plq = [drn && drn.R.name ? RP.names[drn.R.name - 1] + (drn.R.ref ? ' (' + RP.names[drn.R.ref - 1] + ')' : '') : drn && drn.R.ref ? RP.names[drn.R.ref - 1] : pl ? pl.n : RP.country, pl ? pl.n.slice(0, 12) : RP.code]; }
+    const st = RP ? RP.plq : JNG.on && foot.on ? ['Floresta Amazônica · ' + (Math.hypot(foot.x - JNG.lodge.x, foot.z - JNG.lodge.z) < 60 ? 'Amazon River Lodge' : 'Rio Amazonas'), 'BR'] : plane.on ? streetName(plane.x, plane.z) : foot.inside ? [foot.inside.name || room.info.label, district(foot.inside.x, foot.inside.z)] : foot.on ? streetName(foot.x, foot.z) : streetName(c.x, c.z);
     const SW = foot.swim; $('scuba').hidden = !SW;
     if (SW) { $('sDepth').textContent = (-Math.min(0, foot.y + .35)).toFixed(1) + ' m'; $('sAir').textContent = Math.round(SW.air) + '%'; $('sAir').style.color = SW.air < 25 ? 'var(--bad)' : ''; $('sSpot').textContent = `${spotted.size}/${Object.keys(SPECIES).length}`; }
     const F = foot.fish; $('fishing').hidden = !F; $('baitBar').hidden = !F || F.st === 'show';
@@ -7425,7 +7533,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { DUB, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
