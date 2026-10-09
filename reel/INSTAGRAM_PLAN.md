@@ -107,3 +107,23 @@ Upload in this order (all 1080×1350, 4:5, seven slides):
 > Cerulean, cadmium orange, a lot of lemon, and the violet that's about to change everything.
 >
 > #oilpainting #artistpalette #paintingprocess #colourmixing #studiolife
+
+## 7. Explainer Reel: "How a painting gets a second life"
+
+- **Video:** `janet_vox_explainer.mp4` (47s, 1080×1920). A Vox-style explainer: paper texture,
+  cut-out photos, serif headlines with a highlighter sweep, hand-drawn circles and arrows.
+  1. It starts outside: her nature photos
+  2. The colours come indoors: pinks and greens from the heather photo fly into a painting
+  3. Sometimes a painting needs another go: the early work
+  4. Steps 1 to 4: brush it back, mix new colour, let the old peep through, make confident marks
+  5. Before and now: a wipe between the aligned before and now
+  6. "Now it dries. Next layer to come."
+- **Music:** something light and plucky with a gentle beat, the usual explainer feel
+- Good as a pinned Reel, since it introduces her nature-to-canvas way of working
+
+**Caption**
+
+> How a painting gets a second life, in four steps.
+> Brush it back. Mix new colour. Let the old peep through. Make confident marks.
+>
+> #oilpainting #paintingprocess #artexplained #abstractpainting #studiolife
