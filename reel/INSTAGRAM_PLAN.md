@@ -127,3 +127,25 @@ Upload in this order (all 1080×1350, 4:5, seven slides):
 > Brush it back. Mix new colour. Let the old peep through. Make confident marks.
 >
 > #oilpainting #paintingprocess #artexplained #abstractpainting #studiolife
+
+## 8. Colour Notes carousel (quiet, no effects)
+
+Four 4:5 slides, gallery rhythm: painting, then its colour notes.
+
+| # | File | What it shows |
+|---|------|---------------|
+| 1 | `colour_notes/01_painting_green_landscape.jpg` | The painting, whole |
+| 2 | `colour_notes/02_notes_ferns.jpg` | Her fern photo, real cut patches of it matched to real patches of the painting |
+| 3 | `colour_notes/03_painting_pink_blue.jpg` | The painting, whole |
+| 4 | `colour_notes/04_notes_thistle.jpg` | Her fern and thistle photo, matched the same way |
+
+Nothing is drawn or generated: every chip is a crop of her photo or her paint. Chip pairs
+are only shown where the colours genuinely match. The grey-green and speckled paintings had no
+honest photo match, so they're not in this post.
+
+**Caption**
+
+> Colour notes.
+> Moss, fern and grass on the top row. Paint on the bottom.
+>
+> #oilpainting #colourstudy #paintingfromnature #landscapepainting #studiolife
