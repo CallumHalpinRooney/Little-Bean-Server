@@ -149,3 +149,21 @@ already carry it and the caption gives the context.
 > Top: moss, bark, fern and grass, photographed on a walk. Bottom: the same colours in paint.
 >
 > #oilpainting #colourstudy #paintingfromnature #landscapepainting #studiolife
+
+## 9. "Where it comes from" carousel
+
+| # | File | What it shows |
+|---|------|---------------|
+| 1 | `where_it_comes_from/01_janet_heather.jpg` | Janet in the heather, full bleed (only sky trimmed) |
+| 2 | `where_it_comes_from/02_notes_fern.jpg` | In-focus fern patches above matching single-colour paint patches, then the painting |
+| 3 | `where_it_comes_from/03_detail_fern_painting.jpg` | Close-up of the same painting, full bleed |
+
+Tested and left out: the heather against the pink garden painting (no honest match), and
+the dark yellow painting (no photo matches it). Both could be their own posts.
+
+**Caption**
+
+> Where it comes from.
+> A walk, the ferns by the water, and back to the studio.
+>
+> #paintingfromnature #oilpainting #artistlife #landscapepainting #studiolife
