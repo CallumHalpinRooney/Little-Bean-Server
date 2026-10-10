@@ -174,3 +174,7 @@ Reads instantly when scrolling: her photo on top, her painting below, one word o
 - `seen_painted/01_heather.jpg`: Janet in the heather / the pink garden painting
 - `seen_painted/02_fern_water.jpg`: ferns over water / blue water through green
 Post each as its own single image, or as a two-slide carousel with the full painting second.
+
+## 11. Square carousel, no text
+
+`carousel_square/01-05.jpg` (1080x1080): Janet in the heather, pink garden painting, ferns over water, blue water painting, dark yellow painting. Paintings are shown whole.
