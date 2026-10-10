@@ -167,3 +167,10 @@ the dark yellow painting (no photo matches it). Both could be their own posts.
 > A walk, the ferns by the water, and back to the studio.
 >
 > #paintingfromnature #oilpainting #artistlife #landscapepainting #studiolife
+
+## 10. Seen / Painted (replaces the colour-notes approach for the feed)
+
+Reads instantly when scrolling: her photo on top, her painting below, one word on each.
+- `seen_painted/01_heather.jpg`: Janet in the heather / the pink garden painting
+- `seen_painted/02_fern_water.jpg`: ferns over water / blue water through green
+Post each as its own single image, or as a two-slide carousel with the full painting second.
