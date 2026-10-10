@@ -130,22 +130,22 @@ Upload in this order (all 1080×1350, 4:5, seven slides):
 
 ## 8. Colour Notes carousel (quiet, no effects)
 
-Four 4:5 slides, gallery rhythm: painting, then its colour notes.
+Four 4:5 slides with thin margins: colour notes, then a full-bleed detail of the painting.
 
 | # | File | What it shows |
 |---|------|---------------|
-| 1 | `colour_notes/01_painting_green_landscape.jpg` | The painting, whole |
-| 2 | `colour_notes/02_notes_ferns.jpg` | Her fern photo, real cut patches of it matched to real patches of the painting |
-| 3 | `colour_notes/03_painting_pink_blue.jpg` | The painting, whole |
-| 4 | `colour_notes/04_notes_thistle.jpg` | Her fern and thistle photo, matched the same way |
+| 1 | `colour_notes/01_notes_ferns.jpg` | Real patches of her fern photo (top) above matching real patches of paint, then the painting |
+| 2 | `colour_notes/02_detail_green_landscape.jpg` | 1:1 close-up of the brushwork, full bleed |
+| 3 | `colour_notes/03_notes_thistle.jpg` | Same for the fern-and-thistle photo and the pink-and-blue painting |
+| 4 | `colour_notes/04_detail_pink_blue.jpg` | 1:1 close-up, full bleed |
 
-Nothing is drawn or generated: every chip is a crop of her photo or her paint. Chip pairs
-are only shown where the colours genuinely match. The grey-green and speckled paintings had no
-honest photo match, so they're not in this post.
+Nothing is drawn or generated: every chip is a crop of her photo or her paint, and chip pairs
+only appear where the colours genuinely match. The whole photo isn't shown, because the chips
+already carry it and the caption gives the context.
 
 **Caption**
 
 > Colour notes.
-> Moss, fern and grass on the top row. Paint on the bottom.
+> Top: moss, bark, fern and grass, photographed on a walk. Bottom: the same colours in paint.
 >
 > #oilpainting #colourstudy #paintingfromnature #landscapepainting #studiolife

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Colour notes: nature photo (whole) / five pairs of real cut patches / painting (whole).
+"""Colour notes: pairs of real cut patches (photo above, paint below) / painting (whole), plus a
+full-bleed 1:1 detail of the brushwork.
 
 Top chip = a real patch of the photo; bottom chip = the patch of the painting whose colour is
 closest to it. Nothing is drawn or generated: every pixel is Janet's photo or Janet's paint.
@@ -11,15 +12,14 @@ U = '/root/.claude/uploads/d901dcad-3814-5d42-8c2c-d198042d327b/'
 OUT = '/home/user/Little-Bean-Server/reel/colour_notes'
 os.makedirs(OUT, exist_ok=True)
 BG = (0xF5, 0xF3, 0xEF)
-W, H, M, GAP = 1080, 1350, 40, 30
-PHOTO_BOX = (1000, 430)
-CHIP_W, CHIP_H, CHIP_GAP = 160, 130, 50
-PAINT_BOX = (1000, H - 2 * M - PHOTO_BOX[1] - 2 * CHIP_H - 2 * GAP)      # 1000 x 520
+W, H, M, GAP = 1080, 1350, 24, 16
+CHIP_GAP = 12
+CHIP_W, CHIP_H = 249, 230          # set per slide in render(); defaults for 4 columns
 
 # Only pairings with several genuine chip matches (see score.py): the others were left out.
-PAIRS = [   # (painting slide, notes slide, photo id, photo trim, painting id, painting trim)
-    ('01_painting_green_landscape', '02_notes_ferns', '8dbfd0ac', 33, '9daff783', 54),
-    ('03_painting_pink_blue',       '04_notes_thistle', '414c7a6a', 33, 'e017653b', 54),
+PAIRS = [   # (notes slide, detail slide, photo id, photo trim, painting id, painting trim)
+    ('01_notes_ferns',   '02_detail_green_landscape', '8dbfd0ac', 33, '9daff783', 54),
+    ('03_notes_thistle', '04_detail_pink_blue',       '414c7a6a', 33, 'e017653b', 54),
 ]
 MAX_DE = 12          # a chip pair is only shown if the colours genuinely match (Lab distance)
 
@@ -53,8 +53,8 @@ def crop_at(img, cx, cy, pw, ph):
 
 def chips(photo, paint):
     # chip windows in source pixels (aspect = chip aspect); painting chips show brushwork up close
-    pw_ph = int(photo.width * 0.13); ph_ph = int(pw_ph * CHIP_H / CHIP_W)
-    pw_pa = int(paint.width * 0.11); ph_pa = int(pw_pa * CHIP_H / CHIP_W)
+    pw_ph = max(int(photo.width * 0.13), int(CHIP_W / 1.6)); ph_ph = int(pw_ph * CHIP_H / CHIP_W)   # never enlarge >1.6x
+    pw_pa = max(int(paint.width * 0.11), int(CHIP_W / 1.3)); ph_pa = int(pw_pa * CHIP_H / CHIP_W)
     s1, s2 = 240 / photo.width, 240 / paint.width
     m1, sd1, bad1 = patch_field(photo, pw_ph, ph_ph, s1)
     m2, sd2, bad2 = patch_field(paint, pw_pa, ph_pa, s2)
@@ -74,7 +74,7 @@ def chips(photo, paint):
     pick = []
     for c in cands:                                   # genuine matches only, visibly different colours
         if c[0] > MAX_DE: continue
-        if all(np.linalg.norm(c[1] - p[1]) > 14 for p in pick): pick.append(c)
+        if all(np.linalg.norm(c[1] - p[1]) > 18 for p in pick): pick.append(c)
         if len(pick) == 5: break
     pick.sort(key=lambda c: c[1][0])                  # dark to light
     out = [(crop_at(photo, *p[2], pw_ph, ph_ph), crop_at(paint, *p[3], pw_pa, ph_pa), p[0]) for p in pick]
@@ -87,20 +87,42 @@ def fit(img, box):
 
 
 srgb = ImageCms.ImageCmsProfile(ImageCms.createProfile('sRGB')).tobytes()
-for pname, name, pid, ptrim, aid, atrim in PAIRS:
+
+
+def detail(paint):
+    """Full-bleed 1:1 crop of the busiest brushwork (colour + texture variation)."""
+    sc = 0.25; a = np.asarray(paint.resize((int(paint.width * sc), int(paint.height * sc))))
+    L = lab(a); k = (int(W * sc), int(H * sc))
+    var = (cv2.blur(L * L, k) - cv2.blur(L, k) ** 2).sum(-1)
+    hx, hy = k[0] // 2, k[1] // 2
+    var[:hy] = var[-hy:] = -1; var[:, :hx] = var[:, -hx:] = -1
+    y, x = np.unravel_index(var.argmax(), var.shape)
+    x0 = int(np.clip(x / sc - W / 2, 0, paint.width - W)); y0 = int(np.clip(y / sc - H / 2, 0, paint.height - H))
+    return paint.crop((x0, y0, x0 + W, y0 + H))
+
+
+for name, dname, pid, ptrim, aid, atrim in PAIRS:
     photo, paint = load(pid, ptrim), load(aid, atrim)
-    full = Image.new('RGB', (W, H), BG)               # the painting on its own, as on a gallery wall
-    q = fit(paint, (W - 2 * M - 40, H - 2 * M - 120)); full.paste(q, ((W - q.width) // 2, (H - q.height) // 2))
-    full.save(f'{OUT}/{pname}.jpg', quality=95, subsampling=0, icc_profile=srgb)
     page = Image.new('RGB', (W, H), BG)
-    p = fit(photo, PHOTO_BOX); page.paste(p, ((W - p.width) // 2, M + (PHOTO_BOX[1] - p.height) // 2))
-    y = M + PHOTO_BOX[1] + GAP
-    cs = chips(photo, paint)
-    x0 = (W - (len(cs) * CHIP_W + (len(cs) - 1) * CHIP_GAP)) // 2
-    for i, (a, b, d) in enumerate(cs):
+    q = paint.resize((W - 2 * M, round(paint.height * (W - 2 * M) / paint.width)), Image.LANCZOS)
+    chip_block = H - 2 * M - GAP - q.height
+    CHIP_H = chip_block // 2; n = 4
+    for _ in range(3):                                # chip count can depend on chip shape: settle it
+        CHIP_W = (W - 2 * M - (n - 1) * CHIP_GAP) // n
+        cs = chips(photo, paint)
+        if len(cs) == n: break
+        n = len(cs)
+    n = len(cs)
+    need = (W - 2 * M - (n - 1) * CHIP_GAP) // n
+    if need != CHIP_W:                                # final safety: fit exactly n columns
+        CHIP_W = need
+        cs = [(a_.resize((CHIP_W, CHIP_H), Image.LANCZOS), b_.resize((CHIP_W, CHIP_H), Image.LANCZOS), d)
+              for a_, b_, d in cs]
+    x0 = (W - (n * CHIP_W + (n - 1) * CHIP_GAP)) // 2
+    for i, (a_, b_, d) in enumerate(cs):
         x = x0 + i * (CHIP_W + CHIP_GAP)
-        page.paste(a, (x, y)); page.paste(b, (x, y + CHIP_H))
-    y += 2 * CHIP_H + GAP
-    q = fit(paint, PAINT_BOX); page.paste(q, ((W - q.width) // 2, y + (PAINT_BOX[1] - q.height) // 2))
+        page.paste(a_, (x, M)); page.paste(b_, (x, M + CHIP_H))
+    page.paste(q, (M, M + chip_block + GAP))
     page.save(f'{OUT}/{name}.jpg', quality=95, subsampling=0, icc_profile=srgb)
-    print(name, 'match distances (Lab):', [round(c[2], 1) for c in cs])
+    detail(paint).save(f'{OUT}/{dname}.jpg', quality=95, subsampling=0, icc_profile=srgb)
+    print(name, 'chips', n, f'{CHIP_W}x{CHIP_H}', 'match distances (Lab):', [round(c[2], 1) for c in cs])
