@@ -158,7 +158,7 @@ a.row { color: inherit; text-decoration: none; }
 .hero-label { font-family: var(--font-display); font-size: 12px; letter-spacing: 0.3em; text-transform: uppercase; color: var(--fg-2); }
 .hero-label.now { color: var(--accent); }
 .hero-when { font-size: 14px; color: var(--accent); font-variant-numeric: tabular-nums; }
-.hero-who { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.hero-who { display: flex; flex-direction: column; align-items: center; gap: 12px; text-align: center; color: inherit; }
 .hero-who .avatar { width: 80px; height: 80px; font-size: 28px; }
 .hero-name { font-family: var(--font-display); font-size: 26px; letter-spacing: 0.14em; text-transform: uppercase; line-height: 1.2; text-wrap: balance; }
 .hero-meta { font-size: 14px; color: var(--fg-2); margin-top: 4px; }
@@ -267,6 +267,22 @@ a.row { color: inherit; text-decoration: none; }
 .mg-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--c); }
 .mg-count { font-size: 10px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .month-list { margin-top: 22px; }
+
+/* ---------- Reschedule ---------- */
+.opt { gap: 14px; }
+.opt .radio { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--fg-3); flex: none; display: grid; place-items: center; }
+.opt[aria-pressed="true"] .radio { box-shadow: inset 0 0 0 1.5px var(--accent-solid); }
+.opt[aria-pressed="true"] .radio::after { content: ""; width: 12px; height: 12px; border-radius: 50%; background: var(--accent-solid); }
+.opt[aria-pressed="true"] .title { color: var(--accent); }
+.opt .sub.warn { color: var(--warn); }
+.moved { font-size: 12px; color: var(--accent); margin-top: 2px; }
+.move-card .row { min-height: 50px; }
+.move-card .k { width: 46px; flex: none; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fg-2); }
+.move-card .was { color: var(--fg-2); text-decoration: line-through; text-decoration-color: var(--fg-3); }
+.move-card .now { color: var(--accent); }
+.lesson-head { display: flex; align-items: center; gap: 12px; padding: 0 4px; }
+.lesson-head .title { font-size: 17px; }
+.lesson-head .sub { font-size: 14px; color: var(--fg-2); }
 
 /* ---------- Students ---------- */
 .search { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.04); box-shadow: inset 0 0 0 1px var(--line); border-radius: 99px; padding: 0 16px; height: 44px; margin: 0 16px 16px; }
@@ -531,6 +547,7 @@ const ICON = {
   chart: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
   lock: '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
   share: '<path d="M12 15V3.5M8 7.2l4-3.7 4 3.7"/><path d="M8.5 10.5H7a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-1.5"/>',
+  move: '<rect x="3.5" y="5" width="17" height="15.5" rx="3.2"/><path d="M3.5 10h17M8 3v4M16 3v4"/><path d="M8.5 15.2h7M13.3 13l2.2 2.2-2.2 2.2"/>',
   alert: '<path d="M12 4 2.8 19.5h18.4Z"/><path d="M12 10v4.2"/><circle cx="12" cy="17" r=".6" fill="currentColor"/>',
 };
 const icon = (n, cls = 'i') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
@@ -793,7 +810,7 @@ function lessonRow(l, { showDate = false, showNotes = false } = {}) {
   return `<button class="row lesson-row${isOff(st) ? ' off' : ''}" data-act="edit-lesson" data-id="${l.id}" style="--c:${s?.color || COLORS[0]}">
     <div class="lr-time"><span>${time(d)}</span><small>${dur(l.duration)}</small></div>
     <div class="lr-bar"></div>
-    <div class="grow"><div class="title">${esc(s?.name || 'Former student')}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${showNotes && l.notes ? `<div class="note-line">${esc(l.notes)}</div>` : ''}</div>
+    <div class="grow"><div class="title">${esc(s?.name || 'Former student')}</div>${sub ? `<div class="sub">${esc(sub)}</div>` : ''}${l.movedFrom ? `<div class="moved">Moved from ${esc(movedLabel(l))}</div>` : ''}${showNotes && l.notes ? `<div class="note-line">${esc(l.notes)}</div>` : ''}</div>
     ${pill(st)}
   </button>`;
 }
@@ -841,11 +858,11 @@ function viewToday() {
     const wa = waLink(s, live ? '' : reminderText(next));
     html += `<section class="hero" style="--c:${s.color}" aria-label="Next lesson">
       <div class="hero-top"><span class="hero-label${live ? ' now' : ''}">${live ? 'In lesson now' : 'Up next'}</span><span class="hero-when">${esc(live ? `Ends ${time(e)}` : relFuture(d, now))}</span></div>
-      <div class="hero-who">${avatar(s)}<div style="min-width:0"><div class="hero-name">${esc(s.name)}</div><div class="hero-meta num">${esc([s.instrument, `${time(d)}–${time(e)}`].filter(Boolean).join(' · '))}</div></div></div>
+      <button class="hero-who" data-act="edit-lesson" data-id="${next.id}" aria-label="Open lesson details">${avatar(s)}<div style="min-width:0"><div class="hero-name">${esc(s.name)}</div><div class="hero-meta num">${esc([s.instrument, `${time(d)}–${time(e)}`].filter(Boolean).join(' · '))}</div>${next.movedFrom ? `<div class="moved">Moved from ${esc(movedLabel(next))}</div>` : ''}</div></button>
       ${live ? `<div class="progress" role="progressbar" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>` : ''}
       <div class="hero-actions">
         ${wa ? `<a class="btn tint" href="${esc(wa)}" target="_blank" rel="noopener">${icon('chat')}${live ? 'Message' : 'Send reminder'}</a>` : ''}
-        <button class="btn tint" data-act="edit-lesson" data-id="${next.id}">${icon('note')}${live ? 'Lesson notes' : 'Details'}</button>
+        ${live ? `<button class="btn tint" data-act="edit-lesson" data-id="${next.id}">${icon('note')}Lesson notes</button>` : `<button class="btn tint" data-act="reschedule" data-id="${next.id}">${icon('move')}Reschedule</button>`}
       </div>
     </section>`;
   } else if (!db.students.length) {
@@ -1224,6 +1241,7 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
   const wa = existing && ['upcoming', 'live'].includes(st) ? waLink(stu(existing.studentId), reminderText(existing)) : '';
 
   const body = `
+    ${existing ? `<button type="button" class="btn fill block" data-act="reschedule" data-id="${existing.id}">${icon('move')}Reschedule</button>` : ''}
     <div class="form-group"><div class="group">
       ${field('Student', `<select id="f-student" required><option value="">Choose</option>${active.map(s => `<option value="${s.id}" ${s.id === sId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`)}
       ${field('Date', `<input id="f-date" type="date" value="${d}" required>`)}
@@ -1232,6 +1250,7 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
       <div class="stack">${durChips(du, 'f-dur')}</div>
     </div></div>
     <div id="clash" hidden></div>
+    ${existing?.movedFrom ? `<p class="help" style="margin:-14px 18px 0;font-size:13px;color:var(--accent)">Moved from ${esc(movedLabel(existing))}</p>` : ''}
     ${existing ? '' : `<div class="form-group"><div class="group"><label class="field"><span style="flex:1">Repeat every week</span><span class="toggle"><input id="f-repeat" type="checkbox"><i></i></span></label></div><p class="help">Books this time every week. Change or stop it from the student's page.</p></div>`}
     ${existing ? `<div class="form-group"><span class="lab">Status</span><div class="seg" role="group" id="f-status">${[['scheduled', ['taught', 'live'].includes(st) ? 'Happened' : 'Booked'], ['cancelled', 'Cancelled'], ['missed', 'Missed']].map(([k, l]) => `<button type="button" data-status="${k}" aria-pressed="${(existing.status || 'scheduled') === k}">${l}</button>`).join('')}</div><p class="help">Cancelled and missed lessons don't count towards hours taught.</p></div>` : ''}
     <div class="form-group"><span class="lab">Lesson notes</span><div class="group"><label class="field textarea"><textarea id="f-notes" placeholder="What you covered, repertoire, homework…" aria-label="Lesson notes">${esc(existing?.notes || '')}</textarea></label></div></div>
@@ -1264,8 +1283,11 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
       const notes = $('#f-notes', root).value.trim();
       if (existing) {
         const status = $('[data-status][aria-pressed="true"]', root)?.dataset.status || 'scheduled';
-        Object.assign(existing, { studentId: sid, start: `${dd}T${tt}`, duration: m, notes, status });
-        toast('Lesson saved');
+        Object.assign(existing, { studentId: sid, duration: m, notes, status });
+        const oldStart = moveLesson(existing, `${dd}T${tt}`);
+        save(); render();
+        if (oldStart) notifyMove(existing, oldStart); else toast('Lesson saved');
+        return;
       } else if ($('#f-repeat', root)?.checked) {
         addSeries(sid, dd, tt, m);
         const first = db.lessons.find(l => l.studentId === sid && l.start === `${dd}T${tt}`);
@@ -1278,6 +1300,141 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
       save(); render();
     },
   });
+}
+
+/* ---------- Rescheduling ---------- */
+function movedLabel(l) {
+  const a = parseDT(l.movedFrom);
+  return sameDay(a, parseDT(l.start)) ? time(a) : `${fDayShort.format(a)}, ${time(a)}`;
+}
+/* Moves a lesson and remembers where it was first booked. Returns the previous start, or null if unchanged. */
+function moveLesson(l, newStart) {
+  const old = l.start;
+  if (old === newStart) return null;
+  if (!l.movedFrom) l.movedFrom = old;
+  else if (l.movedFrom === newStart) delete l.movedFrom;
+  l.start = newStart;
+  return old;
+}
+function moveText(l, oldStart) {
+  const s = stu(l.studentId); const a = parseDT(oldStart), b = parseDT(l.start);
+  const what = s?.instrument ? `${s.instrument.toLowerCase()} lesson` : 'lesson';
+  const hi = `Hi ${firstName(s?.name)}`;
+  if (sameDay(a, b)) return `${hi}, your ${what} on ${fDayLong.format(b)} has moved from ${time(a)} to ${time(b)}. See you then!`;
+  return `${hi}, your ${what} has moved from ${fDayLong.format(a)} at ${time(a)} to ${fDayLong.format(b)} at ${time(b)}. See you then!`;
+}
+/* Free stretches of the teaching day, long enough for this lesson, over the next few days. */
+function freeGaps(l, from, days = 7) {
+  const out = []; const now = new Date(); const S = db.settings;
+  for (let i = 0; i < days; i++) {
+    const d = addDays(from, i);
+    let ws = new Date(d); ws.setHours(S.dayStart, 0, 0, 0);
+    const we = new Date(d); we.setHours(S.dayEnd, 0, 0, 0);
+    if (we <= now) continue;
+    if (ws < now) { ws = new Date(now); ws.setMinutes(Math.ceil((ws.getMinutes() + 1) / 15) * 15, 0, 0); }
+    const busy = lessonsBetween(d, addDays(d, 1)).filter(x => x.id !== l.id && !isOff(stateOf(x)))
+      .map(x => [parseDT(x.start), lessonEnd(x)]);
+    let cur = ws;
+    for (const [bs, be] of [...busy, [we, we]]) {
+      const end = bs < we ? bs : we;
+      if (end - cur >= l.duration * 60000) out.push({ start: new Date(cur), end: new Date(end) });
+      if (be > cur) cur = be;
+      if (cur >= we) break;
+    }
+  }
+  return out;
+}
+function rescheduleSheet(id) {
+  const l = db.lessons.find(x => x.id === id); if (!l) return;
+  const s = stu(l.studentId); const cur = parseDT(l.start); const now = new Date();
+  // A lesson already in the past is moved forward from today, at its usual time.
+  const base = cur > now ? cur : (() => { const b = startOfDay(now); b.setHours(cur.getHours(), cur.getMinutes()); return b; })();
+  const at = n => `${ymd(addDays(base, n))}T${hm(base)}`;
+  const opts = [
+    { k: 'week', label: 'Same time next week', start: at(7) },
+    { k: 'day', label: sameDay(base, now) ? 'Tomorrow, same time' : 'Next day, same time', start: at(1) },
+    { k: 'pick', label: 'Pick a new time' },
+  ];
+  const clashName = c => c.studentId === l.studentId ? `${firstName(s?.name)} already has a lesson then` : `clashes with ${firstName(stu(c.studentId)?.name)}`;
+  const firstFree = (opts.find(o => o.start && !clashes(o.start, l.duration, l.id).length) || opts[0]).k;
+  const optSub = o => {
+    if (!o.start) return 'Choose a day and time, or a free slot';
+    const d = parseDT(o.start); const c = clashes(o.start, l.duration, l.id);
+    return c.length ? `<span class="warn">${esc(fDayShort.format(d))}, ${esc(time(d))} · ${esc(clashName(c[0]))}</span>` : `${esc(fDayShort.format(d))}, ${esc(time(d))}`;
+  };
+  const gaps = freeGaps(l, startOfDay(base > now ? base : now)).slice(0, 14);
+  const body = `
+    <div class="lesson-head">${avatar(s)}<div style="min-width:0"><div class="title">${esc(s?.name || 'Lesson')}</div><div class="sub num">${esc(fDayShort.format(cur))}, ${esc(time(cur))} · ${esc(dur(l.duration))}</div></div></div>
+    <div class="form-group"><span class="lab">Move to</span><div class="group" id="opts">${opts.map(o => `
+      <button type="button" class="row opt" data-opt="${o.k}" aria-pressed="${o.k === firstFree}"><span class="radio"></span><div class="grow"><div class="title">${esc(o.label)}</div><div class="sub num">${optSub(o)}</div></div></button>`).join('')}
+    </div></div>
+    <div id="pick" hidden>
+      <div class="form-group"><div class="group">
+        ${field('Date', `<input id="r-date" type="date" value="${ymd(cur > now ? cur : now)}">`)}
+        ${field('Starts', `<input id="r-time" type="time" value="${hm(cur)}" step="300">`)}
+      </div></div>
+      <div class="form-group" style="margin-top:20px"><span class="lab">Free in the next week</span>
+        ${gaps.length ? `<div class="chips" id="gaps" style="padding:0 4px">${gaps.map(g => `<button type="button" data-gap="${ymd(g.start)}T${hm(g.start)}">${esc(fWd.format(g.start))} ${g.start.getDate()} · ${esc(time(g.start))}–${esc(time(g.end))}</button>`).join('')}</div>`
+          : `<p class="help">No free gaps of ${esc(dur(l.duration))} in your teaching hours over the next week.</p>`}
+        <p class="help">Tap a free slot to use its start time.</p>
+      </div>
+    </div>
+    <div id="r-clash" hidden></div>`;
+  openSheet({
+    title: 'Reschedule', body, saveLabel: 'Move',
+    onOpen(root) {
+      const target = () => { const k = $('.opt[aria-pressed="true"]', root).dataset.opt; return k === 'pick' ? `${val(root, 'r-date')}T${val(root, 'r-time')}` : opts.find(o => o.k === k).start; };
+      const check = () => {
+        const box = $('#r-clash', root); const t = target();
+        const c = t && !t.startsWith('T') && !t.endsWith('T') ? clashes(t, l.duration, l.id) : [];
+        box.hidden = !c.length;
+        if (c.length) box.innerHTML = `<div class="warning">${icon('alert')}<div><b>${c[0].studentId === l.studentId ? esc(clashName(c[0])) : 'Overlaps ' + esc(stu(c[0].studentId)?.name || 'another lesson')}</b><br>${esc(time(parseDT(c[0].start)))}–${esc(time(lessonEnd(c[0])))}. You can still move it.</div></div>`;
+        $$('#gaps button', root).forEach(b => b.setAttribute('aria-pressed', String(b.dataset.gap === t)));
+      };
+      $('#opts', root).addEventListener('click', e => {
+        const b = e.target.closest('.opt'); if (!b) return;
+        $$('.opt', root).forEach(x => x.setAttribute('aria-pressed', String(x === b)));
+        $('#pick', root).hidden = b.dataset.opt !== 'pick'; check();
+      });
+      $('#gaps', root)?.addEventListener('click', e => {
+        const b = e.target.closest('[data-gap]'); if (!b) return;
+        const [dd, tt] = b.dataset.gap.split('T'); $('#r-date', root).value = dd; $('#r-time', root).value = tt; check();
+      });
+      $('#pick', root).addEventListener('input', check); $('#pick', root).addEventListener('change', check);
+      check();
+    },
+    onSave(root) {
+      const k = $('.opt[aria-pressed="true"]', root).dataset.opt;
+      const t = k === 'pick' ? `${val(root, 'r-date')}T${val(root, 'r-time')}` : opts.find(o => o.k === k).start;
+      if (k === 'pick' && (!val(root, 'r-date') || !val(root, 'r-time'))) { shake($('#r-date', root)); toast('Choose a day and time'); return false; }
+      const oldStart = moveLesson(l, t);
+      if (!oldStart) { toast("That's the time it's already booked for"); return false; }
+      if (l.status === 'cancelled' || l.status === 'missed') l.status = 'scheduled';
+      save(); render();
+      notifyMove(l, oldStart);
+    },
+  });
+}
+/* After a move, offers a ready-written WhatsApp message to the student. */
+function notifyMove(l, oldStart) {
+  const s = stu(l.studentId); const n = waNumber(s?.phone); const to = parseDT(l.start); const from = parseDT(oldStart);
+  if (!n || lessonEnd(l) < new Date()) { toast(`Moved to ${fDayShort.format(to)}, ${time(to)}`); return; }
+  const text = moveText(l, oldStart);
+  setTimeout(() => openSheet({
+    title: 'Lesson Moved', noSave: true, cancelLabel: 'Not now',
+    body: `
+      <div class="group move-card">
+        <div class="row"><span class="k">Was</span><div class="grow was num">${esc(fDayLong.format(from))}, ${esc(time(from))}</div></div>
+        <div class="row"><span class="k">Now</span><div class="grow now num">${esc(fDayLong.format(to))}, ${esc(time(to))}</div></div>
+      </div>
+      <div class="form-group"><span class="lab">Message to ${esc(firstName(s.name))}</span><div class="group"><label class="field textarea"><textarea id="f-msg" aria-label="Message">${esc(text)}</textarea></label></div><p class="help">You can change the wording before it sends.</p></div>
+      <a id="send-wa" class="btn fill block" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">${icon('chat')}Send on WhatsApp</a>`,
+    onOpen(root) {
+      const ta = $('#f-msg', root), a = $('#send-wa', root);
+      ta.addEventListener('input', () => { a.href = `https://wa.me/${n}?text=${encodeURIComponent(ta.value)}`; });
+      a.addEventListener('click', () => setTimeout(closeSheet, 300));
+    },
+  }), 430);
 }
 
 /* ---------- Student sheet ---------- */
@@ -1447,6 +1604,7 @@ const actions = {
   back: () => { if (ui.stack.length) { try { history.back(); } catch (e) { popPage(); } } },
   'new-lesson': d => lessonSheet({ date: d.date, studentId: d.student }),
   'edit-lesson': d => lessonSheet({ id: d.id, focus: d.focus }),
+  reschedule: d => rescheduleSheet(d.id),
   'new-student': () => studentSheet(),
   'edit-student': d => studentSheet(d.id),
   'add-series': d => seriesSheet({ studentId: d.student }),
