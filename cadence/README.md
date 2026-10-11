@@ -34,12 +34,14 @@ a JSON file (to Files, email, WhatsApp to yourself…) and **Restore from a back
 - `index.html` — the whole app (HTML, CSS, JS, no dependencies)
 - `sw.js` — offline cache. Bump `VERSION` when `index.html` changes.
 - `manifest.webmanifest`, `icons/` — Home Screen name and icon
-- `vercel.json` — security and caching headers
 
 ## Deploy
 
-`.github/workflows/deploy-cadence.yml` deploys this folder to Vercel on every push to `main` that
-touches `cadence/`, using the `VERCEL_TOKEN` repository secret. Any static host with HTTPS works too
-(Netlify drop, GitHub Pages, Cloudflare Pages): upload the folder as is.
+`.github/workflows/pages-cadence.yml` publishes this folder to GitHub Pages on every push to `main`
+that touches `cadence/`. The app lives at https://callumhalpinrooney.github.io/Little-Bean-Server/
+
+One-time setup: repository **Settings → Pages → Source: GitHub Actions**.
+
+Any other static host with HTTPS works too (Netlify Drop, Cloudflare Pages): upload the folder as is.
 
 Run locally: `npx serve cadence` and open http://localhost:3000.
