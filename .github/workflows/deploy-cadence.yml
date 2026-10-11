@@ -1,0 +1,59 @@
+name: Deploy Cadence app to Vercel
+
+# Publishes the Cadence lesson-book app (cadence/) as a static site.
+# Uses the same VERCEL_TOKEN repository secret as the marketing site workflow.
+
+on:
+  workflow_dispatch:
+    inputs:
+      production:
+        description: "Deploy to production (unchecked = preview URL)"
+        type: boolean
+        default: true
+  push:
+    branches: [main]
+    paths: ["cadence/**", ".github/workflows/deploy-cadence.yml"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-cadence
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Vercel CLI
+        run: npm install --global vercel@latest
+
+      - name: Deploy
+        id: deploy
+        working-directory: cadence
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then
+            echo "::error::VERCEL_TOKEN secret is not set. Add it under Settings → Secrets and variables → Actions."
+            exit 1
+          fi
+          PROD=""
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.production }}" = "true" ]; then
+            PROD="--prod"
+          fi
+          URL=$(vercel deploy $PROD --yes --token "$VERCEL_TOKEN" 2>&1 | tee /dev/stderr | grep -Eo 'https://[a-zA-Z0-9.-]+\.vercel\.app' | tail -1)
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Report the live URL
+        run: |
+          echo "### Cadence deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Live URL: ${{ steps.deploy.outputs.url }}"
