@@ -848,8 +848,10 @@ function viewToday() {
         <button class="btn tint" data-act="edit-lesson" data-id="${next.id}">${icon('note')}${live ? 'Lesson notes' : 'Details'}</button>
       </div>
     </section>`;
-  } else if (db.students.length) {
-    html += `<section class="hero" style="--c:var(--accent)"><div class="hero-top"><span class="hero-label">Up next</span></div><div class="hero-name">Nothing booked</div><div class="hero-meta">Book a lesson or set a weekly slot on a student.</div><div class="hero-actions"><button class="btn fill" data-act="new-lesson">${icon('plus')}Book a lesson</button></div></section>`;
+  } else if (!db.students.length) {
+    html += `<section class="hero"><div class="hero-top"><span class="hero-label">Get started</span></div><div class="hero-name">Add your students</div><div class="hero-meta">Add each student with their weekly lesson time and your calendar fills itself.</div><div class="hero-actions"><button class="btn fill" data-act="new-student">${icon('plus')}Add a student</button></div></section>`;
+  } else {
+    html += `<section class="hero"><div class="hero-top"><span class="hero-label">Up next</span></div><div class="hero-name">Nothing booked</div><div class="hero-meta">Add a student with a weekly lesson time, or book a one-off lesson.</div><div class="hero-actions"><button class="btn fill" data-act="new-student">${icon('plus')}Add a student</button><button class="btn tint" data-act="new-lesson">Book a lesson</button></div></section>`;
   }
 
   html += `<div class="tiles">
@@ -887,9 +889,6 @@ function viewToday() {
       <button class="row student-row" data-act="edit-lesson" data-id="${l.id}" data-focus="notes">${avatar(s)}<div class="grow"><div class="title">${esc(s.name)}</div><div class="sub">${esc(relPast(d, now))}, ${time(d)} · What did you cover?</div></div>${icon('note', 'i chev')}</button>`; }).join('')}</div></section>`;
   }
 
-  if (!db.students.length) {
-    html += `<section class="section"><div class="group"><div class="empty"><p style="margin:0 0 12px">Add your students to start filling your calendar.</p><button class="btn fill" data-act="new-student">${icon('plus')}Add a student</button></div></div></section>`;
-  }
   return html + '</main>';
 }
 
