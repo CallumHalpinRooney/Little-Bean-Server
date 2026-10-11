@@ -37,10 +37,9 @@ a JSON file (to Files, email, WhatsApp to yourself…) and **Restore from a back
 
 ## Deploy
 
-`.github/workflows/pages-cadence.yml` publishes this folder to GitHub Pages on every push to `main`
-that touches `cadence/`. The app lives at https://callumhalpinrooney.github.io/Little-Bean-Server/
-
-One-time setup: repository **Settings → Pages → Source: GitHub Actions**.
+This repo's GitHub Pages site is served from the `gh-pages` branch, which also holds the marketing
+site. Cadence is published by copying this folder into `gh-pages` as `cadence/`, so it lives at
+https://callumhalpinrooney.github.io/Little-Bean-Server/cadence/ without touching the rest.
 
 Any other static host with HTTPS works too (Netlify Drop, Cloudflare Pages): upload the folder as is.
 
