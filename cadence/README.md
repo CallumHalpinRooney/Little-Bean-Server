@@ -15,6 +15,9 @@ no account, and it works offline.
 - **Today**: the next lesson with a one-tap WhatsApp reminder, today's and tomorrow's lessons,
   hours this week and term, students who haven't been seen for a while with nothing booked,
   and recent lessons still missing notes.
+- **Reschedule**: every lesson (and the Up next card) has a Reschedule button: same time next week,
+  next day, or pick a time from the free gaps in the coming week. After a move it offers a ready-written
+  WhatsApp message to the student, and the lesson shows "Moved from …" wherever it appears.
 - **Calendar**: day, week and month views. Tap an empty slot to book; swipe to move between periods.
 - **Students**: contact details, instrument, notes, regular weekly slots, term hour allocation and
   hourly rate. Each student's page shows hours this term, lesson history with notes, and what's next.
