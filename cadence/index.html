@@ -142,7 +142,7 @@ a.row { color: inherit; text-decoration: none; }
 .lesson-row.off .lr-bar { background: var(--fg-3); box-shadow: none; }
 .lesson-row.off .title { color: var(--fg-2); text-decoration: line-through; text-decoration-color: var(--fg-3); }
 
-.pill { font-size: 10px; font-weight: 600; padding: 4px 9px; border-radius: 99px; white-space: nowrap; flex: none; letter-spacing: 0.14em; text-transform: uppercase; }
+.pill { font-size: 11px; font-weight: 600; padding: 4px 9px; border-radius: 99px; white-space: nowrap; flex: none; letter-spacing: 0.14em; text-transform: uppercase; }
 .pill.taught { color: var(--good); background: rgba(127, 211, 166, 0.1); }
 .pill.live { color: var(--on-accent); background: var(--accent-fill); }
 .pill.cancelled { color: var(--fg-2); background: var(--fill); }
@@ -180,7 +180,7 @@ a.row { color: inherit; text-decoration: none; }
 
 .tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .tile { background: var(--surface); border-radius: var(--r); padding: 14px 12px 13px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 3px; min-width: 0; box-shadow: inset 0 0 0 1px var(--line); }
-.tile .k { font-size: 10px; color: var(--fg-2); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.tile .k { font-size: 11px; color: var(--fg-2); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .tile .v { font-family: var(--font-display); font-size: 27px; font-weight: 300; letter-spacing: -0.01em; font-variant-numeric: tabular-nums; line-height: 1.15; margin-top: 2px; }
 .tile .v small { font-family: var(--font); font-size: 13px; color: var(--accent); margin-left: 3px; }
 .tile .s { font-size: 12px; color: var(--fg-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
@@ -198,7 +198,7 @@ a.row { color: inherit; text-decoration: none; }
 
 /* ---------- Segmented control ---------- */
 .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: rgba(255,255,255,0.035); box-shadow: inset 0 0 0 1px var(--line); border-radius: 99px; padding: 3px; gap: 2px; }
-.seg button { min-height: 34px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; text-align: center; color: var(--fg-2); transition: background-color .2s, color .2s; }
+.seg button { min-height: 36px; border-radius: 99px; font-size: 12px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; text-align: center; color: var(--fg-2); transition: background-color .2s, color .2s; }
 .seg button[aria-pressed="true"] { background: var(--accent-fill); color: var(--on-accent); }
 
 /* ---------- Calendar ---------- */
@@ -268,6 +268,36 @@ a.row { color: inherit; text-decoration: none; }
 .mg-count { font-size: 10px; color: var(--fg-2); font-variant-numeric: tabular-nums; }
 .month-list { margin-top: 22px; }
 
+/* ---------- Plain controls ---------- */
+.nav-pill { color: var(--accent); box-shadow: inset 0 0 0 1px rgba(221, 167, 120, 0.4); border-radius: 99px; padding: 0 14px; min-height: 36px; margin: 4px; font-size: 15px; font-weight: 600; display: inline-flex; align-items: center; }
+.nav-pill:active { opacity: .5; }
+.tp { display: flex; align-items: center; gap: 6px; flex: none; }
+.field .tp select { flex: none; min-width: 66px; text-align: center; text-align-last: center; background: rgba(255,255,255,0.06); border-radius: 10px; padding: 7px 10px; font-size: 18px; font-variant-numeric: tabular-nums; }
+.tp b { color: var(--fg-2); font-weight: 600; }
+details.more { border-radius: var(--r); }
+details.more > summary { list-style: none; cursor: pointer; color: var(--accent); font-size: 16px; padding: 4px 18px; display: flex; align-items: center; gap: 6px; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: "›"; font-size: 20px; transition: transform .2s; }
+details.more[open] > summary::after { transform: rotate(90deg); }
+details.more[open] > summary { margin-bottom: 14px; }
+details.more > div { display: flex; flex-direction: column; gap: 24px; }
+.steps { display: flex; flex-direction: column; }
+.step { display: flex; align-items: center; gap: 14px; }
+.step .n { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; flex: none; color: var(--accent); box-shadow: inset 0 0 0 1.5px rgba(221,167,120,0.5); }
+.step.done .n { background: var(--accent-fill); color: var(--on-accent); box-shadow: none; }
+.step.done .title { color: var(--fg-2); text-decoration: line-through; text-decoration-color: var(--fg-3); }
+.step .btn { flex: none; min-height: 34px; padding: 0 14px; font-size: 11px; }
+.guide { display: flex; flex-direction: column; gap: 10px; }
+.guide .g { display: flex; gap: 14px; align-items: flex-start; padding: 14px 16px; background: var(--surface); border-radius: var(--r); box-shadow: inset 0 0 0 1px var(--line); }
+.guide .g svg.i { color: var(--accent); margin-top: 1px; }
+.guide b { display: block; font-size: 16px; margin-bottom: 3px; }
+.guide span { font-size: 15px; color: var(--fg-2); }
+.cancelled-note { display: flex; gap: 10px; align-items: center; justify-content: space-between; background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); border-radius: 16px; padding: 12px 14px 12px 16px; font-size: 15px; color: var(--fg-2); }
+.cancelled-note .btn { flex: none; min-height: 36px; padding: 0 14px; font-size: 11px; }
+.ws-day.mixed .dn, .mg-day.mixed .dn { box-shadow: inset 0 0 0 1.5px var(--warn); }
+.week-head .mixed .load { color: var(--warn); }
+.alert-box p { white-space: pre-line; }
+
 /* ---------- Campuses ---------- */
 .campus-tag { display: inline-flex; align-items: center; gap: 7px; font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: var(--fg); white-space: nowrap; }
 .campus-tag::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--cc); flex: none; }
@@ -312,7 +342,7 @@ a.row { color: inherit; text-decoration: none; }
 .profile h1 { margin: 16px 0 0; font-family: var(--font-display); font-weight: 400; font-size: 26px; letter-spacing: 0.16em; text-transform: uppercase; text-wrap: balance; line-height: 1.2; }
 .profile p { margin: 0; color: var(--accent); font-size: 12px; letter-spacing: 0.26em; text-transform: uppercase; }
 .quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; width: 100%; margin-top: 20px; }
-.quick a, .quick button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px 11px; background: rgba(255,255,255,0.035); box-shadow: inset 0 0 0 1px var(--line); border-radius: 18px; color: var(--accent); font-size: 10px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; text-decoration: none; text-align: center; }
+.quick a, .quick button { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 4px 11px; background: rgba(255,255,255,0.035); box-shadow: inset 0 0 0 1px var(--line); border-radius: 18px; color: var(--accent); font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; text-decoration: none; text-align: center; }
 .quick a:active, .quick button:active { background: var(--surface-2); }
 .quick .disabled { color: var(--fg-3); pointer-events: none; }
 .notes-card { background: var(--surface); box-shadow: inset 0 0 0 1px var(--line); border-radius: var(--r); padding: 16px 18px; font-size: 15px; white-space: pre-wrap; overflow-wrap: anywhere; color: var(--fg); }
@@ -343,7 +373,7 @@ a.row { color: inherit; text-decoration: none; }
   background: rgba(14, 26, 23, 0.82); -webkit-backdrop-filter: saturate(160%) blur(24px); backdrop-filter: saturate(160%) blur(24px);
   border-radius: 99px; box-shadow: inset 0 0 0 1px rgba(232,214,190,0.1), 0 8px 24px rgba(0,0,0,0.35); display: grid; grid-template-columns: repeat(4, 1fr);
 }
-#tabbar button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0; color: var(--fg-3); font-size: 9px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; border-radius: 99px; }
+#tabbar button { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 4px 0; color: var(--fg-2); font-size: 11px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; border-radius: 99px; }
 #tabbar button svg.i { width: 24px; height: 24px; stroke-width: 1.6; }
 #tabbar button[aria-current="page"] { color: var(--accent); }
 #tabbar button[aria-current="page"] svg.i { stroke-width: 1.9; }
@@ -746,6 +776,31 @@ function autoAssignCampuses() {
   }
   return n;
 }
+/* What a booking would get wrong: a double booking, or a day split across two campuses. */
+function bookingProblems(s, start, duration, ignoreId) {
+  const out = [];
+  const c = clashes(start, duration, ignoreId);
+  if (c.length) out.push({ kind: 'clash', text: c[0].studentId === s?.id ? `${firstName(s.name)} already has a lesson at ${time(parseDT(c[0].start))} that day.` : `It overlaps ${stu(c[0].studentId)?.name || 'another lesson'} (${time(parseDT(c[0].start))}–${time(lessonEnd(c[0]))}).` });
+  for (const w of campusWarnings(s, start.slice(0, 10), ignoreId)) out.push({ kind: 'campus', text: w });
+  return out;
+}
+/* Stops a save to ask first. Returns true when there's nothing to ask, or he has already said go ahead. */
+function confirmProblems(problems, okLabel) {
+  const root = $('#sheet-root');
+  if (!problems.length || root.dataset.confirmed === '1') return true;
+  const campus = problems.some(x => x.kind === 'campus');
+  ask({
+    title: campus ? 'Two campuses that day' : 'Double booking',
+    message: problems.map(x => x.text).join('\n\n') + '\n\nDo you want to go ahead?',
+    actions: [{ label: okLabel, value: true, style: 'strong' }, { label: 'Go back', value: false }],
+  }).then(ok => { if (ok) { root.dataset.confirmed = '1'; trySave(); delete root.dataset.confirmed; } });
+  return false;
+}
+/* Campuses with lessons on a given day; more than one means he'd have to travel. */
+function campusesOn(d) {
+  const ids = new Set(lessonsBetween(d, addDays(d, 1)).filter(l => !isOff(stateOf(l))).map(l => campusOfStudent(stu(l.studentId))?.id).filter(Boolean));
+  return [...ids].map(campusById);
+}
 const warnBox = (title, text) => `<div class="warning">${icon('alert')}<div><b>${esc(title)}</b>${text ? `<br>${esc(text)}` : ''}</div></div>`;
 
 /* Phone numbers become WhatsApp links. Local numbers (leading 0) take the country code from Settings. */
@@ -913,12 +968,19 @@ function viewToday() {
   const todayOn = todays.filter(l => !isOff(stateOf(l)));
 
   const cToday = campusOfDay(now);
-  let html = navbar({ title: 'Today', left: navIcon('settings', 'settings', 'Settings'), right: navIcon('new-lesson', 'plus', 'New lesson') });
+  let html = navbar({ title: 'Today', left: `<button class="nav-btn" data-act="settings">Settings</button>`, right: `<button class="nav-pill" data-act="new-lesson">+ Lesson</button>` });
   html += `<header class="large"><p class="eyebrow">${esc(fDayLong.format(now))}${cToday ? ' · ' + esc(cToday.name) : ''}</p><h1>Today</h1></header><main>`;
 
   if (db.meta.sample) html += `<div class="banner"><div class="grow"><strong>You're looking at sample students</strong><p>Try things out, then clear them when you're ready to add your own.</p><div class="actions"><button class="btn fill" data-act="clear-sample">Clear sample data</button></div></div></div>`;
   html += installBanner();
-  if (!campuses().length && !db.meta.campusDismissed) html += `<div class="banner"><div class="grow"><strong>Teach at more than one campus?</strong><p>Set up your campuses and the days you're at each. Cadence then keeps every student on their own campus's days.</p><div class="actions"><button class="btn fill" data-act="edit-campus">Set up campuses</button></div></div><button class="x" data-act="dismiss-campus" aria-label="Dismiss">${icon('x')}</button></div>`;
+  if (!db.meta.sample && !db.meta.campusDismissed) {
+    const steps = [
+      { done: campuses().length > 0, title: 'Add your campuses', sub: 'And which days you are at each', act: 'edit-campus', label: 'Add' },
+      { done: db.students.length > 0, title: 'Add your students', sub: 'With their weekly lesson day and time', act: 'new-student', label: 'Add' },
+      { done: !!db.meta.guideSeen, title: 'Read the 1-minute guide', sub: 'How to book, move and cancel lessons', act: 'guide', label: 'Read' },
+    ];
+    if (steps.some(x => !x.done)) html += `<section class="section"><div class="section-h"><h2>Getting started</h2><button class="link" data-act="dismiss-campus">Hide</button></div><div class="group steps">${steps.map((x, i) => `<div class="row step${x.done ? ' done' : ''}"><span class="n">${x.done ? '✓' : i + 1}</span><div class="grow"><div class="title">${esc(x.title)}</div><div class="sub">${esc(x.sub)}</div></div>${x.done ? '' : `<button class="btn tint" data-act="${x.act}">${esc(x.label)}</button>`}</div>`).join('')}</div></section>`;
+  }
 
   if (next) {
     const s = stu(next.studentId); const d = parseDT(next.start); const e = lessonEnd(next); const live = stateOf(next, now) === 'live';
@@ -933,9 +995,9 @@ function viewToday() {
         ${live ? `<button class="btn tint" data-act="edit-lesson" data-id="${next.id}">${icon('note')}Lesson notes</button>` : `<button class="btn tint" data-act="reschedule" data-id="${next.id}">${icon('move')}Reschedule</button>`}
       </div>
     </section>`;
-  } else if (!db.students.length) {
+  } else if (!db.students.length && db.meta.campusDismissed) {
     html += `<section class="hero"><div class="hero-top"><span class="hero-label">Get started</span></div><div class="hero-name">Add your students</div><div class="hero-meta">Add each student with their weekly lesson time and your calendar fills itself.</div><div class="hero-actions"><button class="btn fill" data-act="new-student">${icon('plus')}Add a student</button></div></section>`;
-  } else {
+  } else if (db.students.length) {
     html += `<section class="hero"><div class="hero-top"><span class="hero-label">Up next</span></div><div class="hero-name">Nothing booked</div><div class="hero-meta">Add a student with a weekly lesson time, or book a one-off lesson.</div><div class="hero-actions"><button class="btn fill" data-act="new-student">${icon('plus')}Add a student</button><button class="btn tint" data-act="new-lesson">Book a lesson</button></div></section>`;
   }
 
@@ -946,12 +1008,13 @@ function viewToday() {
   </div>`;
 
   html += `<section class="section"><div class="section-h"><h2>Schedule</h2>${cToday ? campusTag(cToday) : `<button class="link" data-act="goto-cal">Calendar</button>`}</div>
+    ${campusesOn(today).length > 1 ? warnBox('Two campuses today', `You have lessons at ${campusesOn(today).map(c => c.name).join(' and ')}. Move one so you're not travelling between them.`) : ''}
     <div class="group">${todays.length ? todays.map(l => lessonRow(l)).join('') : `<div class="empty">No lessons today.</div>`}</div></section>`;
 
   // Tomorrow preview keeps the evening-before check quick.
   const tmr = lessonsBetween(addDays(today, 1), addDays(today, 2));
   const cTmr = campusOfDay(addDays(today, 1));
-  if (tmr.length) html += `<section class="section"><div class="section-h"><h2>Tomorrow</h2>${cTmr ? campusTag(cTmr) : `<span class="meta">${plural(tmr.length, 'lesson')}</span>`}</div><div class="group">${tmr.map(l => lessonRow(l)).join('')}</div></section>`;
+  if (tmr.length) html += `<section class="section"><div class="section-h"><h2>Tomorrow</h2>${cTmr ? campusTag(cTmr) : `<span class="meta">${plural(tmr.length, 'lesson')}</span>`}</div>${campusesOn(addDays(today, 1)).length > 1 ? warnBox('Two campuses tomorrow', `Lessons at ${campusesOn(addDays(today, 1)).map(c => c.name).join(' and ')}.`) : ''}<div class="group">${tmr.map(l => lessonRow(l)).join('')}</div></section>`;
 
   // Students drifting away: nothing booked soon and not seen for a while.
   const idx = indexByStudent();
@@ -962,7 +1025,7 @@ function viewToday() {
     return { s, st, soon, gap };
   }).filter(x => !x.soon && x.gap >= db.settings.staleDays).sort((a, b) => b.gap - a.gap);
   if (stale.length) {
-    html += `<section class="section"><div class="section-h"><h2>Check in with</h2><span class="meta">Nothing booked</span></div><div class="group">${stale.slice(0, 5).map(({ s, st }) => `
+    html += `<section class="section"><div class="section-h"><h2>Not seen lately</h2><span class="meta">Nothing booked</span></div><div class="group">${stale.slice(0, 5).map(({ s, st }) => `
       <div class="row student-row">${avatar(s)}<button class="grow" data-act="open-student" data-id="${s.id}" style="text-align:left"><div class="title">${esc(s.name)}</div><div class="sub due">${st.last ? 'Last lesson ' + esc(relPast(parseDT(st.last.start), now).toLowerCase()) : 'No lessons yet'}</div></button>
       <button class="btn tint" style="flex:none;min-height:34px;padding:0 14px;font-size:11px" data-act="new-lesson" data-student="${s.id}">Book</button></div>`).join('')}</div></section>`;
   }
@@ -995,7 +1058,7 @@ function installBanner() {
 /* ---------- Calendar ---------- */
 function viewCalendar() {
   const c = ui.cal; const now = new Date();
-  const right = navIcon('new-lesson', 'plus', 'New lesson', `data-date="${ymd(c.date)}"`);
+  const right = `<button class="nav-pill" data-act="new-lesson" data-date="${ymd(c.date)}">+ Lesson</button>`;
   const left = `<button class="nav-btn" data-act="cal-today">Today</button>`;
   let title, meta = '';
   if (c.mode === 'month') { title = fMonthYear.format(c.date); }
@@ -1018,7 +1081,10 @@ function viewCalendar() {
   </div>`;
   if (campuses().length) html += `<div class="campus-legend">${campuses().map(cp => campusTag(cp, campusDaysText(cp))).join('')}</div>`;
   html += `<div class="swipe-zone">`;
-  if (c.mode === 'day') html += weekStrip(c.date, now) + timeline([c.date], now, 64);
+  if (c.mode === 'day') {
+    const on = campusesOn(c.date);
+    html += weekStrip(c.date, now) + (on.length > 1 ? `<div style="padding:0 16px 12px">${warnBox('Two campuses this day', `Lessons at ${on.map(x => x.name).join(' and ')}.`)}</div>` : '') + timeline([c.date], now, 64);
+  }
   else if (c.mode === 'week') html += weekHead(startOfWeek(c.date), now) + timeline(Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(c.date), i)), now, 48, true);
   else html += monthGrid(c.date, now);
   html += `</div>`;
@@ -1033,13 +1099,14 @@ function weekStrip(sel, now) {
   return `<div class="weekstrip">${Array.from({ length: 7 }, (_, i) => {
     const d = addDays(w, i); const ls = lessonsBetween(d, addDays(d, 1)).filter(l => !isOff(stateOf(l)));
     const dots = ls.slice(0, 4).map(l => `<i style="--c:${stu(l.studentId)?.color || COLORS[0]}"></i>`).join('');
-    return `<button class="ws-day${sameDay(d, sel) ? ' sel' : ''}${sameDay(d, now) ? ' today' : ''}" data-act="cal-pick" data-date="${ymd(d)}" aria-label="${esc(fDayLong.format(d))}${ls.length ? ', ' + plural(ls.length, 'lesson') : ''}"><span class="dw">${esc(fWd.format(d).slice(0, 3))}</span><span class="dn">${d.getDate()}</span><span class="cb" style="--cc:${campusOfDay(d)?.color || 'transparent'}"></span><span class="ws-dots">${dots}</span></button>`;
+    return `<button class="ws-day${campusesOn(d).length > 1 ? ' mixed' : ''}${sameDay(d, sel) ? ' sel' : ''}${sameDay(d, now) ? ' today' : ''}" data-act="cal-pick" data-date="${ymd(d)}" aria-label="${esc(fDayLong.format(d))}${ls.length ? ', ' + plural(ls.length, 'lesson') : ''}"><span class="dw">${esc(fWd.format(d).slice(0, 3))}</span><span class="dn">${d.getDate()}</span><span class="cb" style="--cc:${campusOfDay(d)?.color || 'transparent'}"></span><span class="ws-dots">${dots}</span></button>`;
   }).join('')}</div>`;
 }
 function weekHead(w, now) {
   return `<div class="week-head"><span></span>${Array.from({ length: 7 }, (_, i) => {
     const d = addDays(w, i); const m = lessonsBetween(d, addDays(d, 1)).filter(l => !isOff(stateOf(l))).reduce((a, l) => a + l.duration, 0);
-    return `<button class="${sameDay(d, now) ? 'today' : ''}" data-act="cal-pick" data-date="${ymd(d)}"><span class="dw">${esc(fWd.format(d).slice(0, 1))}</span><span class="dn">${d.getDate()}</span><span class="cb" style="--cc:${campusOfDay(d)?.color || 'transparent'}"></span><span class="load">${m ? hrs(m) + 'h' : '&nbsp;'}</span></button>`;
+    const mixed = campusesOn(d).length > 1;
+    return `<button class="${sameDay(d, now) ? 'today' : ''}${mixed ? ' mixed' : ''}" data-act="cal-pick" data-date="${ymd(d)}"><span class="dw">${esc(fWd.format(d).slice(0, 1))}</span><span class="dn">${d.getDate()}</span><span class="cb" style="--cc:${campusOfDay(d)?.color || 'transparent'}"></span><span class="load">${mixed ? '2 sites' : m ? hrs(m) + 'h' : '&nbsp;'}</span></button>`;
   }).join('')}</div>`;
 }
 /* Lays overlapping lessons side by side within a day column. */
@@ -1100,7 +1167,7 @@ function monthGrid(sel, now) {
   for (let i = 0; i < weeks * 7; i++) {
     const d = addDays(gs, i); const day = byDay.get(ymd(d)) || [];
     const dc = campusOfDay(d);
-    html += `<button ${dc ? `style="--cc:${dc.color}"` : ''} class="mg-day${dc ? ' campus' : ''}${d.getMonth() !== sel.getMonth() ? ' other' : ''}${sameDay(d, now) ? ' today' : ''}${sameDay(d, sel) ? ' sel' : ''}" data-act="cal-pick" data-date="${ymd(d)}" data-stay="1" aria-label="${esc(fDayLong.format(d))}${day.length ? ', ' + plural(day.length, 'lesson') : ''}"><span class="dn">${d.getDate()}</span><span class="mg-dots">${day.slice(0, 6).map(l => `<i style="--c:${stu(l.studentId)?.color || COLORS[0]}"></i>`).join('')}</span>${day.length > 6 ? `<span class="mg-count">+${day.length - 6}</span>` : ''}</button>`;
+    html += `<button ${dc ? `style="--cc:${dc.color}"` : ''} class="mg-day${dc ? ' campus' : ''}${campusesOn(d).length > 1 ? ' mixed' : ''}${d.getMonth() !== sel.getMonth() ? ' other' : ''}${sameDay(d, now) ? ' today' : ''}${sameDay(d, sel) ? ' sel' : ''}" data-act="cal-pick" data-date="${ymd(d)}" data-stay="1" aria-label="${esc(fDayLong.format(d))}${day.length ? ', ' + plural(day.length, 'lesson') : ''}"><span class="dn">${d.getDate()}</span><span class="mg-dots">${day.slice(0, 6).map(l => `<i style="--c:${stu(l.studentId)?.color || COLORS[0]}"></i>`).join('')}</span>${day.length > 6 ? `<span class="mg-count">+${day.length - 6}</span>` : ''}</button>`;
   }
   return html + `</div></div>`;
 }
@@ -1112,7 +1179,7 @@ function viewStudents() {
   const active = db.students.filter(s => !s.archived);
   const archived = db.students.filter(s => s.archived);
   const list = (ui.showArchived ? db.students : active).filter(s => !q || `${s.name} ${s.instrument} ${s.notes}`.toLowerCase().includes(q)).sort((a, b) => a.name.localeCompare(b.name));
-  let html = navbar({ title: 'Students', right: navIcon('new-student', 'plus', 'New student') });
+  let html = navbar({ title: 'Students', right: `<button class="nav-pill" data-act="new-student">+ Student</button>` });
   html += `<header class="large"><p class="eyebrow">${plural(active.length, 'student')}</p><h1>Students</h1></header>`;
   html += `<label class="search">${icon('search')}<input id="student-search" type="search" placeholder="Search by name or instrument" value="${esc(ui.search)}" autocomplete="off" aria-label="Search students"></label><main>`;
   if (!db.students.length) {
@@ -1216,7 +1283,7 @@ function viewHours() {
   }
   const rows = [...per.values()].sort((x, y) => y.min - x.min || y.booked - x.booked || x.s.name.localeCompare(y.s.name));
   const max = Math.max(1, ...rows.map(p => p.min + p.booked));
-  let html = navbar({ title: 'Hours', left: navIcon('settings', 'settings', 'Settings'), right: `<button class="nav-btn" data-act="export-csv">Export</button>` });
+  let html = navbar({ title: 'Hours', left: `<button class="nav-btn" data-act="settings">Settings</button>`, right: `<button class="nav-btn" data-act="export-csv">Export</button>` });
   html += `<header class="large"><p class="eyebrow">Teaching record</p><h1>Hours</h1></header>`;
   html += `<div class="cal-head"><div class="seg" role="group" aria-label="Period">${[['week', 'Week'], ['month', 'Month'], ['term', 'Term'], ['all', 'All']].map(([k, l]) => `<button data-act="hours-range" data-range="${k}" aria-pressed="${ui.hours.range === k}">${l}</button>`).join('')}</div>
     <div class="cal-period"><span class="meta num">${esc(r.label)}</span>${r.step ? `<div class="stepper"><button data-act="hours-step" data-dir="-1" aria-label="Previous">${icon('chevL')}</button><button data-act="hours-step" data-dir="1" aria-label="Next">${icon('chevR')}</button></div>` : ''}</div></div><main>`;
@@ -1247,6 +1314,7 @@ function openSheet({ title, body, onSave, saveLabel = 'Save', cancelLabel = 'Can
   sheet = { onSave, root };
   requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('open')));
   $('form', root).addEventListener('submit', e => { e.preventDefault(); trySave(); });
+  wireTimes(root);
   enableDrag(root);
   onOpen && onOpen(root);
 }
@@ -1286,6 +1354,28 @@ function toast(msg, action) {
 
 /* ---------- Form helpers ---------- */
 const field = (label, input) => `<label class="field"><span>${label}</span>${input}</label>`;
+/* Time as two plain number lists (hours, minutes) instead of a clock face. A hidden input holds HH:MM. */
+function timeField(id, value) {
+  const [h, m] = (value || '10:00').split(':').map(Number);
+  const hours = []; for (let i = 6; i <= 22; i++) hours.push(i); if (!hours.includes(h)) hours.push(h);
+  const mins = []; for (let i = 0; i < 60; i += 5) mins.push(i); if (!mins.includes(m)) mins.push(m);
+  return `<span class="tp"><select id="${id}-h" aria-label="Hour">${hours.sort((a, b) => a - b).map(x => `<option value="${x}" ${x === h ? 'selected' : ''}>${pad(x)}</option>`).join('')}</select><b>:</b><select id="${id}-m" aria-label="Minutes">${mins.sort((a, b) => a - b).map(x => `<option value="${x}" ${x === m ? 'selected' : ''}>${pad(x)}</option>`).join('')}</select><input type="hidden" id="${id}" value="${pad(h)}:${pad(m)}"></span>`;
+}
+function wireTimes(root) {
+  $$('.tp', root).forEach(tp => {
+    const [hs, ms] = $$('select', tp), hid = $('input', tp);
+    const sync = () => { hid.value = `${pad(+hs.value)}:${pad(+ms.value)}`; };
+    hs.addEventListener('change', sync); ms.addEventListener('change', sync); hs.addEventListener('input', sync); ms.addEventListener('input', sync);
+  });
+}
+function setTime(root, id, v) {
+  const hid = $('#' + id, root); if (!hid) return; hid.value = v;
+  const [h, m] = v.split(':').map(Number);
+  for (const [sel, x] of [[$('#' + id + '-h', root), h], [$('#' + id + '-m', root), m]]) {
+    if (![...sel.options].some(o => +o.value === x)) sel.add(new Option(pad(x), x));
+    sel.value = String(x);
+  }
+}
 const durChips = (val, id) => `<div class="chips" data-dur-for="${id}">${[30, 45, 60, 90].map(m => `<button type="button" data-dur="${m}" aria-pressed="${m === val}">${dur(m)}</button>`).join('')}</div>`;
 function wireDurChips(root) {
   $$('[data-dur-for]', root).forEach(box => {
@@ -1334,18 +1424,20 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
     <div class="form-group"><div class="group">
       ${field('Student', `<select id="f-student" required><option value="">Choose</option>${active.map(s => `<option value="${s.id}" ${s.id === sId ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>`)}
       ${field('Date', `<input id="f-date" type="date" value="${d}" required>`)}
-      ${field('Starts', `<input id="f-time" type="time" value="${t}" step="300" required>`)}
+      ${field('Time', timeField('f-time', t))}
       ${field('Length', `<input id="f-dur" type="number" inputmode="numeric" min="5" max="480" step="5" value="${du}" style="max-width:80px"><span class="suffix">min</span>`)}
       <div class="stack">${durChips(du, 'f-dur')}</div>
     </div></div>
     <div id="clash" hidden></div>
     ${existing?.movedFrom ? `<p class="help" style="margin:-14px 18px 0;font-size:13px;color:var(--accent)">Moved from ${esc(movedLabel(existing))}</p>` : ''}
     ${existing ? '' : `<div class="form-group"><div class="group"><label class="field"><span style="flex:1">Repeat every week</span><span class="toggle"><input id="f-repeat" type="checkbox"><i></i></span></label></div><p class="help">Books this time every week. Change or stop it from the student's page.</p></div>`}
-    ${existing ? `<div class="form-group"><span class="lab">Status</span><div class="seg" role="group" id="f-status">${[['scheduled', ['taught', 'live'].includes(st) ? 'Happened' : 'Booked'], ['cancelled', 'Cancelled'], ['missed', 'Missed']].map(([k, l]) => `<button type="button" data-status="${k}" aria-pressed="${(existing.status || 'scheduled') === k}">${l}</button>`).join('')}</div><p class="help">Cancelled and missed lessons don't count towards hours taught.</p></div>` : ''}
+    ${existing && (st === 'taught' || (lessonEnd(existing) <= new Date() && isOff(st))) ? `<div class="form-group"><span class="lab">Did this lesson happen?</span><div class="seg" role="group" id="f-status">${[['scheduled', 'Yes'], ['cancelled', 'Cancelled'], ['missed', 'No-show']].map(([k, l]) => `<button type="button" data-status="${k}" aria-pressed="${(existing.status || 'scheduled') === k}">${l}</button>`).join('')}</div><p class="help">Only lessons that happened count towards your hours.</p></div>` : ''}
+    ${existing && lessonEnd(existing) > new Date() && isOff(st) ? `<div class="cancelled-note"><span>This lesson is cancelled.</span><button type="button" class="btn tint" data-act="restore-lesson" data-id="${existing.id}">Restore</button></div>` : ''}
     <div class="form-group"><span class="lab">Lesson notes</span><div class="group"><label class="field textarea"><textarea id="f-notes" placeholder="What you covered, repertoire, homework…" aria-label="Lesson notes">${esc(existing?.notes || '')}</textarea></label></div></div>
     ${series ? `<p class="help" style="margin:-12px 16px 0;font-size:13px;color:var(--fg-2)">Part of ${esc(seriesLabel(series).day.toLowerCase())} at ${esc(time(parseDT('2000-01-01T' + series.time)))}. Changes here affect this lesson only.</p>` : ''}
     ${wa ? `<a class="btn tint block" href="${esc(wa)}" target="_blank" rel="noopener">${icon('chat')}Send WhatsApp reminder</a>` : ''}
-    ${existing ? `<button type="button" class="btn danger block" data-act="delete-lesson" data-id="${existing.id}">Delete lesson</button>` : ''}`;
+    ${existing && lessonEnd(existing) > new Date() && !isOff(st) ? `<button type="button" class="btn danger block" data-act="cancel-lesson" data-id="${existing.id}">Cancel this lesson</button>` : ''}
+    ${existing ? `<button type="button" class="btn plain block" style="color:var(--danger);min-height:40px" data-act="delete-lesson" data-id="${existing.id}">Delete lesson</button>` : ''}`;
 
   openSheet({
     title: existing ? 'Lesson' : 'New Lesson', body, saveLabel: existing ? 'Done' : 'Add',
@@ -1355,7 +1447,7 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
       sel.addEventListener('change', () => {
         const s = stu(sel.value); if (existing) return;
         if (s?.defaultDuration) { $('#f-dur', root).value = s.defaultDuration; $('#f-dur', root).dispatchEvent(new Event('input')); }
-        const cdv = campusDefault(s); if (cdv) { $('#f-date', root).value = cdv.d; $('#f-time', root).value = cdv.t; }
+        const cdv = campusDefault(s); if (cdv) { $('#f-date', root).value = cdv.d; setTime(root, 'f-time', cdv.t); }
       });
       $('#f-status', root)?.addEventListener('click', e => { const b = e.target.closest('[data-status]'); if (!b) return; $$('[data-status]', root).forEach(x => x.setAttribute('aria-pressed', String(x === b))); });
       const check = () => {
@@ -1376,8 +1468,10 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
       if (!dd || !tt) { shake($('#f-date', root)); toast('Add a date and time'); return false; }
       if (!(m >= 5 && m <= 480)) { shake($('#f-dur', root)); toast('Length must be between 5 and 480 minutes'); return false; }
       const notes = $('#f-notes', root).value.trim();
+      const changed = !existing || existing.start !== `${dd}T${tt}` || existing.studentId !== sid || existing.duration !== m;
+      if (changed && !confirmProblems(bookingProblems(stu(sid), `${dd}T${tt}`, m, existing?.id), existing ? 'Save anyway' : 'Book anyway')) return false;
       if (existing) {
-        const status = $('[data-status][aria-pressed="true"]', root)?.dataset.status || 'scheduled';
+        const status = $('[data-status][aria-pressed="true"]', root)?.dataset.status || existing.status || 'scheduled';
         Object.assign(existing, { studentId: sid, duration: m, notes, status });
         const oldStart = moveLesson(existing, `${dd}T${tt}`);
         save(); render();
@@ -1471,7 +1565,7 @@ function rescheduleSheet(id) {
     <div id="pick" hidden>
       <div class="form-group"><div class="group">
         ${field('Date', `<input id="r-date" type="date" value="${ymd(cur > now ? cur : now)}">`)}
-        ${field('Starts', `<input id="r-time" type="time" value="${hm(cur)}" step="300">`)}
+        ${field('Time', timeField('r-time', hm(cur)))}
       </div></div>
       <div class="form-group" style="margin-top:20px"><span class="lab">${scDays ? `Free on ${esc(sc.name)} days` : 'Free in the next week'}</span>
         ${gaps.length ? `<div class="chips" id="gaps" style="padding:0 4px">${gaps.map(g => `<button type="button" data-gap="${ymd(g.start)}T${hm(g.start)}">${esc(fWd.format(g.start))} ${g.start.getDate()} · ${esc(time(g.start))}–${esc(time(g.end))}</button>`).join('')}</div>`
@@ -1501,7 +1595,7 @@ function rescheduleSheet(id) {
       });
       $('#gaps', root)?.addEventListener('click', e => {
         const b = e.target.closest('[data-gap]'); if (!b) return;
-        const [dd, tt] = b.dataset.gap.split('T'); $('#r-date', root).value = dd; $('#r-time', root).value = tt; check();
+        const [dd, tt] = b.dataset.gap.split('T'); $('#r-date', root).value = dd; setTime(root, 'r-time', tt); check();
       });
       $('#pick', root).addEventListener('input', check); $('#pick', root).addEventListener('change', check);
       check();
@@ -1510,6 +1604,7 @@ function rescheduleSheet(id) {
       const k = $('.opt[aria-pressed="true"]', root).dataset.opt;
       const t = k === 'pick' ? `${val(root, 'r-date')}T${val(root, 'r-time')}` : opts.find(o => o.k === k).start;
       if (k === 'pick' && (!val(root, 'r-date') || !val(root, 'r-time'))) { shake($('#r-date', root)); toast('Choose a day and time'); return false; }
+      if (t !== l.start && !confirmProblems(bookingProblems(s, t, l.duration, l.id), 'Move anyway')) return false;
       const oldStart = moveLesson(l, t);
       if (!oldStart) { toast("That's the time it's already booked for"); return false; }
       if (l.status === 'cancelled' || l.status === 'missed') l.status = 'scheduled';
@@ -1518,19 +1613,14 @@ function rescheduleSheet(id) {
     },
   });
 }
-/* After a move, offers a ready-written WhatsApp message to the student. */
-function notifyMove(l, oldStart) {
-  const s = stu(l.studentId); const n = waNumber(s?.phone); const to = parseDT(l.start); const from = parseDT(oldStart);
-  if (!n || lessonEnd(l) < new Date()) { toast(`Moved to ${fDayShort.format(to)}, ${time(to)}`); return; }
-  const text = moveText(l, oldStart);
+/* Offers a ready-written WhatsApp message to the student, which he can edit before sending. */
+function notifySheet({ title, s: st, rows, text }) {
+  const n = waNumber(st?.phone); if (!n) return;
   setTimeout(() => openSheet({
-    title: 'Lesson Moved', noSave: true, cancelLabel: 'Not now',
+    title, noSave: true, cancelLabel: 'Not now',
     body: `
-      <div class="group move-card">
-        <div class="row"><span class="k">Was</span><div class="grow was num">${esc(fDayLong.format(from))}, ${esc(time(from))}</div></div>
-        <div class="row"><span class="k">Now</span><div class="grow now num">${esc(fDayLong.format(to))}, ${esc(time(to))}</div></div>
-      </div>
-      <div class="form-group"><span class="lab">Message to ${esc(firstName(s.name))}</span><div class="group"><label class="field textarea"><textarea id="f-msg" aria-label="Message">${esc(text)}</textarea></label></div><p class="help">You can change the wording before it sends.</p></div>
+      <div class="group move-card">${rows.map(r => `<div class="row"><span class="k">${esc(r.k)}</span><div class="grow ${r.cls || ''} num">${esc(r.v)}</div></div>`).join('')}</div>
+      <div class="form-group"><span class="lab">Message to ${esc(firstName(st.name))}</span><div class="group"><label class="field textarea"><textarea id="f-msg" aria-label="Message">${esc(text)}</textarea></label></div><p class="help">You can change the wording before it sends.</p></div>
       <a id="send-wa" class="btn fill block" href="https://wa.me/${n}?text=${encodeURIComponent(text)}" target="_blank" rel="noopener">${icon('chat')}Send on WhatsApp</a>`,
     onOpen(root) {
       const ta = $('#f-msg', root), a = $('#send-wa', root);
@@ -1538,6 +1628,14 @@ function notifyMove(l, oldStart) {
       a.addEventListener('click', () => setTimeout(closeSheet, 300));
     },
   }), 430);
+}
+function notifyMove(l, oldStart) {
+  const s = stu(l.studentId); const to = parseDT(l.start); const from = parseDT(oldStart);
+  if (!waNumber(s?.phone) || lessonEnd(l) < new Date()) { toast(`Moved to ${fDayShort.format(to)}, ${time(to)}`); return; }
+  notifySheet({ title: 'Lesson Moved', s, text: moveText(l, oldStart), rows: [
+    { k: 'Was', v: `${fDayLong.format(from)}, ${time(from)}`, cls: 'was' },
+    { k: 'Now', v: `${fDayLong.format(to)}, ${time(to)}`, cls: 'now' },
+  ] });
 }
 
 /* ---------- Student sheet ---------- */
@@ -1553,21 +1651,25 @@ function studentSheet(id) {
       ${field('Instrument', `<input id="f-inst" type="text" list="inst-list" value="${esc(s?.instrument || '')}" placeholder="Piano, voice…" autocapitalize="words"><datalist id="inst-list">${INSTRUMENTS.map(i => `<option value="${i}">`).join('')}</datalist>`)}
       ${campuses().length ? field('Campus', `<select id="f-campus">${campuses().map(c => `<option value="${c.id}" ${c.id === defCampus ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}<option value="" ${!defCampus ? 'selected' : ''}>Not set</option></select>`) : ''}
       ${field('Phone', `<input id="f-phone" type="tel" value="${esc(s?.phone || '')}" placeholder="087 123 4567" autocomplete="off">`)}
-      ${field('Email', `<input id="f-email" type="email" value="${esc(s?.email || '')}" placeholder="Optional" autocapitalize="off" autocomplete="off">`)}
-    </div><p class="help">The phone number powers the WhatsApp button.</p></div>
+    </div><p class="help">The phone number is used for the WhatsApp button.</p></div>
     ${s ? '' : `<div class="form-group"><span class="lab">Weekly lesson</span><div class="group">
       ${field('Day', `<select id="f-wd"><option value="">None</option>${dayOpts(defCampus, -1)}</select>`)}
-      ${field('Time', `<input id="f-wt" type="time" value="10:00" step="300">`)}
+      ${field('Time', timeField('f-wt', '10:00'))}
     </div><p class="help">Optional. Fills the calendar every week from the next one.${campuses().length ? ' Only days at their campus are listed.' : ''}</p></div>`}
     <div class="form-group"><span class="lab">Usual lesson length</span><div class="group">
       ${field('Length', `<input id="f-sdur" type="number" inputmode="numeric" min="5" max="480" step="5" value="${du}" style="max-width:80px"><span class="suffix">min</span>`)}
       <div class="stack">${durChips(du, 'f-sdur')}</div>
+    </div></div>
+    <details class="more"><summary>More details (optional)</summary><div>
+    <div class="form-group"><div class="group">
+      ${field('Email', `<input id="f-email" type="email" value="${esc(s?.email || '')}" placeholder="Optional" autocapitalize="off" autocomplete="off">`)}
     </div></div>
     <div class="form-group"><span class="lab">Hours and fees</span><div class="group">
       ${field('Hours per term', `<input id="f-alloc" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(s?.hoursAllocated ?? '')}" placeholder="Optional">`)}
       ${field(`Rate per hour`, `<input id="f-rate" type="number" inputmode="decimal" min="0" step="0.5" value="${esc(s?.rate ?? '')}" placeholder="Optional"><span class="suffix">${esc(db.settings.currency)}</span>`)}
     </div><p class="help">Hours per term shows progress against their allocation. The rate adds up totals on the Hours tab.</p></div>
     <div class="form-group"><span class="lab">Colour</span><div class="group"><div class="stack"><div class="swatches" role="radiogroup" aria-label="Colour">${COLORS.map((c, i) => `<label style="--c:${c}" aria-label="Colour ${i + 1}"><input type="radio" name="f-color" value="${c}" ${c === color ? 'checked' : ''}></label>`).join('')}</div></div></div></div>
+    </div></details>
     <div class="form-group"><span class="lab">Notes</span><div class="group"><label class="field textarea"><textarea id="f-snotes" placeholder="Course and year, repertoire, exam dates…" aria-label="Notes">${esc(s?.notes || '')}</textarea></label></div></div>
     ${s ? `<div style="display:flex;flex-direction:column;gap:10px"><button type="button" class="btn tint block" data-act="archive-student" data-id="${s.id}">${s.archived ? 'Restore student' : 'Archive student'}</button><button type="button" class="btn danger block" data-act="delete-student" data-id="${s.id}">Delete student</button></div><p class="help" style="margin:-12px 16px 0;font-size:13px;color:var(--fg-2)">Archiving stops their weekly lessons and hides them from your list, but keeps their hours.</p>` : ''}`;
   openSheet({
@@ -1617,7 +1719,7 @@ function seriesSheet({ id, studentId }) {
     ${sc && campusDays(sc) ? `<p class="help" style="margin:0 6px;font-size:14px;color:var(--fg-2)">${esc(firstName(s.name))} is at ${campusTag(sc, campusDaysText(sc))}</p>` : ''}
     <div class="form-group"><div class="group">
       ${field('Day', `<select id="f-wd">${dayList.map(w => `<option value="${w}" ${w === wd ? 'selected' : ''}>${esc(dayName(w))}${allowed.includes(w) ? '' : ' (other campus)'}</option>`).join('')}</select>`)}
-      ${field('Time', `<input id="f-wt" type="time" value="${x?.time || '10:00'}" step="300">`)}
+      ${field('Time', timeField('f-wt', x?.time || '10:00'))}
       ${field('Length', `<input id="f-dur" type="number" inputmode="numeric" min="5" max="480" step="5" value="${x?.duration || s?.defaultDuration || 60}" style="max-width:80px"><span class="suffix">min</span>`)}
       <div class="stack">${durChips(x?.duration || s?.defaultDuration || 60, 'f-dur')}</div>
     </div><p class="help">${x ? 'Changes apply from the next lesson on. Past lessons stay as they were.' : 'Lessons are added every week, starting from the next one.'}</p></div>
@@ -1628,6 +1730,10 @@ function seriesSheet({ id, studentId }) {
     onSave(root) {
       const w = +val(root, 'f-wd'), t = val(root, 'f-wt'), m = Math.round(+val(root, 'f-dur'));
       if (!t || !(m >= 5)) { toast('Add a time and length'); return false; }
+      if (sc && campusDays(sc) && !sc.days.includes(w)) {
+        const other = campuses().find(c => (c.days || []).includes(w));
+        if (!confirmProblems([{ kind: 'campus', text: `${dayName(w)}s are ${other ? other.name : 'not ' + sc.name} days. ${firstName(s.name)} is at ${sc.name}.` }], 'Use this day anyway')) return false;
+      }
       if (x) {
         if (x.weekday === w && x.time === t && x.duration === m) return;
         endSeries(x.id);
@@ -1645,6 +1751,7 @@ function settingsSheet() {
   const backup = db.meta.lastBackup ? `Last backup ${relPast(new Date(db.meta.lastBackup)).toLowerCase()}` : 'Not backed up yet';
   const hourOpts = (sel, from, to) => Array.from({ length: to - from + 1 }, (_, i) => from + i).map(h => `<option value="${h}" ${h === +sel ? 'selected' : ''}>${esc(fHour(h % 24))}</option>`).join('');
   const body = `
+    <div class="group"><button type="button" class="row" data-act="guide">${icon('note')}<div class="grow"><div class="title">How Cadence works</div><div class="sub">A one-minute guide</div></div>${icon('chevR', 'i chev')}</button></div>
     <div class="form-group"><span class="lab">Campuses</span><div class="group">
       ${campuses().map(c => `<button type="button" class="row" data-act="edit-campus" data-id="${c.id}"><span class="campus-dot" style="--cc:${c.color}"></span><div class="grow"><div class="title">${esc(c.name)}</div><div class="sub">${esc(campusDaysText(c) || 'No days set')} · ${plural(db.students.filter(x => x.campusId === c.id && !x.archived).length, 'student')}</div></div>${icon('chevR', 'i chev')}</button>`).join('')}
       <button type="button" class="row" data-act="edit-campus"><div class="grow"><div class="title" style="color:var(--accent)">Add a campus</div></div></button>
@@ -1684,6 +1791,26 @@ function settingsSheet() {
       save(); render();
     },
   });
+}
+
+/* ---------- Guide ---------- */
+function guideSheet() {
+  const items = [
+    ['today', 'Today', 'Shows your next lesson and today\'s timetable. Tap any lesson to open it.'],
+    ['students', 'Add a student', 'Tap Students, then + Student. Choose their campus and their weekly day and time, and their lessons appear in the calendar every week.'],
+    ['plus', 'Book a one-off lesson', 'Tap + Lesson at the top of Today or Calendar.'],
+    ['move', 'Move a lesson', 'Open the lesson and tap Reschedule. Pick a new time, then send the WhatsApp message Cadence writes for you.'],
+    ['x', 'Cancel a lesson', 'Open the lesson and tap Cancel this lesson. Cancelled lessons don\'t count towards your hours.'],
+    ['note', 'Lesson notes', 'Open a lesson to write what you covered. Every note is kept on the student\'s page.'],
+    ['alert', 'Two campuses', 'Each day belongs to one campus. If a lesson would put you at both on the same day, Cadence asks before saving.'],
+    ['hours', 'Hours', 'The Hours tab adds up what you have taught this week, month or term, per student and per campus.'],
+    ['lock', 'Your information', 'Everything stays on this phone. Use Settings, then Back up, now and then to keep a copy.'],
+  ];
+  openSheet({
+    title: 'How It Works', noSave: true, cancelLabel: 'Close',
+    body: `<div class="guide">${items.map(([ic, t, d]) => `<div class="g">${icon(ic)}<div><b>${esc(t)}</b><span>${esc(d)}</span></div></div>`).join('')}</div>`,
+  });
+  if (!db.meta.guideSeen) { db.meta.guideSeen = true; save(); render(); }
 }
 
 /* ---------- Campus sheet ---------- */
@@ -1763,6 +1890,16 @@ const actions = {
   'edit-lesson': d => lessonSheet({ id: d.id, focus: d.focus }),
   reschedule: d => rescheduleSheet(d.id),
   'edit-campus': d => campusSheet(d.id),
+  guide: () => guideSheet(),
+  'cancel-lesson': d => {
+    const l = db.lessons.find(x => x.id === d.id); if (!l) return;
+    l.status = 'cancelled'; save(); closeSheet(); render();
+    toast('Lesson cancelled', { label: 'Undo', fn: () => { l.status = 'scheduled'; save(); render(); } });
+    const s = stu(l.studentId); const at = parseDT(l.start);
+    notifySheet({ title: 'Lesson Cancelled', s, rows: [{ k: 'Was', v: `${fDayLong.format(at)}, ${time(at)}`, cls: 'was' }],
+      text: `Hi ${firstName(s?.name)}, I'm sorry but I need to cancel your ${s?.instrument ? s.instrument.toLowerCase() + ' ' : ''}lesson on ${fDayLong.format(at)} at ${time(at)}. I'll be in touch to rearrange.` });
+  },
+  'restore-lesson': d => { const l = db.lessons.find(x => x.id === d.id); if (!l) return; l.status = 'scheduled'; save(); closeSheet(); render(); toast('Lesson restored'); },
   'dismiss-campus': () => { db.meta.campusDismissed = true; save(); render(); },
   'delete-campus': async d => {
     const c = campusById(d.id); if (!c) return;

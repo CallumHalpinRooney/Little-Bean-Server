@@ -29,6 +29,12 @@ no account, and it works offline.
 - **Hours**: hours taught by week, month, term or all time, per student, with fees at their rates.
   Export a CSV for timesheets or invoicing.
 
+Built to need no training: a Getting started checklist and a one-minute guide (Settings → How Cadence
+works), plain buttons (+ Lesson, + Student, Settings, Cancel this lesson), and times chosen from two
+number lists instead of a clock face. Bookings, moves and weekly slots that would double-book him or
+put him at two campuses on one day stop and ask before saving; such days are flagged on Today and in
+the calendar.
+
 Lessons count as taught once their time has passed, unless marked cancelled or missed.
 A weekly slot creates real lessons 16 weeks ahead and tops itself up each day.
 
