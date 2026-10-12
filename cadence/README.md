@@ -45,7 +45,7 @@ a JSON file (to Files, email, WhatsApp to yourself…) and **Restore from a back
 
 ## Usage counts
 
-Cadence sends anonymous counts to GoatCounter (site code `cadence-lessons`, set in `GOAT` in
+Cadence sends anonymous counts to GoatCounter (site code `callumhr1`, set in `GOAT` in
 `index.html`) so you can see the app is being used: `app-opened` as a page view, plus events such as
 `student-added`, `lesson-booked`, `lesson-moved`, `lesson-cancelled`, `notes-written`, `backup-made`.
 Only the event name is sent: no names, phone numbers, notes or times, and no cookies.
