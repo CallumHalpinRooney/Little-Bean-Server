@@ -178,3 +178,7 @@ Post each as its own single image, or as a two-slide carousel with the full pain
 ## 11. Square carousel, no text
 
 `carousel_square/01-05.jpg` (1080x1080): Janet in the heather, pink garden painting, ferns over water, blue water painting, dark yellow painting. Paintings are shown whole.
+
+## 12. A walk, then the studio (least edited)
+
+`janet_walk_to_studio.mp4` (26s, 9:16). Eight walk photos held ~1.2s each with hard cuts (no zooms), then her raw handheld painting clips: uncropped, unstabilised, ungraded. No text, silent track.
