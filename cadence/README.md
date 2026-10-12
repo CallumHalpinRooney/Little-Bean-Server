@@ -15,6 +15,11 @@ no account, and it works offline.
 - **Today**: the next lesson with a one-tap WhatsApp reminder, today's and tomorrow's lessons,
   hours this week and term, students who haven't been seen for a while with nothing booked,
   and recent lessons still missing notes.
+- **Campuses**: set up each campus and the weekdays spent there (a day belongs to one campus). Each
+  student belongs to a campus; weekly slots only offer that campus's days, bookings on the other
+  campus's day are flagged, and rescheduling suggests the student's next campus day and free gaps
+  on campus days only. Calendar days are tinted by campus, students are grouped by campus, and Hours
+  shows totals per campus. Students are placed automatically from their weekly lesson day.
 - **Reschedule**: every lesson (and the Up next card) has a Reschedule button: same time next week,
   next day, or pick a time from the free gaps in the coming week. After a move it offers a ready-written
   WhatsApp message to the student, and the lesson shows "Moved from …" wherever it appears.
