@@ -803,6 +803,29 @@ function campusesOn(d) {
 }
 const warnBox = (title, text) => `<div class="warning">${icon('alert')}<div><b>${esc(title)}</b>${text ? `<br>${esc(text)}` : ''}</div></div>`;
 
+/* Anonymous usage counts (GoatCounter), so Callum can see the app is being used.
+   Only that something happened, e.g. "lesson booked". Never names, phone numbers or notes, and no cookies.
+   Off for sample data, in previews, when switched off in Settings, and on any phone that has opened
+   the app once with #nocount on the end of the link. */
+const GOAT = 'cadence-lessons';
+const NOCOUNT = (() => {
+  try {
+    if (location.hash === '#nocount') localStorage.setItem('cadence.nocount', '1');
+    if (location.hash === '#count') localStorage.removeItem('cadence.nocount');
+    return localStorage.getItem('cadence.nocount') === '1';
+  } catch (e) { return false; }
+})();
+function track(name, pageview = false) {
+  if (EMBED || NOCOUNT || !GOAT || db.meta.sample || db.meta.analyticsOff || location.protocol !== 'https:') return;
+  try {
+    const q = new URLSearchParams({ p: pageview ? '/' + name : name, t: name, e: pageview ? 'false' : 'true', s: `${screen.width},${screen.height},${devicePixelRatio || 1}`, rnd: Math.random().toString(36).slice(2) });
+    const url = `https://${GOAT}.goatcounter.com/count?${q}`;
+    if (!(navigator.sendBeacon && navigator.sendBeacon(url))) new Image().src = url;
+  } catch (e) { /* counting must never get in the way */ }
+}
+let lastOpenCount = 0;
+function trackOpen() { if (Date.now() - lastOpenCount > 30 * 60000) { lastOpenCount = Date.now(); track(db.meta.started ? 'app-opened' : 'welcome-screen', true); } }
+
 /* Phone numbers become WhatsApp links. Local numbers (leading 0) take the country code from Settings. */
 function waNumber(p) {
   if (!p) return '';
@@ -1472,6 +1495,7 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
       if (changed && !confirmProblems(bookingProblems(stu(sid), `${dd}T${tt}`, m, existing?.id), existing ? 'Save anyway' : 'Book anyway')) return false;
       if (existing) {
         const status = $('[data-status][aria-pressed="true"]', root)?.dataset.status || existing.status || 'scheduled';
+        if (notes && !existing.notes) track('notes-written');
         Object.assign(existing, { studentId: sid, duration: m, notes, status });
         const oldStart = moveLesson(existing, `${dd}T${tt}`);
         save(); render();
@@ -1481,10 +1505,10 @@ function lessonSheet({ id, date, timeStr, studentId, focus } = {}) {
         addSeries(sid, dd, tt, m);
         const first = db.lessons.find(l => l.studentId === sid && l.start === `${dd}T${tt}`);
         if (first && notes) first.notes = notes;
-        toast(`Booked every ${fWdLong.format(parseDate(dd))}`);
+        toast(`Booked every ${fWdLong.format(parseDate(dd))}`); track('weekly-lesson-set');
       } else {
         db.lessons.push({ id: uid(), studentId: sid, start: `${dd}T${tt}`, duration: m, status: 'scheduled', notes, seriesId: null });
-        toast('Lesson booked');
+        toast('Lesson booked'); track('lesson-booked');
       }
       save(); render();
     },
@@ -1500,6 +1524,7 @@ function movedLabel(l) {
 function moveLesson(l, newStart) {
   const old = l.start;
   if (old === newStart) return null;
+  track('lesson-moved');
   if (!l.movedFrom) l.movedFrom = old;
   else if (l.movedFrom === newStart) delete l.movedFrom;
   l.start = newStart;
@@ -1699,9 +1724,9 @@ function studentSheet(id) {
         const ns = { id: uid(), archived: false, createdAt: ymd(new Date()), ...data };
         db.students.push(ns);
         const wd = val(root, 'f-wd'), wt = val(root, 'f-wt');
-        if (wd !== '' && wt) addSeries(ns.id, nextDateFor(+wd, wt), wt, data.defaultDuration);
+        if (wd !== '' && wt) { addSeries(ns.id, nextDateFor(+wd, wt), wt, data.defaultDuration); track('weekly-lesson-set'); }
         ui.tab = ui.tab === 'today' && db.students.length === 1 ? 'today' : ui.tab;
-        toast(`${firstName(name)} added`);
+        toast(`${firstName(name)} added`); track('student-added');
       }
       save(); render();
     },
@@ -1774,6 +1799,7 @@ function settingsSheet() {
       <button type="button" class="row" data-act="import-backup">${icon('repeat')}<div class="grow"><div class="title">Restore from a backup</div><div class="sub">Replaces what's on this phone</div></div></button>
       <button type="button" class="row" data-act="export-csv-all">${icon('chart')}<div class="grow"><div class="title">Export all lessons</div><div class="sub">Spreadsheet (CSV)</div></div></button>
     </div><p class="help">Cadence keeps everything on this phone, with no account. Save a backup to Files or send it to yourself now and then, so you have a copy if you change phone.</p></div>
+    <div class="form-group"><span class="lab">Usage counts</span><div class="group"><label class="field"><span style="flex:1">Share anonymous usage counts</span><span class="toggle"><input id="s-count" type="checkbox" ${db.meta.analyticsOff ? '' : 'checked'}><i></i></span></label></div><p class="help">Lets Callum see that Cadence is being used, for example "app opened" or "lesson booked". It never sends names, phone numbers, notes or times.</p></div>
     <div class="form-group"><div class="group">
       ${db.meta.sample ? `<button type="button" class="row" data-act="clear-sample"><div class="grow"><div class="title" style="color:var(--accent)">Clear sample data</div></div></button>` : ''}
       <button type="button" class="row" data-act="erase-all"><div class="grow"><div class="title" style="color:var(--danger)">Erase all data</div></div></button>
@@ -1784,6 +1810,9 @@ function settingsSheet() {
     onSave(root) {
       const ts = val(root, 's-ts'), te = val(root, 's-te');
       if (ts && te && te < ts) { toast('Term must end after it starts'); return false; }
+      const countOn = $('#s-count', root).checked;
+      if (!countOn && !db.meta.analyticsOff) track('counts-turned-off');
+      db.meta.analyticsOff = !countOn;
       Object.assign(db.settings, {
         termStart: ts, termEnd: te, dayStart: +val(root, 's-ds'), dayEnd: +val(root, 's-de'),
         staleDays: clamp(Math.round(+val(root, 's-stale')) || 14, 3, 90), currency: val(root, 's-cur'), country: val(root, 's-cc').replace(/\D/g, '') || '353',
@@ -1804,7 +1833,7 @@ function guideSheet() {
     ['note', 'Lesson notes', 'Open a lesson to write what you covered. Every note is kept on the student\'s page.'],
     ['alert', 'Two campuses', 'Each day belongs to one campus. If a lesson would put you at both on the same day, Cadence asks before saving.'],
     ['hours', 'Hours', 'The Hours tab adds up what you have taught this week, month or term, per student and per campus.'],
-    ['lock', 'Your information', 'Everything stays on this phone. Use Settings, then Back up, now and then to keep a copy.'],
+    ['lock', 'Your information', 'Everything stays on this phone. Use Settings, then Back up, now and then to keep a copy. Cadence only tells Callum when things happen, like "lesson booked", never any names or details. You can turn that off in Settings.'],
   ];
   openSheet({
     title: 'How It Works', noSave: true, cancelLabel: 'Close',
@@ -1840,6 +1869,7 @@ function campusSheet(id) {
       for (const x of all) if (x !== c) x.days = (x.days || []).filter(w => !days.includes(w));
       const data = { name, days, color: $('input[name="c-color"]:checked', root)?.value || color };
       if (c) Object.assign(c, data); else db.settings.campuses = [...all, { id: uid(), ...data }];
+      if (!c) track('campus-added');
       const n = autoAssignCampuses();
       save(); render();
       toast(n ? `${name} saved · ${plural(n, 'student')} placed by their weekly day` : `${name} saved`);
@@ -1890,10 +1920,10 @@ const actions = {
   'edit-lesson': d => lessonSheet({ id: d.id, focus: d.focus }),
   reschedule: d => rescheduleSheet(d.id),
   'edit-campus': d => campusSheet(d.id),
-  guide: () => guideSheet(),
+  guide: () => { guideSheet(); track('guide-opened'); },
   'cancel-lesson': d => {
     const l = db.lessons.find(x => x.id === d.id); if (!l) return;
-    l.status = 'cancelled'; save(); closeSheet(); render();
+    l.status = 'cancelled'; save(); closeSheet(); render(); track('lesson-cancelled');
     toast('Lesson cancelled', { label: 'Undo', fn: () => { l.status = 'scheduled'; save(); render(); } });
     const s = stu(l.studentId); const at = parseDT(l.start);
     notifySheet({ title: 'Lesson Cancelled', s, rows: [{ k: 'Was', v: `${fDayLong.format(at)}, ${time(at)}`, cls: 'was' }],
@@ -1957,12 +1987,12 @@ const actions = {
     db.series = db.series.filter(x => x.studentId !== s.id);
     save(); closeSheet(); ui.stack = []; render(); toast('Student deleted');
   },
-  'start-sample': () => { seedSample(); ui.tab = 'today'; ui.anim = 'fade'; render(); },
-  'start-empty': () => { db.meta.started = true; save(); ui.tab = 'students'; render(); studentSheet(); },
+  'start-sample': () => { track('tried-sample'); seedSample(); ui.tab = 'today'; ui.anim = 'fade'; render(); },
+  'start-empty': () => { db.meta.started = true; save(); track('started-own-data'); ui.tab = 'students'; render(); studentSheet(); },
   'clear-sample': async () => {
     const ok = await ask({ title: 'Clear sample data?', message: 'Removes the sample students and lessons so you can start with your own.', actions: [{ label: 'Clear', value: true, style: 'destructive' }, { label: 'Cancel', value: false, style: 'strong' }] });
     if (!ok) return;
-    const meta = { ...db.meta, sample: false, started: true }; db = blank(); db.meta = meta; save(); closeSheet(); ui.tab = 'students'; ui.stack = []; render(); toast('Ready for your students');
+    const meta = { ...db.meta, sample: false, started: true }; db = blank(); db.meta = meta; save(); track('cleared-sample'); closeSheet(); ui.tab = 'students'; ui.stack = []; render(); toast('Ready for your students');
   },
   'erase-all': async () => {
     const ok = await ask({ title: 'Erase everything?', message: 'Deletes every student, lesson and note on this phone. This cannot be undone.', actions: [{ label: 'Erase all data', value: true, style: 'destructive' }, { label: 'Cancel', value: false, style: 'strong' }] });
@@ -1972,11 +2002,11 @@ const actions = {
   'export-backup': async () => {
     const name = `cadence-backup-${ymd(new Date())}.json`;
     const ok = await shareOrDownload(name, JSON.stringify({ app: 'cadence', exportedAt: new Date().toISOString(), ...db }, null, 1), 'application/json');
-    if (ok) { db.meta.lastBackup = new Date().toISOString(); save(); toast('Backup created'); }
+    if (ok) { db.meta.lastBackup = new Date().toISOString(); save(); toast('Backup created'); track('backup-made'); }
   },
   'import-backup': () => $('#import-file').click(),
-  'export-csv': () => { const r = hoursRange(); const a = ymd(r.from) + 'T00:00', b = ymd(r.to) + 'T00:00'; const ls = db.lessons.filter(l => l.start >= a && l.start < b && stateOf(l) !== 'upcoming'); if (!ls.length) { toast('No lessons to export in this period'); return; } shareOrDownload(`cadence-hours-${r.label.replace(/[^\w]+/g, '-').toLowerCase()}.csv`, csvFor(ls), 'text/csv'); },
-  'export-csv-all': () => shareOrDownload(`cadence-lessons-${ymd(new Date())}.csv`, csvFor(db.lessons), 'text/csv'),
+  'export-csv': () => { track('hours-exported'); const r = hoursRange(); const a = ymd(r.from) + 'T00:00', b = ymd(r.to) + 'T00:00'; const ls = db.lessons.filter(l => l.start >= a && l.start < b && stateOf(l) !== 'upcoming'); if (!ls.length) { toast('No lessons to export in this period'); return; } shareOrDownload(`cadence-hours-${r.label.replace(/[^\w]+/g, '-').toLowerCase()}.csv`, csvFor(ls), 'text/csv'); },
+  'export-csv-all': () => { track('hours-exported'); shareOrDownload(`cadence-lessons-${ymd(new Date())}.csv`, csvFor(db.lessons), 'text/csv'); },
   install: async () => { if (!deferredInstall) return; deferredInstall.prompt(); try { await deferredInstall.userChoice; } catch (e) {} deferredInstall = null; render(); },
   'dismiss-install': () => { db.meta.installDismissed = true; save(); render(); },
 };
@@ -2031,12 +2061,13 @@ function tick() {
   render();
 }
 setInterval(tick, 60000);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) tick(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { tick(); trackOpen(); } });
 
 /* =========================================================
    Boot
    ========================================================= */
 if (EMBED && !db.meta.started) seedSample();
+trackOpen();
 if (extendSeries()) save();
 render();
 if (!EMBED) {

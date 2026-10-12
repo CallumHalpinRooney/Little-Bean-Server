@@ -43,6 +43,17 @@ A weekly slot creates real lessons 16 weeks ahead and tops itself up each day.
 Everything is stored on the phone (`localStorage`). There is no server. **Settings → Back up** saves
 a JSON file (to Files, email, WhatsApp to yourself…) and **Restore from a backup** loads it on a new phone.
 
+## Usage counts
+
+Cadence sends anonymous counts to GoatCounter (site code `cadence-lessons`, set in `GOAT` in
+`index.html`) so you can see the app is being used: `app-opened` as a page view, plus events such as
+`student-added`, `lesson-booked`, `lesson-moved`, `lesson-cancelled`, `notes-written`, `backup-made`.
+Only the event name is sent: no names, phone numbers, notes or times, and no cookies.
+
+Nothing is sent for sample data, in previews, over plain http, when the user turns off
+**Settings → Share anonymous usage counts**, or on a phone that has opened the app with `#nocount`
+on the end of the link (open it with `#count` to undo).
+
 ## Files
 
 - `index.html` — the whole app (HTML, CSS, JS, no dependencies)
