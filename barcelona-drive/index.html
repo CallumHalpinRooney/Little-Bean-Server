@@ -161,6 +161,8 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 .bb kbd{font-family:var(--display);background:rgba(255,255,255,.14);border-radius:3px;padding:0 5px}
 .rodCols{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 4px}.rodCols button{width:40px;height:40px;border-radius:50%;border:3px solid rgba(255,255,255,.25);cursor:pointer;padding:0;font:700 12px Arial;color:#fff}.rodCols button.sel{border-color:#fff;box-shadow:0 0 0 3px #4fd1ff}
 .shopH{font-family:var(--display);font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.04em;margin:22px 0 2px;color:#4fd1ff}
+#tackle .sheet{width:min(1280px,100%)}
+#tackle .grid{grid-template-columns:repeat(auto-fill,minmax(290px,1fr))}
 #tackle .wallet{display:inline-block;margin-left:6px;background:#23262c;border:1px solid var(--line);border-radius:5px;padding:2px 8px;color:var(--text)}
 #tackle .wallet b{color:var(--good);font-variant-numeric:tabular-nums}
 #tackle .note{background:rgba(249,200,14,.12);border:1px solid var(--taxi);border-radius:6px;padding:8px 12px;margin:8px 0}
@@ -3979,7 +3981,19 @@ function updateFreed(dt) {
   }
 }
 /* ---------- tackle stand at the end of the pier, and your boat's mooring ---------- */
-const KIOSK = (() => { const [x, z] = pierWorld(-PIER.headW / 2 + 6, PIER.hz + 12); return { x, z }; })();
+const SHOP = { u: -PIER.headW / 2 + 8, v: PIER.hz + 13.5, W: 14, D: 9, counterZ: -2.5, shelfZ: .8 }; // the tackle shop, in pier coordinates (its front faces back along the pier)
+const KIOSK = (() => { const [x, z] = pierWorld(SHOP.u, SHOP.v - SHOP.counterZ - 1.2); return { x, z }; })(); // where you stand at the counter
+const SHOP_BOXES = (() => { const { u, v, W, D } = SHOP, L = (lx0, lx1, lz0, lz1) => [u - lx1, u - lx0, v - lz1, v - lz0]; // walls, counter and shelves as [u0, u1, v0, v1]
+  return [L(-W / 2, W / 2, -D / 2, -D / 2 + .3), L(W / 2 - .3, W / 2, -D / 2, D / 2), L(-W / 2, -W / 2 + .3, -D / 2, D / 2), L(-4, 4, SHOP.counterZ - .45, SHOP.counterZ + .45), L(2.6, 5, SHOP.shelfZ - .45, SHOP.shelfZ + .45), L(-5, -2.6, SHOP.shelfZ - .45, SHOP.shelfZ + .45)]; })();
+function shopCollide(f) {
+  const dx = f.x - PIERW.x, dz = f.z - PIERW.z; let u = dx * PIERW.dz - dz * PIERW.dx, v = dx * PIERW.dx + dz * PIERW.dz;
+  if (Math.abs(u - SHOP.u) > 12 || Math.abs(v - SHOP.v) > 10 || f.y < PIER.h - 1) return;
+  const r = .35; let hit = false;
+  for (const [u0, u1, v0, v1] of SHOP_BOXES) { if (u < u0 - r || u > u1 + r || v < v0 - r || v > v1 + r) continue; hit = true;
+    const pu = [u0 - r - u, u1 + r - u], pv = [v0 - r - v, v1 + r - v], mu = Math.abs(pu[0]) < Math.abs(pu[1]) ? pu[0] : pu[1], mv = Math.abs(pv[0]) < Math.abs(pv[1]) ? pv[0] : pv[1];
+    if (Math.abs(mu) < Math.abs(mv)) u += mu; else v += mv; }
+  if (hit) [f.x, f.z] = pierWorld(u, v);
+}
 const PIER_DOCK = (() => { // a berth alongside the pier where it's deep enough for a boat
   let v = 40; for (; v < 300; v += 5) { const [a, b] = pierWorld(PIER.w / 2 + 3, v), [c, d] = pierWorld(PIER.w / 2 + 8, v + 8); if (seaDist(a, b) > 3 && seaDist(c, d) > 3) break; }
   v += 10;
@@ -3990,17 +4004,72 @@ const MARINA_DOCK = (() => { const [x, z] = marWorld(0, 228), [px, pz] = marWorl
 const DOCK = { ...PIER_DOCK }; // where your boat is kept: the pier for small boats, the marina for big yachts
 const CLUB = (() => { const [x, z] = marWorld(38, -24); return { x, z }; })();
 const nearClub = (x, z) => Math.hypot(x - CLUB.x, z - CLUB.z) < 6;
-{ // the tackle stand: a little blue-and-white kiosk with rods on display
-  const g = new THREE.Group(), [ku, kv] = [-PIER.headW / 2 + 6, PIER.hz + 12];
-  const sign = canvasTex(512, 96, (c, w, h) => { c.fillStyle = '#123a7a'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = '800 46px Arial Narrow, Arial'; c.textAlign = 'center'; c.fillText('BOTIGA DE PESCA', w / 2, 52); c.font = '600 24px Arial'; c.fillText('Tackle · Bait · Lures · Boats', w / 2, 84); });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(4.4, 2.6, 3), flat('#f2efe8')); body.position.y = 1.3; g.add(body);
-  const sg = new THREE.Mesh(new THREE.PlaneGeometry(4.2, .8), new THREE.MeshStandardMaterial({ map: sign, roughness: .6 })); sg.position.set(0, 3.05, 1.52); g.add(sg);
-  for (let k = 0; k < 7; k++) { const s = new THREE.Mesh(new THREE.BoxGeometry(.64, .08, 1), flat(k % 2 ? '#f4f4f4' : '#1f4fd0')); s.position.set(-1.93 + k * .64, 2.55, 1.9); s.rotation.x = .35; g.add(s); }
-  const counter = new THREE.Mesh(new THREE.BoxGeometry(4.4, .15, .6), flat('#8a6a44')); counter.position.set(0, 1.1, 1.7); g.add(counter);
-  const hatch = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 1.2), flat('#2b2d31')); hatch.position.set(0, 1.8, 1.51); g.add(hatch);
-  for (let k = 0; k < 5; k++) { const r = new THREE.Mesh(new THREE.CylinderGeometry(.015, .03, 3.2, 5), flat(GEAR.rod[k % 4].col)); r.position.set(2.3, 1.6, -1 + k * .5); r.rotation.z = -.12; g.add(r); }
-  const shopkeeper = makePerson('#1f4fd0', '#2b2d31', '#d9a883', { cap: '#f4f4f4' }); shopkeeper.root.position.set(0, 0, .6); g.add(shopkeeper.root);
-  const [x, z] = pierWorld(ku, kv); g.position.set(x, PIER.h, z); g.rotation.y = Math.atan2(PIERW.dx, PIERW.dz) + Math.PI; scene.add(g);
+{ // the tackle shop: a big walk-in shop at the end of the pier, open at the front
+  const g = new THREE.Group(), SW = SHOP.W, SD = SHOP.D, SH = 4.6;
+  const [x0, z0] = pierWorld(SHOP.u, SHOP.v); g.position.set(x0, PIER.h, z0); g.rotation.y = Math.atan2(PIERW.dx, PIERW.dz) + Math.PI; scene.add(g);
+  const add = (geo, mat, x, y, z, par = g) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.castShadow = true; m.receiveShadow = true; par.add(m); return m; };
+  const box = (w, h, d, mat, x, y, z, par) => add(new THREE.BoxGeometry(w, h, d), mat, x, y, z, par);
+  const boards = canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#f2efe8'; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 16) { c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(0, y, w, 1.5); c.fillStyle = `rgba(0,0,0,${Math.random() * .04})`; c.fillRect(0, y + 2, w, 13); } }, 4, 2);
+  const inner = canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#cfe0ea'; c.fillRect(0, 0, w, h); for (let x = 0; x < w; x += 20) { c.fillStyle = 'rgba(0,0,0,.1)'; c.fillRect(x, 0, 1.5, h); } }, 4, 1);
+  const planks = canvasTex(256, 256, (c, w, h) => { for (let x = 0; x < w; x += 22) { const v = 120 + Math.random() * 40 | 0; c.fillStyle = `rgb(${v},${v * .75 | 0},${v * .5 | 0})`; c.fillRect(x, 0, 21, h); c.fillStyle = 'rgba(0,0,0,.4)'; c.fillRect(x + 21, 0, 1, h); for (let y = Math.random() * 60; y < h; y += 70 + Math.random() * 60) c.fillRect(x, y, 21, 1); } }, 3, 2);
+  const outM = new THREE.MeshStandardMaterial({ map: boards, roughness: .8 }), inM = new THREE.MeshStandardMaterial({ map: inner, roughness: .85 });
+  const wood = new THREE.MeshStandardMaterial({ map: planks, roughness: .75 }), navy = flat('#123a7a'), white = flat('#f4f4f2');
+  // floor, walls (painted boards outside, pale blue inside) and the roof
+  add(new THREE.PlaneGeometry(SW, SD).rotateX(-Math.PI / 2), wood, 0, .02, 0).castShadow = false;
+  box(SW, SH, .3, [outM, outM, outM, outM, inM, outM], 0, SH / 2, -SD / 2 + .15);
+  for (const sd of [-1, 1]) box(.3, SH, SD, sd < 0 ? [outM, inM, outM, outM, outM, outM] : [inM, outM, outM, outM, outM, outM], sd * (SW / 2 - .15), SH / 2, 0);
+  box(SW + 1.2, .35, SD + 2.4, navy, 0, SH + .17, .7);
+  add(new THREE.PlaneGeometry(SW - .6, SD - .3).rotateX(Math.PI / 2), flat('#f4f2ec'), 0, SH - .02, 0).castShadow = false; // the ceiling
+  for (const sd of [-1, 1]) box(.35, SH, .35, white, sd * (SW / 2 - .18), SH / 2, SD / 2 + 1.7); // front posts holding the roof
+  // a striped awning, the big sign and a leaping marlin on the roof
+  for (let k = 0; k < 14; k++) { const s = box(SW / 14, .06, 1.6, flat(k % 2 ? '#f4f4f4' : '#1f4fd0'), -SW / 2 + SW / 28 + k * SW / 14, SH - .45, SD / 2 + 2.6); s.rotation.x = .38; s.castShadow = false; }
+  const sign = canvasTex(1024, 192, (c, w, h) => { c.fillStyle = '#123a7a'; c.fillRect(0, 0, w, h); c.strokeStyle = '#f9c80e'; c.lineWidth = 8; c.strokeRect(8, 8, w - 16, h - 16); c.fillStyle = '#fff'; c.font = '900 92px Arial Narrow, Arial'; c.textAlign = 'center'; c.fillText('🎣 BOTIGA DE PESCA', w / 2, 104); c.font = '700 40px Arial'; c.fillStyle = '#f9c80e'; c.fillText('TACKLE · BAIT · LURES · BOATS', w / 2, 160); });
+  add(new THREE.PlaneGeometry(SW - 1, 2.1), new THREE.MeshStandardMaterial({ map: sign, roughness: .5 }), 0, SH + 1.4, SD / 2 + 1.9).castShadow = false;
+  box(SW - .8, 2.3, .15, navy, 0, SH + 1.4, SD / 2 + 1.8);
+  const marlin = makeFishModel('Blue marlin', 4.2); marlin.rotation.set(-.5, Math.PI / 2, .15); marlin.position.set(1.5, SH + 4.9, -1.2); g.add(marlin);
+  box(.12, 3.2, .12, flat('#555'), 1.5, SH + 1.8, -1.2);
+  // inside: rod racks along both side walls
+  const corkM = new THREE.MeshStandardMaterial({ map: corkMap(), roughness: .9 }), rodCols = ['#1c1c1c', '#4a4f58', '#1f4fd0', '#c9a227', '#7b2cbf', '#b01818', '#2f6b2f'];
+  for (const sd of [-1, 1]) { box(.2, .12, SD - 1.5, wood, sd * (SW / 2 - .5), .5, -.2); box(.2, .12, SD - 1.5, wood, sd * (SW / 2 - .5), 3.1, -.2);
+    for (let k = 0; k < 16; k++) { const z = -SD / 2 + 1.1 + k * (SD - 2) / 15, col = rodCols[(k + (sd > 0 ? 3 : 0)) % rodCols.length], L = 3 + (k % 3) * .35;
+      const rod = new THREE.Group(); rod.position.set(sd * (SW / 2 - .5), .45, z); rod.rotation.z = -sd * .06; g.add(rod);
+      add(new THREE.CylinderGeometry(.006, .014, L, 6).translate(0, L / 2, 0), new THREE.MeshPhysicalMaterial({ color: C(col), metalness: .4, roughness: .3, clearcoat: 1 }), 0, 0, 0, rod).castShadow = false;
+      add(new THREE.CylinderGeometry(.02, .02, .55, 8), corkM, 0, .3, 0, rod).castShadow = false; } }
+  // the back wall: a pegboard covered in packets of lures
+  const peg = canvasTex(1024, 384, (c, w, h) => { c.fillStyle = '#c8a878'; c.fillRect(0, 0, w, h); c.fillStyle = 'rgba(60,40,20,.45)'; for (let y = 8; y < h; y += 16) for (let x = 8; x < w; x += 16) { c.beginPath(); c.arc(x, y, 2, 0, 7); c.fill(); }
+    const cols = ['#ff3b2f', '#f9c80e', '#1f4fd0', '#2f9a3a', '#ff7a1a', '#e8e8e8', '#c43aa8', '#30c0d0'];
+    for (let y = 18; y < h - 60; y += 74) for (let x = 14; x < w - 50; x += 58) { const cl = cols[(x * 7 + y) % cols.length | 0];
+      c.fillStyle = '#f4f4f0'; c.fillRect(x, y, 48, 64); c.fillStyle = cl; c.fillRect(x, y, 48, 12); c.fillStyle = 'rgba(200,230,255,.5)'; c.fillRect(x + 4, y + 16, 40, 40);
+      c.fillStyle = cols[(x + y * 3) % cols.length | 0]; c.beginPath(); c.ellipse(x + 24, y + 36, 16, 6, -.3, 0, 7); c.fill(); c.fillStyle = '#111'; c.beginPath(); c.arc(x + 34, y + 33, 2, 0, 7); c.fill();
+      c.strokeStyle = '#888'; c.lineWidth = 1; c.beginPath(); c.moveTo(x + 10, y + 42); c.lineTo(x + 6, y + 50); c.stroke(); c.fillStyle = '#c8102e'; c.font = '700 10px Arial'; c.fillText('€' + (2 + (x + y) % 9), x + 4, y + 62); } });
+  add(new THREE.PlaneGeometry(SW - 1.6, 2.6), new THREE.MeshStandardMaterial({ map: peg, roughness: .8 }), 0, 2.6, -SD / 2 + .32).castShadow = false;
+  // counter with a glass case of reels, a till and the shopkeeper
+  box(8, 1.0, .9, wood, 0, .5, SHOP.counterZ);
+  const glassM = new THREE.MeshPhysicalMaterial({ color: 0xcfe6f0, roughness: 0, metalness: 0, transparent: true, opacity: .25, clearcoat: 1 });
+  add(new THREE.BoxGeometry(5, .4, .85), glassM, -1.2, 1.2, SHOP.counterZ).castShadow = false;
+  const metal = new THREE.MeshStandardMaterial({ color: 0xc8ccd2, metalness: .9, roughness: .25 }), gold = new THREE.MeshStandardMaterial({ color: 0xd4a73a, metalness: 1, roughness: .2 });
+  for (let k = 0; k < 7; k++) { const r = add(new THREE.CylinderGeometry(.08, .08, .07, 16).rotateZ(Math.PI / 2), k % 3 ? metal : gold, -3.2 + k * .65, 1.1, SHOP.counterZ); add(new THREE.BoxGeometry(.05, .14, .03), flat('#151515'), -3.15 + k * .65, 1.12, SHOP.counterZ + .05); }
+  box(.5, .3, .4, flat('#2b2d31'), 2.8, 1.15, SHOP.counterZ); box(.4, .02, .25, new THREE.MeshBasicMaterial({ color: 0x40ff80 }), 2.8, 1.36, SHOP.counterZ - .05);
+  const keeper = makePerson('#1f4fd0', '#2b2d31', '#d9a883', { cap: '#f4f4f4' }); keeper.root.position.set(0, 0, SHOP.counterZ - .9); g.add(keeper.root);
+  // a bait fridge glowing in the corner, shelves of reel boxes, nets, a life ring and buoys
+  box(1.4, 2.1, .8, white, SW / 2 - 1.4, 1.05, -SD / 2 + .9); add(new THREE.PlaneGeometry(1.2, 1.7), new THREE.MeshStandardMaterial({ color: 0x9fd8ff, emissive: 0x4a90c0, emissiveIntensity: .6, roughness: .1 }), SW / 2 - 1.4, 1.1, -SD / 2 + 1.31).castShadow = false;
+  const baitSign = canvasTex(256, 64, (c, w, h) => { c.fillStyle = '#c8102e'; c.fillRect(0, 0, w, h); c.fillStyle = '#fff'; c.font = '900 40px Arial'; c.textAlign = 'center'; c.fillText('ESQUER · BAIT', w / 2, 46); });
+  add(new THREE.PlaneGeometry(1.3, .32), new THREE.MeshBasicMaterial({ map: baitSign }), SW / 2 - 1.4, 2.3, -SD / 2 + 1.31).castShadow = false;
+  const boxCols = ['#1f4fd0', '#c8102e', '#2b2d31', '#f9c80e', '#2f6b2f', '#e8e8e8'];
+  for (const sd of [-1, 1]) { const sx = sd * 3.8; box(2.4, .08, .9, wood, sx, .9, SHOP.shelfZ); box(2.4, .08, .9, wood, sx, 1.6, SHOP.shelfZ); box(2.4, .08, .9, wood, sx, .2, SHOP.shelfZ); for (const ex of [-1.15, 1.15]) box(.08, 1.7, .9, wood, sx + ex, .85, SHOP.shelfZ);
+    for (const y of [.42, 1.12, 1.82]) for (let k = 0; k < 6; k++) box(.3, .3, .3, flat(boxCols[(k + (y * 10 | 0) + sd) % boxCols.length | 0]), sx - .9 + k * .36, y - .05, SHOP.shelfZ + (k % 2) * .25 - .12); }
+  const ring = add(new THREE.TorusGeometry(.35, .09, 10, 24), flat('#ff5a1a'), -SW / 2 + .4, 3.6, 1.6); ring.rotation.y = Math.PI / 2;
+  for (let k = 0; k < 5; k++) add(new THREE.SphereGeometry(.18, 12, 10), flat(['#ff5a1a', '#f4f4f4', '#f9c80e'][k % 3]), SW / 2 - .4, 3.9 - (k % 2) * .2, -2 + k * .8);
+  const netM = new THREE.MeshStandardMaterial({ color: 0x3a6a5a, roughness: .9, wireframe: true });
+  add(new THREE.SphereGeometry(.6, 10, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI), netM, -SW / 2 + .8, 3.9, -2.6).castShadow = false;
+  for (let k = 0; k < 3; k++) { const lamp = add(new THREE.CylinderGeometry(.35, .5, .3, 16, 1, true), new THREE.MeshStandardMaterial({ color: 0x1f4fd0, side: THREE.DoubleSide }), -4 + k * 4, SH - .6, -.5); add(new THREE.SphereGeometry(.18, 10, 8), new THREE.MeshBasicMaterial({ color: 0xfff2c0 }), -4 + k * 4, SH - .72, -.5, g).castShadow = false; }
+  // outside: the weighing gantry with today's big tuna, and a chalkboard
+  const gx = -SW / 2 - 1.4, gz = SD / 2 + 1.2;
+  for (const dz of [-.8, .8]) box(.14, 3.2, .14, metal, gx, 1.6, gz + dz); box(.14, .14, 1.8, metal, gx, 3.2, gz);
+  add(new THREE.CylinderGeometry(.12, .12, .25, 16).rotateX(Math.PI / 2), gold, gx, 2.85, gz);
+  const tuna = makeCatchMesh(['Bluefin tuna'], 180); tuna.position.set(gx, 2.6, gz); tuna.rotation.y = Math.PI / 2; g.add(tuna);
+  const chalk = canvasTex(256, 320, (c, w, h) => { c.fillStyle = '#1e2a22'; c.fillRect(0, 0, w, h); c.strokeStyle = '#8a6a44'; c.lineWidth = 14; c.strokeRect(0, 0, w, h); c.fillStyle = '#f4f4f0'; c.font = '700 30px Comic Sans MS, Arial'; c.textAlign = 'center'; c.fillText("TODAY'S CATCH", w / 2, 52); c.font = '24px Comic Sans MS, Arial'; ['Tuna  180 kg', 'Sea bass  4 kg', 'Octopus  3 kg', 'Bream  1 kg', '', 'Fresh bait in!'].forEach((t, k) => c.fillText(t, w / 2, 100 + k * 36)); });
+  const cb = add(new THREE.PlaneGeometry(1, 1.25), new THREE.MeshStandardMaterial({ map: chalk, roughness: .9 }), SW / 2 - 1.8, .9, SD / 2 + 1.0); cb.rotation.set(-.12, -.3, 0);
 }
 { // the marina: wooden pontoons on piles, moored boats and the yacht club on the shore
   const g = new THREE.Group(); g.position.set(MAR.x, 0, MAR.z); g.rotation.y = Math.atan2(-MAR.tz, MAR.tx); scene.add(g);
@@ -4128,7 +4197,7 @@ const nearClub = (x, z) => Math.hypot(x - CLUB.x, z - CLUB.z) < 6;
     ANIM.push(dt => { for (const u of ducks) { u.a += u.s * dt; const [x, z] = lakeEdge(L, u.a, u.k), t = performance.now() / 1000; u.d.rotation.y = Math.atan2(x - u.d.position.x, z - u.d.position.z) || u.d.rotation.y; u.d.position.set(x, .16 + Math.sin(t * 2 + u.k * 9) * .02, z); } });
   }
 }
-const nearKiosk = (x, z) => Math.hypot(x - KIOSK.x, z - KIOSK.z) < 3.6;
+const nearKiosk = (x, z) => Math.hypot(x - KIOSK.x, z - KIOSK.z) < 2.6;
 const nearDock = (x, z) => Math.hypot(x - DOCK.px, z - DOCK.pz) < 4;
 // ---------- building the rainforest (only the first time you go there) ----------
 JNG.trunks = new Map(); // a coarse grid of tree trunks you bump into
@@ -5192,7 +5261,7 @@ function updateFoot(dt) {
         if (Math.abs(f.x - L.x) > L.rx + 60 || Math.abs(f.z - L.z) > L.rx + 60 || onJetty(f.x, f.z)) continue;
         for (let it = 0; it < 3; it++) { const e = lakeE(L, f.x, f.z); if (e >= .998) break; const [u, v] = lakeLocal(L, f.x, f.z), k = 1.002 / Math.sqrt(e); [f.x, f.z] = lakeWorld(L, u * k, v * k); }
       }
-      { const dx = f.x - KIOSK.x, dz = f.z - KIOSK.z, d = Math.hypot(dx, dz); if (d < 2.2 && d > .01) { f.x = KIOSK.x + dx / d * 2.2; f.z = KIOSK.z + dz / d * 2.2; } } // the tackle stand
+      shopCollide(f); // the tackle shop's walls, counter and shelves
     }
     const gy = f.inside ? room.heightAt(f.x, f.z) : walkY(f.x, f.z);
     if (!IS_TOUCH && input.hand && f.y <= gy + .02) f.jv = 4.3;
@@ -6533,6 +6602,7 @@ function buildAirframe(s) {
   for (const c of A.canopy || []) { const cm = add(new THREE.SphereGeometry(1, 28, 16, 0, Math.PI * 2, 0, Math.PI / 2), glass, 0, c[1], c[0]); cm.scale.set(c[2], c[3], c[4]); cm.castShadow = false;
     const fr = add(new THREE.TorusGeometry(1, .02, 6, 24, Math.PI), dark, 0, c[1], c[0] + c[4] * .35); fr.scale.set(c[2], c[3] * 1.02, 1);
     if (c[5]) { const pil = add(new THREE.SphereGeometry(.16, 12, 10), new THREE.MeshStandardMaterial({ color: 0x4a3a2a, roughness: .7 }), 0, c[1] + .18, c[0] - c[4] * .15); pil.castShadow = false; } }
+  const W0 = (A.wings || [])[0], pylonM = new THREE.MeshPhysicalMaterial({ color: 0xe8e8e6, metalness: .2, roughness: .35, clearcoat: 1 });
   for (const e of A.fans || []) for (const sd of e.both === false ? [1] : [1, -1]) { // turbofan: nacelle, fan face, spinner, exhaust cone and pylon
     const R0 = e.r, Ln = e.len, x = sd * e.x, ng = new THREE.Group(); ng.position.set(x, e.y, e.z); g.add(ng);
     const prof = [[R0 * .86, Ln * .5 - R0 * .25], [R0 * .9, Ln * .5], [R0 * 1.0, Ln * .5 - R0 * .12], [R0 * 1.04, Ln * .2], [R0 * .96, -Ln * .25], [R0 * .72, -Ln * .5]].map(([r, y]) => new THREE.Vector2(r, y));
@@ -6543,7 +6613,10 @@ function buildAirframe(s) {
     add(new THREE.ConeGeometry(R0 * .24, R0 * .45, 20).rotateX(Math.PI / 2), new THREE.MeshStandardMaterial({ map: spinnerTex(), metalness: .8, roughness: .2 }), 0, 0, Ln * .5 - R0 * .3 + R0 * .22, ng);
     add(new THREE.ConeGeometry(R0 * .5, R0 * .9, 20).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x6a6e74, metalness: .8, roughness: .4 }), 0, 0, -Ln * .5 - R0 * .4, ng);
     add(new THREE.CircleGeometry(R0 * .72, 24).rotateY(Math.PI), new THREE.MeshStandardMaterial({ color: 0x2a2c30, roughness: .7 }), 0, 0, -Ln * .5 + .01, ng);
-    if (e.pylon) { const py = add(new THREE.BoxGeometry(R0 * .18, e.pylon, Ln * .7), paintM, 0, R0 + e.pylon / 2 - R0 * .1, -Ln * .05, ng); if (e.side) { py.rotation.z = sd * Math.PI / 2; py.position.set(-sd * (R0 + e.pylon / 2 - R0 * .1), 0, -Ln * .05); } }
+    if (e.pylon && e.side) { const py = add(new THREE.BoxGeometry(R0 * .18, e.pylon, Ln * .7), pylonM, 0, 0, -Ln * .05, ng); py.rotation.z = sd * Math.PI / 2; py.position.set(-sd * (R0 + e.pylon / 2 - R0 * .1), 0, -Ln * .05); }
+    else if (e.pylon && W0) { // a pylon from the top of the engine back up into the underside of the wing
+      const sw = clamp((e.x - (W0.x0 || 0)) / W0.span, 0, 1), wy = (W0.yb || 0) + (W0.y ? W0.y(sw) : 0) - e.y, c = W0.chord(sw), zb = W0.le(sw) - c * .3 - e.z, za = Ln * .3, h = wy - R0 * .6;
+      add(new THREE.BoxGeometry(R0 * .2, h, Math.abs(za - zb)), pylonM, 0, R0 * .6 + h / 2, (za + zb) / 2, ng); }
   }
   let prop = null, flame = null;
   if (A.prop) { const P = A.prop; prop = new THREE.Group(); prop.position.set(0, P.y, P.z); g.add(prop);
@@ -6569,7 +6642,7 @@ function buildAirframe(s) {
       add(new THREE.CylinderGeometry(r * .58, r * .58, r * .42, 20).rotateZ(Math.PI / 2), alloy, xx, r, n > 2 ? zz : z, gear); } }
     if (w[6]) add(new THREE.BoxGeometry(.04, len * .7, r * 1.4), doorM, x ? x + w[6] : 0, r + len * .55, z, gear); }
   if (A.fixedGear) gear.userData.fixed = true;
-  const W0 = (A.wings || [])[0], tips = A.tips && W0 ? [W0.x0 + W0.span + .02, (W0.yb || 0) + (W0.y ? W0.y(1) : 0), A.tips[2], W0.le(1) - W0.chord(1) * .45] : null;
+  const tips = A.tips && W0 ? [W0.x0 + W0.span + .02, (W0.yb || 0) + (W0.y ? W0.y(1) : 0), A.tips[2], W0.le(1) - W0.chord(1) * .45] : null;
   for (const [sd, col] of [[1, 0x33ff66], [-1, 0xff3030]]) if (tips) add(new THREE.SphereGeometry(tips[2], 10, 8), new THREE.MeshBasicMaterial({ color: col }), sd * tips[0], tips[1], tips[3]); // green on the right wingtip, red on the left
   if (A.beacon) add(new THREE.SphereGeometry(A.beacon[2], 10, 8), new THREE.MeshBasicMaterial({ color: 0xff2020 }), 0, A.beacon[0], A.beacon[1]);
   if (A.extra) A.extra({ g, add, paintM, wingM, alloy, dark, glass, rubber, s, F });
@@ -6652,7 +6725,7 @@ const AIRFRAME = {
     fins: [{ span: 13.0, chord: s => 12.4 - s * 7.6, le: s => -23.4 - s * 11.2, t: .1, yb: 10.0 }],
     fans: [{ x: 13.2, y: 2.1, z: 6.2, r: 1.6, len: 6.4, pylon: 1.2 }, { x: 25.4, y: 3.2, z: -3.6, r: 1.6, len: 6.4, pylon: 1.2 }],
     gear: [[2.2, -2.2, .68, 4, 1.4, .58], [5.4, .8, .68, 4, 1.4, .58], [0, 29.8, .6, 2, 1.8, .4]], tips: [38.9, 5.3, .16, -14.4], beacon: [10.7, 0, .18],
-    liv: { cheat: [3.6, 4.1, -27, 36], windows: [{ y: 6.15, z0: -24, z1: 31.5, step: .55, w: .28, h: .4, skip: [[27.4, 28.6], [14.8, 16], [-1, .2], [-15.4, -14.2]] }, { y: 8.75, z0: -21, z1: 31.5, step: .55, w: .28, h: .38, skip: [[26.6, 27.7], [4.4, 5.5], [-14.8, -13.8]] }], doors: [[28, 4.9, 1.0, 2.0], [15.4, 4.9, 1.0, 2.0], [-.4, 4.9, 1.0, 2.0], [-14.8, 4.9, 1.0, 2.0], [27.2, 7.6, 1.0, 1.95], [5.0, 7.6, 1.0, 1.95], [-14.3, 7.6, 1.0, 1.95]], cockpit: [35.2, 7.0, 2.4], name: ['LITTLE BEAN AIR', 3, 10.3, 70], reg: ['EC-A380', -27, 7.2, 40, '#555'], frame: .6, leading: '#d8dce0', wingCol: '#c4c8ce', slats: 1,
+    liv: { cheat: [3.6, 4.1, -27, 36], windows: [{ y: 6.15, z0: -24, z1: 31.5, step: .55, w: .28, h: .4, skip: [[27.4, 28.6], [14.8, 16], [-1, .2], [-15.4, -14.2]] }, { y: 8.75, z0: -21, z1: 31.5, step: .55, w: .28, h: .38, skip: [[26.6, 27.7], [4.4, 5.5], [-14.8, -13.8]] }], doors: [[28, 4.9, 1.0, 2.0], [15.4, 4.9, 1.0, 2.0], [-.4, 4.9, 1.0, 2.0], [-14.8, 4.9, 1.0, 2.0], [27.2, 7.6, 1.0, 1.95], [5.0, 7.6, 1.0, 1.95], [-14.3, 7.6, 1.0, 1.95]], cockpit: [35.2, 7.0, 2.4], name: ['LITTLE BEAN AIR', 3, 9.8, 64], reg: ['EC-A380', -27, 7.2, 40, '#555'], frame: .6, leading: '#d8dce0', wingCol: '#c4c8ce', slats: 1,
       tailPaint: (c, w, h) => { c.fillStyle = '#c8102e'; c.fillRect(0, 0, w * .3, h); c.fillStyle = '#00732f'; c.fillRect(w * .3, 0, w, h / 3); c.fillStyle = '#ffffff'; c.fillRect(w * .3, h / 3, w, h / 3); c.fillStyle = '#111111'; c.fillRect(w * .3, h * 2 / 3, w, h / 3); } },
     extra: ({ add, wingM }) => { for (const sd of [1, -1]) { const wl = add(finGeoV({ span: 2.6, chord: s => 3.2 - s * 1.6, le: s => -16.4 - s * 1.4, t: .08 }), wingM, sd * 38.9, 3.6, 0); wl.position.y = 5.0; const wd = add(finGeoV({ span: 1.4, chord: s => 3.2 - s * 1.6, le: s => -16.4 - s * 1.4, t: .08 }), wingM, sd * 38.9, 5.1, 0); wd.rotation.z = Math.PI; } }
   },
@@ -7423,7 +7496,7 @@ const PLACES = [
   }, 'scuba dive diving reef coral fish sea underwater swim'],
   ['Tackle shop (Botiga de Pesca)', 'Rods, reels, bait, lures and boats at the end of the pier', [KIOSK.x, KIOSK.z], () => {
     const st = onStreet([PIERW.x, PIERW.z]); carTo(st.x, st.z, st.h);
-    const [x, z] = pierWorld(-PIER.headW / 2 + 6, PIER.hz + 8.6); footTo(x, z, Math.atan2(KIOSK.x - x, KIOSK.z - z));
+    const [x, z] = pierWorld(SHOP.u, SHOP.v - SHOP.D / 2 - 3); footTo(x, z, Math.atan2(KIOSK.x - x, KIOSK.z - z));
     return 'Press E at the counter to shop.';
   }, 'tackle fishing shop bait lure rod reel botiga pesca'],
   ...LAKES.map(L => [L.name + ' (lake)', 'Fish for pike, trout, perch, roach and carp off the jetty', [L.x, L.z], () => {
@@ -7917,7 +7990,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
