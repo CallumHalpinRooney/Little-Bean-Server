@@ -2086,6 +2086,11 @@ const audio = {
     g.gain.setValueAtTime(.12, A.currentTime); g.gain.exponentialRampToValueAtTime(.001, A.currentTime + .25);
     o.connect(g); g.connect(this.master); o.start(); o.stop(A.currentTime + .3);
   },
+  horn() { // a deep ship's horn
+    if (!this.ctx) return; const A = this.ctx, t = A.currentTime, g = A.createGain(), lp = A.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900; g.connect(lp); lp.connect(this.master);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.3, t + .08); g.gain.setValueAtTime(.3, t + 1.1); g.gain.exponentialRampToValueAtTime(.001, t + 1.6);
+    for (const fq of [110, 138.6, 165]) { const o = A.createOscillator(); o.type = 'sawtooth'; o.frequency.value = fq; o.connect(g); o.start(t); o.stop(t + 1.7); }
+  },
   ding() {
     if (!this.ctx) return;
     const A = this.ctx, o = A.createOscillator(), g = A.createGain(); o.frequency.value = 1320; o.type = 'triangle';
@@ -5294,7 +5299,7 @@ function setBoatModel() { // your boat at the berth, or one for sale if you have
   Object.assign(DOCK, BOATS[i].big ? MARINA_DOCK : PIER_DOCK);
   if (boat.i === i && boat.sale === sale) return;
   if (boat.g) scene.remove(boat.g);
-  boat.g = makeBoat(BOATS[i]); boat.g.rotation.order = 'YXZ'; boat.i = i; boat.sale = sale; boat.spec = BOATS[i];
+  boat.g = makeBoat(BOATS[i]); deckDecor(boat.g, BOATS[i]); boat.g.rotation.order = 'YXZ'; boat.i = i; boat.sale = sale; boat.spec = BOATS[i];
   if (sale) { // a "for sale" board on the cabin side
     const t = canvasTex(256, 128, (c, w, h) => { c.fillStyle = '#f9c80e'; c.fillRect(0, 0, w, h); c.fillStyle = '#111'; c.font = '900 44px Arial'; c.textAlign = 'center'; c.fillText('ES VEN', w / 2, 52); c.font = '700 30px Arial'; c.fillText('For sale', w / 2, 96); });
     const b = new THREE.Mesh(new THREE.PlaneGeometry(1, .5), new THREE.MeshStandardMaterial({ map: t, side: THREE.DoubleSide })); b.position.set(-.67, BOATS[0].deck + .7, .6); b.rotation.y = -Math.PI / 2; boat.g.add(b);
@@ -5319,6 +5324,105 @@ function boatOK(x, z, h) { // hull points must all be in open water, clear of th
   }
   return true;
 }
+/* ---------- walking round your boat: decks, stairs and things to do, in first person ---------- */
+function boatPlan(s) { // the walkable decks of each boat in its own frame: x across (+ = starboard), z along (+ = bow)
+  if (s._plan) return s._plan;
+  const L = s.L, B = s.B, H = s.H, dY = s.deck;
+  const beam = t => B / 2 * (t < .62 ? .82 + .18 * Math.sin(t / .62 * Math.PI / 2) : Math.pow(Math.cos((t - .62) / .38 * Math.PI / 2), .8));
+  const top = t => H * .62 + H * .3 * Math.max(0, t - .6) / .4;
+  const rect = (cx, cz, w, l) => [cx - w / 2, cx + w / 2, cz - l / 2, cz + l / 2], inR = (r, x, z, m = 0) => x > r[0] - m && x < r[1] + m && z > r[2] - m && z < r[3] + m;
+  const main = { y: dY, name: 'main deck', ok: (x, z) => { const t = z / L + .5; return t > .03 && t < .96 && Math.abs(x) < beam(t) * .9 - .35; }, blocks: [] };
+  const levels = [main], stairs = [], spots = [];
+  const level = (y, name, areas) => { levels.push({ y, name, areas, blocks: [], ok(x, z) { return this.areas.some(r => inR(r, x, z, -.3)); } }); return levels.length - 1; };
+  const stair = (a, ax, az, b, bx, bz) => { stairs.push({ a, ax, az, b, bx, bz }); spots.push({ kind: 'stairs', level: a, x: ax, z: az, r: 1.3, to: b, tx: bx, tz: bz }, { kind: 'stairs', level: b, x: bx, z: bz, r: 1.3, to: a, tx: ax, tz: az }); };
+  let helm = { level: 0, x: 0, z: -L * .22 };
+  if (s.kind === 'llaut') { main.blocks.push(rect(0, .6, 1.3, 1.4), rect(0, 1.9, .3, .3)); helm = { level: 0, x: 0, z: -L * .22 }; }
+  else if (s.kind === 'speed') { main.blocks.push(rect(0, .9, 1.3, .5), rect(.5, -.2, .6, .7)); helm = { level: 0, x: -.5, z: -.2 }; }
+  else if (s.kind === 'yacht') { // sport-fisher: a cabin, a flybridge on top and a fighting chair in the cockpit
+    main.blocks.push(rect(0, L * .05, B * .78, L * .42), rect(0, -L * .32, .8, .8));
+    const fly = level(dY + 2.61, 'flybridge', [rect(0, L * .02, B * .7, L * .3)]);
+    stair(0, B * .28, L * .05 - L * .21 - .7, fly, B * .22, L * .02 - L * .15 + .7);
+    helm = { level: fly, x: 0, z: L * .02 + L * .08 };
+    spots.push({ kind: 'chair', level: 0, x: 0, z: -L * .32 - .9, r: 1.1 });
+  } else if (s.kind === 'motor' || s.kind === 'super') {
+    const D = s.kind === 'super' ? [[.84, .55, 2.6], [.72, .42, 2.4], [.56, .28, 2.2]] : [[.8, .5, 2.2], [.66, .3, 2]];
+    let y = dY, prev = 0;
+    D.forEach(([w, l, h], k) => { const cz = L * (.04 - k * .03); levels[prev].blocks.push(rect(0, cz, B * w, L * l)); y += h + .12;
+      const lv = level(y, k === D.length - 1 ? 'sun deck' : k ? 'upper deck' : 'top deck', [rect(0, cz, B * w + .3, L * l + .6)]);
+      stair(prev, B * w * .3, cz - L * l / 2 - .8, lv, B * w * .3, cz - L * l / 2 + .9); prev = lv; });
+    const sun = levels.length - 1;
+    levels[sun].blocks.push(rect(0, -L * .02, B * .55, .6), rect(B * .12, -L * .02, 1, 1), rect(-B * .12, -L * .02, .8, .8)); // radar arch and domes
+    helm = { level: 1, x: 0, z: L * .04 + L * D[0][1] / 2 - 1.2 };
+    const plat = level(top(0) - .5, 'swim platform', [rect(0, -L / 2 - 1, B * .8, 2.2)]);
+    stair(0, 0, -L / 2 + L * .035 + .6, plat, 0, -L / 2 - .5);
+    spots.push({ kind: 'swim', level: plat, x: 0, z: -L / 2 - 1.4, r: 1.6 });
+    const lz = L * (.04 - (D.length - 1) * .03) + L * D[D.length - 1][1] * .25;
+    for (const lx of [-1.4, 0, 1.4]) { levels[sun].blocks.push(rect(lx, lz, .9, 2)); spots.push({ kind: 'lounger', level: sun, x: lx, z: lz - 1.4, r: 1.1, lx, lz }); }
+    if (s.kind === 'super') {
+      main.blocks.push(rect(0, L * .33, 2.8, 2.8)); spots.push({ kind: 'jacuzzi', level: 0, x: 0, z: L * .33 - 1.9, r: 1.5 });
+      levels[1].areas.push(rect(0, -L * .36, B * .7, B * .7), rect(0, -L * .3, 2.4, L * .12)); levels[1].blocks.push(rect(B * .28, -L * .18, 1.9, 4.6)); // the helipad and the tender
+      spots.push({ kind: 'helipad', level: 1, x: 0, z: -L * .36, r: 2.5 });
+    }
+  }
+  spots.push({ kind: 'helm', level: helm.level, x: helm.x, z: helm.z, r: 1.4 });
+  const ok = (lv, x, z) => levels[lv].ok(x, z) && !levels[lv].blocks.some(r => inR(r, x, z, .3));
+  return s._plan = { levels, stairs, spots, helm, ok, edge: z => beam(z / L + .5) * .9 - .35, L, B };
+}
+function deckDecor(g, s) { // a steering wheel at the helm, loungers on the sun deck, and steps between the decks
+  const P = boatPlan(s), white = flat('#f4f4f2'), wood = flat('#a8794a'), steel = new THREE.MeshStandardMaterial({ color: 0xc8ccd0, metalness: .85, roughness: .25 });
+  const add = (geo, mat, x, y, z, ry = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); m.rotation.y = ry; m.castShadow = true; g.add(m); return m; };
+  { const H = P.helm, y = P.levels[H.level].y; add(new THREE.BoxGeometry(.9, .9, .5), white, H.x, y + .45, H.z + .6);
+    const wh = new THREE.Group(); wh.position.set(H.x, y + 1.05, H.z + .32); wh.rotation.x = -.6; g.add(wh);
+    wh.add(new THREE.Mesh(new THREE.TorusGeometry(.22, .025, 8, 24), steel)); for (let k = 0; k < 3; k++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(.44, .025, .025), steel); sp.rotation.z = k * Math.PI / 3; wh.add(sp); }
+    g.userData.wheel = wh; }
+  for (const sp of P.spots) if (sp.kind === 'lounger') { const y = P.levels[sp.level].y; add(new THREE.BoxGeometry(.75, .25, 1.9), white, sp.lx, y + .3, sp.lz); const back = add(new THREE.BoxGeometry(.75, .7, .1), white, sp.lx, y + .6, sp.lz + .85); back.rotation.x = .6; add(new THREE.BoxGeometry(.7, .06, 1.8), flat('#1f8fa8'), sp.lx, y + .45, sp.lz); }
+  for (const st of P.stairs) { const ya = P.levels[st.a].y, yb = P.levels[st.b].y, n = Math.max(2, Math.round(Math.abs(yb - ya) / .25)); for (let k = 0; k < n; k++) { const t = (k + .5) / n; add(new THREE.BoxGeometry(.9, .06, .32), wood, lerp(st.ax, st.bx, t), lerp(ya, yb, t), lerp(st.az, st.bz, t)); } }
+}
+function deckWorld(W, out = [0, 0, 0]) { const b = boat, P = boatPlan(b.spec), fx = Math.sin(b.h), fz = Math.cos(b.h); out[0] = b.x + fx * W.z + fz * W.x; out[2] = b.z + fz * W.z - fx * W.x; out[1] = b.g.position.y + P.levels[W.level].y; return out; }
+function deckSpot(W) { const P = boatPlan(boat.spec); let best = null, bd = 1e9; for (const sp of P.spots) { if (sp.level !== W.level) continue; const d = Math.hypot(sp.x - W.x, sp.z - W.z); if (d < sp.r && d < bd) { bd = d; best = sp; } }
+  if (!best && W.level === 0 && Math.abs(W.x) > P.edge(W.z) - .8) best = { kind: 'fish' }; return best; }
+function deckHint(W) {
+  if (W.sit) return W.sit === 'jacuzzi' ? 'Bubbles! 🫧 Press E to get out of the jacuzzi' : 'Sunbathing ☀️ · Press E to get up';
+  const sp = deckSpot(W), lv = boatPlan(boat.spec).levels[W.level].name;
+  const t = !sp ? `On the ${lv} · W/S walk · A/D turn · ↑↓ look · C camera · H back to the helm` : sp.kind === 'helm' ? 'Press E to take the helm and drive · B blows the horn' : sp.kind === 'stairs' ? `Press E to take the stairs to the ${boatPlan(boat.spec).levels[sp.to].name}`
+    : sp.kind === 'fish' ? 'Press E to fish over the side' : sp.kind === 'chair' ? 'Press E to sit in the fighting chair and fish' : sp.kind === 'swim' ? 'Press E to dive in for a swim 🏊' : sp.kind === 'jacuzzi' ? 'Press E to get in the jacuzzi' : sp.kind === 'lounger' ? 'Press E to lie on the sun lounger' : sp.kind === 'helipad' ? 'The helipad: what a view! 🚁' : '';
+  return IS_TOUCH ? t.replace('Press E', 'Tap here') : t;
+}
+function startDeckWalk() {
+  const f = foot, b = boat; if (!f.boat || f.fish || f.swim) return;
+  if (Math.abs(b.v) > 2) return show('', 'Slow down first, then press H to get up and walk around.', 2);
+  const P = boatPlan(b.spec), H = P.helm; f.boat.walk = { level: H.level, x: H.x, z: H.z - .9, h: 0, pitch: -.12, ph: 0, third: false }; // behind the wheel, looking out over the bow
+  if (!P.ok(H.level, H.x, H.z - .9)) Object.assign(f.boat.walk, { z: H.z - 1.5 });
+  show('Walking around your ' + b.spec.name, IS_TOUCH ? 'GAS/BRAKE walk, arrows turn. Tap the hints to do things.' : 'W/S walk, A/D turn, ↑↓ look up and down, C swaps the camera. Walk up to things and press E.', 4); audio.init();
+}
+function deckAction(W) {
+  const f = foot, P = boatPlan(boat.spec);
+  if (W.sit) { W.sit = null; f.p.body.rotation.x = 0; f.p.body.position.y = 0; return; }
+  const sp = deckSpot(W); if (!sp) return;
+  if (sp.kind === 'helm') { f.boat.walk = null; f.p.head.visible = true; show('', 'At the helm. W/S throttle, A/D steer, H to walk around again.', 2.4); }
+  else if (sp.kind === 'stairs') { W.level = sp.to; W.x = sp.tx; W.z = sp.tz; audio.plop(); }
+  else if (sp.kind === 'fish' || sp.kind === 'chair') { const out = sp.kind === 'chair' ? Math.PI : W.x > 0 ? Math.PI / 2 : -Math.PI / 2; W.fishH = out; startBoatFishing(); fishFpv = true; renderBaitBar(); } // fishing from the deck is first person (the yacht is in the way otherwise)
+  else if (sp.kind === 'swim') { const p = deckWorld(W); f.x = p[0] + Math.sin(boat.h + Math.PI) * 2; f.z = p[2] + Math.cos(boat.h + Math.PI) * 2; f.y = -.4; f.h = boat.h + Math.PI; f.boat.swim = true; startSwim(); f.swim.yacht = true; f.p.head.visible = true; splashAt(f.x, 0, f.z, 1.2); audio.plop(); show('Splash! 🏊', 'Swim back to the swim platform and press E to climb aboard. Hold Shift to dive.', 3.5); }
+  else if (sp.kind === 'jacuzzi') { W.sit = 'jacuzzi'; W.x = 0; W.z = P.L * .33 - .4; W.h = 0; W.pitch = -.05; show('Ahhh…', 'Hot bubbles on the front deck of your superyacht. Press E to get out.', 3); }
+  else if (sp.kind === 'lounger') { W.sit = 'lounger'; W.x = sp.lx; W.z = sp.lz; W.h = Math.PI; W.pitch = .9; show('', 'Lying in the sun… Press E to get up.', 2.5); }
+}
+function updateDeckWalk(dt, press) {
+  const f = foot, b = boat, W = f.boat.walk, P = boatPlan(b.spec);
+  if (press) deckAction(W);
+  if (!f.boat || !f.boat.walk) return;
+  const fw = IS_TOUCH ? (input.up ? 1 : input.down ? -1 : 0) : (KEYS.KeyW ? 1 : 0) - (KEYS.KeyS ? 1 : 0);
+  W.h += ((KEYS.KeyA || KEYS.ArrowLeft || (IS_TOUCH && input.left) ? 1 : 0) - (KEYS.KeyD || KEYS.ArrowRight || (IS_TOUCH && input.right) ? 1 : 0)) * 2.2 * dt;
+  W.pitch = clamp(W.pitch + ((KEYS.ArrowUp ? 1 : 0) - (KEYS.ArrowDown ? 1 : 0)) * 1.4 * dt, -1.2, 1.1);
+  let moving = 0;
+  if (!W.sit && fw) { const sp = (input.run ? 4.2 : 2.3) * fw, nx = W.x + Math.sin(W.h) * sp * dt, nz = W.z + Math.cos(W.h) * sp * dt;
+    if (P.ok(W.level, nx, nz)) { W.x = nx; W.z = nz; moving = 1; } else if (P.ok(W.level, nx, W.z)) { W.x = nx; moving = 1; } else if (P.ok(W.level, W.x, nz)) { W.z = nz; moving = 1; } } // slide along rails and walls
+  W.ph += dt * 9 * moving;
+  const p = deckWorld(W); f.x = p[0]; f.y = p[1] - (W.sit === 'jacuzzi' ? .55 : 0); f.z = p[2]; f.h = b.h + W.h; f.v = b.v;
+  if (W.sit === 'lounger') { f.p.body.rotation.x = -1.2; f.p.body.position.y = .55; animPerson(f.p, 0, 0); }
+  else { f.p.body.rotation.x = 0; f.p.body.position.y = 0; animPerson(f.p, W.ph, moving ? .6 : 0); }
+  f.p.root.position.set(f.x, f.y, f.z); f.p.root.rotation.y = f.h; f.p.head.visible = W.third;
+  if (W.sit === 'jacuzzi' && Math.random() < dt * 14) splashAt(f.x + rnd(-1, 1), f.y + .5, f.z + rnd(-1, 1), .15);
+}
 function enterBoat() {
   if (fishLog.boat < 0) { openShop('boats'); return; }
   if (foot.fish) stopFishing();
@@ -5331,6 +5435,7 @@ function leaveBoat(force) {
   const d = Math.hypot(boat.x - DOCK.x, boat.z - DOCK.z);
   if (!force && (d > 35 + boat.spec.L || Math.abs(boat.v) > 3)) return show('', boat.spec.big ? 'Drive back to your berth at the Port Olímpic marina and slow down to get off.' : 'Drive back to your berth by the pier and slow down to get off.', 2.6);
   if (foot.fish) stopFishing();
+  if (foot.swim) endSwim(); foot.p.head.visible = true; foot.p.body.rotation.x = 0; foot.p.body.position.y = 0;
   foot.boat = null; boat.x = DOCK.x; boat.z = DOCK.z; boat.h = DOCK.h; boat.v = 0;
   foot.x = DOCK.px; foot.z = DOCK.pz; foot.h = DOCK.ph; foot.y = walkY(foot.x, foot.z); foot.v = 0;
   cam.fh = undefined; cam.fx = undefined; cam.fz = undefined; cam.fy = undefined;
@@ -5345,7 +5450,7 @@ function startBoatFishing() {
 }
 function updateBoat(dt, act, press) {
   const s = boat.spec, f = foot, b = boat;
-  if (!f.fish) {
+  if (!f.fish && !f.boat.walk && !f.boat.swim) {
     const th = input.up ? 1 : 0, br = input.down ? 1 : 0;
     b.v += (th * s.acc - br * s.acc * (b.v > .3 ? 1.3 : .45)) * dt;
     b.v -= b.v * (.12 + Math.abs(b.v) * s.acc / (s.vmax * s.vmax)) * dt;
@@ -5371,6 +5476,13 @@ function updateBoat(dt, act, press) {
       w.rotation.y = b.h; w.scale.set(.9 + sp * 1.2, 1, 1.6 + sp); w.life = 2.2; w.visible = true;
     }
   }
+  if (b.g.userData.wheel) b.g.userData.wheel.rotation.z = -b.steer * 1.5;
+  if (f.boat.swim) { updateSwim(dt, press); return; } // swimming round your yacht
+  if (f.boat.walk && !f.fish) { updateDeckWalk(dt, press); return; } // walking round the decks
+  if (f.boat.walk && f.fish) { // fishing from where you stand on deck
+    const p = deckWorld(f.boat.walk), yaw = b.h + (f.boat.walk.fishH || Math.PI / 2); f.x = p[0]; f.y = p[1]; f.z = p[2]; f.v = b.v;
+    f.fish.nx = Math.sin(yaw); f.fish.nz = Math.cos(yaw); f.fish.tx = Math.sin(yaw - Math.PI / 2); f.fish.tz = Math.cos(yaw - Math.PI / 2); f.h = yaw;
+    updateFishing(dt, act, press); f.p.head.visible = true; f.p.root.position.set(f.x, f.y, f.z); f.p.root.rotation.y = f.h; return; }
   // you: at the helm, or at the side with your rod out
   const fx = Math.sin(b.h), fz = Math.cos(b.h), lx = fz, lz = -fx;
   const [al, lt] = f.fish ? (s.big ? [-s.L * .43, s.B * .3] : [0, s.B * .28]) : s.big ? [-s.L * .4, 0] : s.kind === 'speed' ? [-.2, -.5] : s.kind === 'yacht' ? [-s.L * .32, 0] : [-s.L * .22, 0];
@@ -5456,7 +5568,7 @@ function updateFoot(dt) {
   f.prevAct = act;
   if (freed.length) updateFreed(dt);
   if (f.boat) { updateBoat(dt, act, press); return; }
-  if (f.swim) { updateSwim(dt); return; }
+  if (f.swim) { updateSwim(dt, press); return; }
   if (f.fish) { updateFishing(dt, act, press); f.y = walkY(f.x, f.z); }
   else {
     f.h += (input.left - input.right) * 2.8 * dt;
@@ -5525,6 +5637,9 @@ function footPrompt() {
     if (st === 'jig') return IS_TOUCH ? 'Hold DRIFT to reel the rig in slowly · let go to jig' : 'Hold E to reel the rig in slowly · let go to jig';
     return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in' : 'Hold E to reel in') : '';
   }
+  if (foot.boat && foot.boat.swim) return IS_TOUCH ? 'Swim to the swim platform at the back and tap DRIFT to climb aboard' : 'Swim to the swim platform at the back · E to climb aboard · Shift dives';
+  if (foot.boat && foot.boat.walk) return deckHint(foot.boat.walk);
+  if (foot.boat && !IS_TOUCH && Math.abs(boat.v) < 2 && Math.hypot(boat.x - DOCK.x, boat.z - DOCK.z) >= 35 + boat.spec.L) return 'Press H to walk around the boat · E to fish · B horn';
   if (foot.boat) return Math.hypot(boat.x - DOCK.x, boat.z - DOCK.z) < 35 + boat.spec.L && Math.abs(boat.v) < 3 ? (IS_TOUCH ? 'Tap here to get off at the pier' : 'Press F to get off at the pier · E to fish') : Math.abs(boat.v) < 1.5 ? (IS_TOUCH ? 'Tap here to fish off the side' : 'Press E to fish off the side') : '';
   if (nearDesk(foot.x, foot.z)) return IS_TOUCH ? 'Tap here for departures ✈' : 'Press E for departures ✈ (fly to Mallorca, the Pyrenees, Egypt, Paris…)';
   if (nearPlane(foot.x, foot.z)) return IS_TOUCH ? `Tap here to get in the ${plane.spec.name}` : `Press E to get in the ${plane.spec.name}`;
@@ -6105,7 +6220,7 @@ function endSwim() {
   const f = foot; f.swim = null; f.p.gear.forEach(g => g.visible = false);
   f.p.body.rotation.x = 0; f.p.body.position.y = 0; f.p.root.rotation.x = 0;
 }
-function updateSwim(dt) {
+function updateSwim(dt, press) {
   const f = foot, S = f.swim; S.t += dt;
   const down = input.run || (IS_TOUCH && input.down), back = !IS_TOUCH && input.down;
   f.h += (input.left - input.right) * 1.9 * dt;
@@ -6113,14 +6228,19 @@ function updateSwim(dt) {
   S.vy += clamp(((input.hand ? 1.4 : 0) - (down ? 1.4 : 0)) - S.vy, -dt * 4, dt * 4);
   let nx = f.x + Math.sin(f.h) * f.v * dt, nz = f.z + Math.cos(f.h) * f.v * dt;
   const [u, v] = pierLocal(nx, nz);
-  if (u < DIVE.u0 || u > DIVE.u1 || v > DIVE.v1) { nx = f.x; nz = f.z; if (!S.warned) { S.warned = true; show('', 'That is the edge of the dive zone. Head back towards the reef.', 2.5); } } else S.warned = false;
+  if (S.yacht) { if (Math.hypot(nx - boat.x, nz - boat.z) > 90 + boat.spec.L) { nx = f.x; nz = f.z; if (!S.warned) { S.warned = true; show('', 'Don\'t swim too far from your yacht!', 2); } } } // stay near the boat
+  else if (u < DIVE.u0 || u > DIVE.u1 || v > DIVE.v1) { nx = f.x; nz = f.z; if (!S.warned) { S.warned = true; show('', 'That is the edge of the dive zone. Head back towards the reef.', 2.5); } } else S.warned = false;
   if (onPier(nx, nz) && f.y > -1) { nx = f.x; nz = f.z; } // bump into the pier from the water
   f.x = nx; f.z = nz;
   const floor = seabedY(f.x, f.z);
   f.y = clamp(f.y + S.vy * dt, floor + .45, -.35);
   for (const pr of uwProps) { const dx = f.x - pr.x, dy = f.y - pr.y, dz = f.z - pr.z, d = Math.hypot(dx, dy, dz); if (d < pr.r + .4 && d > 0) { const k = (pr.r + .4) / d; f.x = pr.x + dx * k; f.y = pr.y + dy * k; f.z = pr.z + dz * k; } }
   // wade back out onto the beach
-  if (seaDist(f.x, f.z) < .4 && f.y > -.6) { endSwim(); f.y = walkY(f.x, f.z); return; }
+  if (S.yacht) { // climb back aboard from the swim platform
+    const P = boatPlan(boat.spec), sp = P.spots.find(q => q.kind === 'swim'), W = { level: sp.level, x: sp.x, z: sp.z }, q = deckWorld(W), near = Math.hypot(f.x - q[0], f.z - q[2]) < 4.5 && f.y > -1.6;
+    if (near && !S.toldClimb) { S.toldClimb = true; show('', IS_TOUCH ? 'Tap DRIFT to climb aboard' : 'Press E to climb back aboard', 2); }
+    if (near && press) { endSwim(); foot.boat.swim = false; foot.boat.walk = { level: sp.level, x: sp.x, z: sp.z + .6, h: 0, pitch: -.1, ph: 0, third: false }; audio.plop(); show('', 'Back aboard! Dripping wet. 💦', 2); return; }
+  } else if (seaDist(f.x, f.z) < .4 && f.y > -.6) { endSwim(); f.y = walkY(f.x, f.z); return; }
   // air: drains below the surface, refills when you come up
   if (f.y < -1) S.air = Math.max(0, S.air - dt * .55); else S.air = Math.min(100, S.air + dt * 12);
   if (S.air <= 0) { S.vy = 1.5; f.y = Math.min(-.35, f.y + dt * 2); if (!S.outOfAir) { S.outOfAir = true; show('Out of air!', 'Swimming up to the surface to breathe.', 2.5); } } else if (S.air > 20) S.outOfAir = false;
@@ -6308,7 +6428,9 @@ addEventListener('keydown', e => {
   if (e.code === 'KeyG') $('garage').hidden ? openPanel('garage') : closeAll();
   if (e.code === 'KeyM') $('missions').hidden ? openPanel('missions') : closeAll();
   if (e.code === 'Escape') closeAll();
-  if (e.code === 'KeyC') { if (foot.fish && !paused) toggleFpv(); else camMode = (camMode + 1) % 3; }
+  if (e.code === 'KeyC') { if (foot.boat && foot.boat.walk && !foot.fish) foot.boat.walk.third = !foot.boat.walk.third; else if (foot.fish && !paused) toggleFpv(); else camMode = (camMode + 1) % 3; }
+  if (e.code === 'KeyH' && foot.on && foot.boat && !foot.fish && !foot.boat.swim && !paused) { if (foot.boat.walk) { foot.boat.walk = null; foot.p.head.visible = true; foot.p.body.rotation.x = 0; foot.p.body.position.y = 0; show('', 'Back at the helm.', 1.4); } else startDeckWalk(); }
+  if (e.code === 'KeyB' && foot.on && foot.boat && !foot.fish && !paused) { audio.init(); audio.horn(); }
   if (e.code === 'KeyO' && !paused) setPolice(!police.on);
   if (e.code === 'KeyR') resetCar();
   if (e.code === 'KeyN') audio.toggle();
@@ -8124,7 +8246,7 @@ function loop() {
   camera.lookAt(c.x + fx * 3, gy + 1.1 + (camMode === 2 ? .2 : 0), c.z + fz * 3);
   camera.fov = lerp(camera.fov, 60 + clamp(sp * 3.6 / 300, 0, 1) * 16, .05); camera.updateProjectionMatrix();
   if (foot.on) { // over-the-shoulder view when walking; wider when fishing so you see the float
-    const F = foot, fishing = !!F.fish, d = F.swim ? 5 : F.boat && !fishing ? boat.spec.cam : fishing ? 6.5 : 4.4, hh = F.boat && !fishing ? boat.spec.cam * .32 : fishing ? 3 : 2.1;
+    const F = foot, fishing = !!F.fish, d = F.swim ? 5 : F.boat && !fishing ? boat.spec.cam : fishing ? 6.5 : 4.4, hh = F.boat && !fishing && !F.swim ? boat.spec.cam * .32 : fishing ? 3 : 2.1;
     const aim = F.h + (fishing ? .45 : 0);
     cam.fh = cam.fh === undefined ? aim : cam.fh + angDiff(cam.fh, aim) * (1 - Math.exp(-dt * 4));
     let ftx = F.x - Math.sin(cam.fh) * (F.inside ? 3.2 : d), ftz = F.z - Math.cos(cam.fh) * (F.inside ? 3.2 : d);
@@ -8137,7 +8259,7 @@ function loop() {
     camera.position.set(cam.fx, cam.fy, cam.fz);
     const la = F.swim ? 2.5 : fishing ? 5 : F.boat ? 6 : 1.5;
     camera.lookAt(F.x + Math.sin(F.h) * la, F.y + (F.swim ? (F.y < -1 ? 0 : -.2) : fishing ? .6 : 1.4), F.z + Math.cos(F.h) * la);
-    const FP = fishing && fishFpv && !F.boat;
+    const FP = fishing && fishFpv && (!F.boat || !!F.boat.walk);
     if (F.p) F.p.head.visible = !FP;
     if (FP) { // first person: from your own eyes, down the rod to wherever the line goes
       const Fi = F.fish; F.p.head.getWorldPosition(_fpE); _fpE.x += Math.sin(F.h) * .05 + Math.cos(F.h) * .32; _fpE.z += Math.cos(F.h) * .05 - Math.sin(F.h) * .32; _fpE.y += .02; // eyes beside the rod, like holding it at your hip
@@ -8150,6 +8272,13 @@ function loop() {
       camera.position.set(_fpE.x + rnd(-tr, tr), _fpE.y + rnd(-tr, tr), _fpE.z + rnd(-tr, tr));
       camera.lookAt(lerp(cam.fpt.x, _fpE.x, .15), lerp(cam.fpt.y, _fpE.y, .15) + .3, lerp(cam.fpt.z, _fpE.z, .15));
     } else cam.fpt = null;
+    const DW = F.boat && F.boat.walk && !fishing && !F.swim ? F.boat.walk : null;
+    if (DW) { // on deck: through your own eyes (or over your shoulder with C)
+      const yaw = boat.h + DW.h, cp = Math.cos(DW.pitch), ey = F.y + (DW.sit === 'lounger' ? .75 : DW.sit === 'jacuzzi' ? 1.5 : 1.62);
+      if (DW.third) { camera.position.set(F.x - Math.sin(yaw) * 3.4, ey + .9, F.z - Math.cos(yaw) * 3.4); camera.lookAt(F.x + Math.sin(yaw) * 2, ey - .2 + Math.sin(DW.pitch) * 2, F.z + Math.cos(yaw) * 2); }
+      else { camera.position.set(F.x + Math.sin(yaw) * .12, ey, F.z + Math.cos(yaw) * .12); camera.lookAt(F.x + Math.sin(yaw) * cp * 10, ey + Math.sin(DW.pitch) * 10, F.z + Math.cos(yaw) * cp * 10); }
+      cam.fx = camera.position.x; cam.fz = camera.position.z; cam.fy = camera.position.y;
+    }
     const FM = fishing && F.fish.st === 'show' && F.rod.fishMesh;
     if (FM) { // close-up of your catch, from along the railing
       const Ln = FM.userData.len, cy = FM.position.y - Ln * .45, dd = .55 + Ln * 1.6, Fi = F.fish; // fish in the top half, above the catch card
@@ -8165,7 +8294,7 @@ function loop() {
       cam.uw[0] = lerp(cam.uw[0], tx, kz); cam.uw[1] = lerp(cam.uw[1], ty, kz); cam.uw[2] = lerp(cam.uw[2], tz, kz);
       camera.position.set(cam.uw[0], cam.uw[1], cam.uw[2]); camera.lookAt(H.x, H.y - .12 * near, H.z); // hook just above the middle, clear of the buttons
     } else cam.uw = null;
-    camera.fov = lerp(camera.fov, FP && !FM && !UF ? 72 : 58, .1); camera.updateProjectionMatrix();
+    camera.fov = lerp(camera.fov, (FP || DW) && !FM && !UF ? 72 : 58, .1); camera.updateProjectionMatrix();
     cam.x = cam.fx; cam.z = cam.fz;
   } else { cam.fh = undefined; cam.fx = undefined; cam.fz = undefined; cam.fy = undefined; }
   if (!$('design').hidden) { // turntable view in the paint shop
@@ -8223,7 +8352,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { ANIM, ZER, restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { stopFishing, startDeckWalk, boatPlan, setBoatModel, deckAction, ANIM, ZER, restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
