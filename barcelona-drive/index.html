@@ -646,6 +646,9 @@ const PAR = newRegion({ id: 'paris', title: 'Paris', ox: 250000, oz: 0, file: 'p
 const ADR = newRegion({ id: 'andorra', title: 'Andorra (Pyrenees)', ox: 250000, oz: -250000, file: 'andorra-data.txt', look: 'alpine', country: 'Andorra', code: 'AD', alias: 'andorra pyrenees pirineus mountains', ground0: '#7a9a58', tints: [[2050, 450, '#8a8478']], conH: 0, conP: 1,
   sky: { fog: '#c8d8e8', d: .00012, hor: '#d8e4f0', zen: '#3a6ab8', sun: 1 }, hello: ['Benvinguts a Andorra!', 'High in the real Pyrenees: every road, village and mountain is from real maps. Try the climb up to Pas de la Casa!'],
   spots: { vella: [0, 100, 'Andorra la Vella'], caldea: [1313, -345, 'Escaldes-Engordany'], ordino: [927, -5507, 'Ordino'], soldeu: [11933, -7832, 'Soldeu'], pas: [17350, -3994, 'Pas de la Casa'] } });
+const ZER = newRegion({ id: 'zermatt', title: 'Zermatt & the Matterhorn', ox: -250000, oz: 250000, file: 'zermatt-data.txt', look: 'swiss', country: 'Switzerland', code: 'CH', alias: 'zermatt matterhorn switzerland swiss alps cervino gornergrat glacier valais', ground0: '#6f9a4a', tints: [[2450, 800, '#7f7566']], conH: 0, conP: 1,
+  snow: [3300, 450], far: 24000, sky: { fog: '#cfdcea', d: .000045, hor: '#dbe7f3', zen: '#1f4f9e', sun: 1.15 }, hello: ['Willkommen in Zermatt!', 'The real Swiss Alps: every street, chalet, glacier and mountain is from real maps, and the Matterhorn towers over the village at 4,478 m. Try Gornergrat or the Stellisee!'],
+  spots: { village: [0, -150, 'Zermatt'], station: [-36, -400, 'Zermatt station'], stellisee: [3960, 780, 'Stellisee (Matterhorn reflection)'], riffelsee: [1000, 4110, 'Riffelsee'], gornergrat: [2814, 4161, 'Gornergrat'], schwarzsee: [-3200, 3300, 'Schwarzsee'], hornli: [-5535, 4283, 'Hörnli Hut (Matterhorn base camp)'], cervinia: [-9134, 9467, 'Breuil-Cervinia, Italy'], furi: [-1422, 2085, 'Furi'] } });
 const MAL = newRegion({ id: 'mallorca', title: 'Mallorca', ox: -320000, oz: 0, file: 'mallorca-data.txt', look: 'med', country: 'Spain', code: 'IB', alias: 'mallorca majorca balears palma island', ground0: '#a8a46a', tints: [[650, 500, '#9a9484']], conH: 150, conP: .7,
   sky: { fog: '#d8e0e8', d: .00014, hor: '#e4ecf2', zen: '#3a78c8', sun: 1.05 }, hello: ['Benvinguts a Mallorca!', 'The whole island from real maps: Palma, the mountain roads of the Serra de Tramuntana, Sa Calobra and Formentor.'],
   spots: { palma: [200, -300, 'Palma'], soller: [5588, -21927, 'Sóller'], valldemossa: [-2369, -15687, 'Valldemossa'], calobra: [13477, -31261, 'Sa Calobra road'], pollenca: [37290, -37381, 'Port de Pollença'], formentor: [46500, -42000, 'Cap de Formentor'] } });
@@ -1193,6 +1196,57 @@ function addFlat(polys, mat, y, uvScale, shadow = true) {
   });
 }
 
+/* ---------- realistic trees: leaf-card crowns round a dense core, mottled plane-tree bark ---------- */
+const TREE_TEX = {};
+function leafTex(kind = 'plane') { // clusters of leaves with see-through gaps on top; a solid mat of leaves along the bottom for the core
+  if (TREE_TEX[kind]) return TREE_TEX[kind];
+  const cv = document.createElement('canvas'); cv.width = cv.height = 256; const g = cv.getContext('2d');
+  const pal = kind === 'jungle' ? [[95, 140, 50], [60, 110, 40], [120, 160, 60], [45, 90, 35]] : kind === 'oak' ? [[80, 110, 45], [60, 90, 38], [100, 130, 55], [50, 75, 32]] : [[110, 145, 60], [85, 125, 50], [135, 165, 70], [70, 105, 42]];
+  const leaf = (x, y, s, a, c, lobes) => { g.save(); g.translate(x, y); g.rotate(a); g.fillStyle = `rgb(${c[0]},${c[1]},${c[2]})`; g.beginPath();
+    for (let k = 0; k <= 40; k++) { const t = k / 40 * Math.PI * 2, r = s * (lobes ? .62 + .38 * Math.pow(Math.abs(Math.cos(t * lobes / 2)), .6) : 1) * (kind === 'jungle' ? 1 : 1); const ex = Math.cos(t) * r * (kind === 'jungle' ? .55 : 1), ey = Math.sin(t) * r; k ? g.lineTo(ex, ey) : g.moveTo(ex, ey); }
+    g.fill(); g.strokeStyle = `rgba(255,255,230,.18)`; g.lineWidth = 1; g.beginPath(); g.moveTo(0, s * .9); g.lineTo(0, -s * .8); g.stroke();
+    const sh = g.createRadialGradient(-s * .3, -s * .3, 0, 0, 0, s); sh.addColorStop(0, 'rgba(255,255,220,.18)'); sh.addColorStop(1, 'rgba(0,0,0,.25)'); g.fillStyle = sh; g.fill(); g.restore(); };
+  const lobes = kind === 'plane' ? 5 : kind === 'oak' ? 7 : 0;
+  // three leafy clusters on the cards' part of the texture (top 3/4)
+  for (let n = 0; n < 420; n++) { const a = Math.random() * 7, r = Math.pow(Math.random(), .6) * 92, x = 128 + Math.cos(a) * r * 1.2, y = 96 + Math.sin(a) * r;
+    if (y > 186 || x < 6 || x > 250 || y < 6) continue; const c = pal[(Math.random() * pal.length) | 0], k = .7 + (1 - r / 92) * .45; leaf(x, y, 6 + Math.random() * 7, Math.random() * 7, c.map(v => Math.min(255, v * k | 0)), lobes); }
+  g.strokeStyle = 'rgba(80,60,40,.8)'; g.lineWidth = 2; for (let k = 0; k < 5; k++) { g.beginPath(); g.moveTo(128, 186); g.quadraticCurveTo(128 + (k - 2) * 20, 140, 128 + (k - 2) * 45, 70 + Math.random() * 30); g.stroke(); } // twigs
+  for (let n = 0; n < 60; n++) { const c = pal[(Math.random() * pal.length) | 0]; leaf(128 + (Math.random() - .5) * 200, 96 + (Math.random() - .5) * 150, 6 + Math.random() * 6, Math.random() * 7, c, lobes); }
+  // the solid strip for the core
+  g.fillStyle = `rgb(${pal[3].join(',')})`; g.fillRect(0, 196, 256, 60);
+  for (let n = 0; n < 500; n++) { const c = pal[(Math.random() * pal.length) | 0]; leaf(Math.random() * 256, 200 + Math.random() * 52, 5 + Math.random() * 6, Math.random() * 7, c.map(v => v * (.6 + Math.random() * .4) | 0), lobes); }
+  g.clearRect(0, 188, 256, 6);
+  const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return TREE_TEX[kind] = t;
+}
+function barkTex(kind = 'plane') {
+  const key = 'bark' + kind; if (TREE_TEX[key]) return TREE_TEX[key];
+  return TREE_TEX[key] = canvasTex(128, 256, (c, w, h) => {
+    if (kind === 'plane') { c.fillStyle = '#b8b08a'; c.fillRect(0, 0, w, h); for (let k = 0; k < 90; k++) { c.fillStyle = ['#8a8a62', '#d8d0a8', '#9a9872', '#c8c4a0', '#7a7656'][k % 5]; c.beginPath(); c.ellipse(Math.random() * w, Math.random() * h, 6 + Math.random() * 18, 5 + Math.random() * 14, Math.random() * 3, 0, 7); c.fill(); } } // the plane tree's camouflage bark
+    else { c.fillStyle = kind === 'jungle' ? '#5a4a36' : '#4a3a2a'; c.fillRect(0, 0, w, h); for (let k = 0; k < 140; k++) { c.fillStyle = `rgba(${Math.random() < .5 ? '20,14,8' : '140,120,95'},${.2 + Math.random() * .3})`; c.fillRect(Math.random() * w, Math.random() * h, 1 + Math.random() * 3, 8 + Math.random() * 30); } }
+  }, 1, 1);
+}
+function leafCrownGeo(o) { // o: { r, cy, sy, cards, size, seed } → one geometry: cards facing every way, normals pointing out of the crown
+  let sd = o.seed || 7; const R = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const pos = [], nor = [], uv = [], idx = [], c = new THREE.Vector3(0, o.cy, 0), q = new THREE.Quaternion(), e = new THREE.Euler(), v = new THREE.Vector3(), n = new THREE.Vector3();
+  const quad = [[-.5, -.5], [.5, -.5], [.5, .5], [-.5, .5]], quv = [[0, .27], [1, .27], [1, 1], [0, 1]];
+  for (let i = 0; i < o.cards; i++) {
+    const a = R() * Math.PI * 2, b = Math.acos(1 - 2 * R()), rr = o.r * (.45 + .45 * Math.cbrt(R())), cx = Math.sin(b) * Math.cos(a) * rr, cyy = Math.cos(b) * rr * o.sy, cz = Math.sin(b) * Math.sin(a) * rr, s = o.size * (.8 + R() * .5);
+    q.setFromEuler(e.set(R() * Math.PI, R() * Math.PI * 2, R() * Math.PI)); const base = pos.length / 3;
+    quad.forEach(([x, y], k) => { v.set(x * s, y * s, 0).applyQuaternion(q).add(c).add(n.set(cx, cyy, cz)); pos.push(v.x, v.y, v.z); n.copy(v).sub(c); n.y = n.y / Math.max(.3, o.sy) + o.r * .35; n.normalize(); nor.push(n.x, n.y, n.z); uv.push(...quv[k]); });
+    idx.push(base, base + 1, base + 2, base, base + 2, base + 3);
+  }
+  const core = new THREE.IcosahedronGeometry(o.r * .78, o.detail ?? 0); { const p = core.attributes.position, base = pos.length / 3;
+    for (let k = 0; k < p.count; k++) { v.set(p.getX(k), p.getY(k) * o.sy, p.getZ(k)); const w = 1 + .12 * Math.sin(v.x * 3.1 + o.cy) * Math.sin(v.z * 2.7) ; v.multiplyScalar(w).add(c); pos.push(v.x, v.y, v.z); n.set(p.getX(k), p.getY(k) + o.r * .2, p.getZ(k)).normalize(); nor.push(n.x, n.y, n.z); uv.push((Math.atan2(p.getZ(k), p.getX(k)) / Math.PI * .5 + .5), .02 + (p.getY(k) / o.r * .5 + .5) * .2); idx.push(base + k); } }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); return g;
+}
+function treeTrunkGeo(h, r0, r1, branches, seed = 3) { // a tapering trunk that forks into branches reaching up into the crown
+  let sd = seed; const R = () => (sd = (sd * 1664525 + 1013904223) >>> 0) / 4294967296;
+  const gs = [new THREE.CylinderGeometry(r1, r0, h, 8).translate(0, h / 2, 0)];
+  for (let i = 0; i < branches; i++) { const L = h * (.45 + R() * .25), g = new THREE.CylinderGeometry(r1 * .35, r1 * .7, L, 6).translate(0, L / 2, 0); g.rotateZ(.5 + R() * .35); g.rotateY(i / branches * Math.PI * 2 + R()); g.translate(0, h * (.82 + R() * .15), 0); gs.push(g); }
+  return mergeGeos(gs);
+}
+const leafMat = kind => { const map = leafTex(kind), m = new THREE.MeshStandardMaterial({ map, alphaTest: .45, side: THREE.DoubleSide, roughness: .85, metalness: 0 });
+  m.userData.depth = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map, alphaTest: .45, side: THREE.DoubleSide }); return m; };
 /* ---------- street trees: the real plane trees and palms of Barcelona ---------- */
 const treeTiles = new Map();
 {
@@ -1201,12 +1255,8 @@ const treeTiles = new Map();
     const x = T[k], z = T[k + 1], t = tileOf(x, z);
     (t.trees = t.trees || []).push([x, z]); addCircle(x, z, .35);
   }
-  const trunkG = new THREE.CylinderGeometry(.2, .28, 4.5, 6); trunkG.translate(0, 2.25, 0);
-  const crownG = new THREE.IcosahedronGeometry(2.8, 1); crownG.translate(0, 6, 0);
-  const pos = crownG.attributes.position;
-  for (let k = 0; k < pos.count; k++) pos.setXYZ(k, pos.getX(k) * rnd(.85, 1.15), pos.getY(k) * rnd(.9, 1.05), pos.getZ(k) * rnd(.85, 1.15));
-  crownG.computeVertexNormals();
-  const trunkM = new THREE.MeshStandardMaterial({ color: C('#8a7d68'), roughness: 1 }), crownM = new THREE.MeshStandardMaterial({ color: C('#5b7c3a'), roughness: .95, flatShading: true });
+  const trunkG = treeTrunkGeo(4.6, .3, .2, 3), crownG = leafCrownGeo({ r: 2.9, cy: 6.4, sy: .82, cards: 26, size: 2.5, seed: 11 });
+  const trunkM = new THREE.MeshStandardMaterial({ map: barkTex('plane'), roughness: .95 }), crownM = leafMat('plane');
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), upv = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3(), s3 = new THREE.Vector3(), col = new THREE.Color();
   for (const t of TILES.values()) {
     if (!t.trees) continue;
@@ -1214,9 +1264,9 @@ const treeTiles = new Map();
     t.trees.forEach(([x, z], k) => {
       const s = rnd(.8, 1.2); q.setFromAxisAngle(upv, Math.random() * 6);
       m4.compose(v3.set(x, groundH(x, z), z), q, s3.set(s, s, s)); tr.setMatrixAt(k, m4); cr.setMatrixAt(k, m4);
-      cr.setColorAt(k, col.setHSL(.24 + Math.random() * .05, .35, .36 + Math.random() * .1).convertSRGBToLinear());
+      cr.setColorAt(k, col.setHSL(.2 + Math.random() * .08, .3, .78 + Math.random() * .14).convertSRGBToLinear());
     });
-    tr.castShadow = cr.castShadow = true; tr.frustumCulled = cr.frustumCulled = false;
+    cr.customDepthMaterial = crownM.userData.depth; tr.castShadow = cr.castShadow = true; tr.frustumCulled = cr.frustumCulled = false;
     scene.add(tr, cr); t.objs.push(tr, cr); delete t.trees;
   }
 }
@@ -2053,43 +2103,67 @@ const pick = a => a[(Math.random() * a.length) | 0];
 // shared body parts; limbs pivot at the hip and shoulder so they swing like real legs and arms
 // people: rounded bodies, faces, hair, hands and shoes (the pivots stay at hips, shoulders and neck)
 const ico = (r, x, y, z, sx = 1, sy = 1, sz = 1) => new THREE.IcosahedronGeometry(r, 0).scale(sx, sy, sz).translate(x, y, z);
-const PG = {
+const icoq = (r, x, y, z, sx = 1, sy = 1, sz = 1) => new THREE.IcosahedronGeometry(r, PGQ > 1 ? 2 : 0).scale(sx, sy, sz).translate(x, y, z);
+let PGQ = 1;
+const buildPG = q => { PGQ = q; const G = {
   torso: (() => { // chest, waist and hips turned on a lathe, flattened front to back, with rounded shoulders
     const prof = [[0, 0], [.16, 0], [.175, .07], [.15, .22], [.172, .38], [.19, .5], [.16, .58], [.06, .62], [0, .63]].map(([r, y]) => new THREE.Vector2(r, y));
-    return mergeGeos([new THREE.LatheGeometry(prof, 9).scale(1, 1, .62), ico(.07, -.19, .52, 0), ico(.07, .19, .52, 0)]);
+    return mergeGeos([new THREE.LatheGeometry(prof, 9 * q).scale(1, 1, .62), icoq(.07, -.19, .52, 0), icoq(.07, .19, .52, 0)]);
   })(),
-  skirt: new THREE.CylinderGeometry(.17, .27, .42, 10, 1, true).translate(0, -.12, 0),
+  skirt: new THREE.CylinderGeometry(.17, .27, .42, 10 * q, 1, true).translate(0, -.12, 0),
   head: mergeGeos([
-    new THREE.SphereGeometry(.105, 10, 8).scale(.92, 1.1, 1), ico(.075, 0, -.055, .025, 1, .8, 1), // skull and jaw
-    new THREE.ConeGeometry(.018, .05, 5).rotateX(Math.PI / 2).translate(0, -.01, .11), // nose
-    ico(.025, -.1, -.005, 0, .5, 1, .8), ico(.025, .1, -.005, 0, .5, 1, .8), // ears
-    new THREE.CylinderGeometry(.045, .05, .14, 7, 1, true).translate(0, -.17, 0), // neck
+    new THREE.SphereGeometry(.105, 10 * q, 8 * q).scale(.92, 1.1, 1), icoq(.075, 0, -.055, .025, 1, .8, 1), // skull and jaw
+    new THREE.ConeGeometry(.018, .05, 5 * q).rotateX(Math.PI / 2).translate(0, -.01, .11), // nose
+    icoq(.025, -.1, -.005, 0, .5, 1, .8), icoq(.025, .1, -.005, 0, .5, 1, .8), // ears
+    new THREE.CylinderGeometry(.045, .05, .14, 7 * q, 1, true).translate(0, -.17, 0), // neck
   ]),
-  hair: new THREE.SphereGeometry(.115, 10, 5, 0, Math.PI * 2, 0, Math.PI * .55).rotateX(-.4).translate(0, .012, -.012),
-  hairLong: new THREE.CylinderGeometry(.108, .13, .26, 10, 1, true, Math.PI * .55, Math.PI * .9).translate(0, -.1, -.01),
-  eyes: mergeGeos([ico(.015, -.037, .018, .093), ico(.015, .037, .018, .093)]),
-  thigh: new THREE.CylinderGeometry(.07, .092, .47, 7, 1, true).translate(0, -.235, 0),
-  shin: mergeGeos([ico(.07, 0, -.47, 0), new THREE.CylinderGeometry(.05, .068, .42, 7, 1, true).translate(0, -.68, 0)]),
-  shoe: mergeGeos([new THREE.BoxGeometry(.1, .07, .25).translate(0, -.895, .045), ico(.05, 0, -.9, .15, 1, .7, 1)]),
-  uarm: mergeGeos([ico(.062, 0, 0, 0), new THREE.CylinderGeometry(.052, .06, .3, 7, 1, true).translate(0, -.15, 0)]),
-  farm: new THREE.CylinderGeometry(.038, .05, .27, 7, 1, true).translate(0, -.435, 0),
-  hand: ico(.05, 0, -.61, 0, .75, 1.3, .55),
+  hair: new THREE.SphereGeometry(.115, 10 * q, 5 * q, 0, Math.PI * 2, 0, Math.PI * .55).rotateX(-.4).translate(0, .012, -.012),
+  hairLong: new THREE.CylinderGeometry(.108, .13, .26, 10 * q, 1, true, Math.PI * .55, Math.PI * .9).translate(0, -.1, -.01),
+  eyes: mergeGeos([icoq(.015, -.037, .018, .093), icoq(.015, .037, .018, .093)]),
+  thigh: new THREE.CylinderGeometry(.07, .092, .47, 7 * q, 2 * q, true).translate(0, -.235, 0),
+  shin: mergeGeos([icoq(.07, 0, -.47, 0), new THREE.CylinderGeometry(.05, .068, .42, 7 * q, 2 * q, true).translate(0, -.68, 0)]),
+  shoe: mergeGeos([new THREE.BoxGeometry(.1, .07, .25).translate(0, -.895, .045), icoq(.05, 0, -.9, .15, 1, .7, 1)]),
+  uarm: mergeGeos([icoq(.062, 0, 0, 0), new THREE.CylinderGeometry(.052, .06, .3, 7 * q, 2 * q, true).translate(0, -.15, 0)]),
+  farm: new THREE.CylinderGeometry(.038, .05, .27, 7 * q, 2 * q, true).translate(0, -.435, 0),
+  hand: icoq(.05, 0, -.61, 0, .75, 1.3, .55),
 };
+  if (q > 1) { // close-up people get a proper face: eye whites with irises, eyebrows and lips
+    G.eyes = mergeGeos([icoq(.017, -.037, .018, .09), icoq(.017, .037, .018, .09)]);
+    G.iris = mergeGeos([new THREE.SphereGeometry(.009, 10, 8).translate(-.037, .018, .104), new THREE.SphereGeometry(.009, 10, 8).translate(.037, .018, .104)]);
+    G.brows = mergeGeos([new THREE.BoxGeometry(.034, .007, .01).rotateZ(.12).translate(-.038, .043, .1), new THREE.BoxGeometry(.034, .007, .01).rotateZ(-.12).translate(.038, .043, .1)]);
+    G.lips = new THREE.TorusGeometry(.022, .006, 6, 14, Math.PI).rotateZ(Math.PI).scale(1, .5, 1).translate(0, -.045, .098);
+  }
+  return G; };
+const PG = buildPG(1), PG_HI = buildPG(2);
 const HAIR = ['#1b1410', '#2e1f14', '#4a3020', '#7a5230', '#b58a4c', '#d9c08c', '#8a8a8a', '#3a2a1e'], SHOES = ['#1b1b1b', '#f4f4f4', '#6b3e26', '#2b3a55', '#c8102e', '#8a8f96'];
 const matCache = {};
 const flat = hex => matCache[hex] || (matCache[hex] = new THREE.MeshStandardMaterial({ color: C(hex), roughness: .85 }));
+let weaveT = null, strandT = null;
+const weaveTex = () => weaveT || (weaveT = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d'); g.fillStyle = 'rgb(128,128,255)'; g.fillRect(0, 0, 64, 64);
+  for (let y = 0; y < 64; y += 4) for (let x = 0; x < 64; x += 4) { const o = ((x + y) / 4) % 2; g.fillStyle = o ? 'rgb(150,128,240)' : 'rgb(106,128,240)'; g.fillRect(x, y, 4, 2); g.fillStyle = o ? 'rgb(128,150,240)' : 'rgb(128,106,240)'; g.fillRect(x, y + 2, 4, 2); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(6, 6); return t; })()); // a woven-cloth bump for clothes
+const strandTex = () => strandT || (strandT = (() => { const cv = document.createElement('canvas'); cv.width = cv.height = 64; const g = cv.getContext('2d'); g.fillStyle = 'rgb(128,128,255)'; g.fillRect(0, 0, 64, 64);
+  for (let x = 0; x < 64; x++) { const v = 128 + (Math.random() - .5) * 90 | 0; g.fillStyle = `rgb(${v},128,240)`; g.fillRect(x, 0, 1, 64); }
+  const t = new THREE.CanvasTexture(cv); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(4, 1); return t; })()); // fine strands of hair
+const PMAT = {};
+const pmat = (hex, kind) => PMAT[hex + kind] || (PMAT[hex + kind] = kind === 'cloth' ? new THREE.MeshStandardMaterial({ color: C(hex), roughness: .93, normalMap: weaveTex(), normalScale: new THREE.Vector2(.5, .5) })
+  : kind === 'skin' ? new THREE.MeshPhysicalMaterial({ color: C(hex), roughness: .52, clearcoat: .12, clearcoatRoughness: .5 })
+  : kind === 'hair' ? new THREE.MeshStandardMaterial({ color: C(hex), roughness: .42, metalness: .08, normalMap: strandTex(), normalScale: new THREE.Vector2(.8, .8) })
+  : kind === 'eye' ? new THREE.MeshPhysicalMaterial({ color: C(hex), roughness: .08, clearcoat: 1, clearcoatRoughness: 0 })
+  : kind === 'shoe' ? new THREE.MeshPhysicalMaterial({ color: C(hex), roughness: .45, clearcoat: .4, clearcoatRoughness: .3 }) : flat(hex));
 function makePerson(shirt, pants, skin, opts = {}) {
-  const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
-  const mk = (geo, hex, x, y, z, parent = body) => { const m = new THREE.Mesh(geo, flat(hex)); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
+  const root = new THREE.Group(), body = new THREE.Group(), P = PG_HI; root.add(body);
+  const mk = (geo, hex, x, y, z, parent = body, kind = 'cloth') => { const m = new THREE.Mesh(geo, pmat(hex, kind)); m.position.set(x, y, z); m.castShadow = true; parent.add(m); return m; };
   const hairCol = opts.hair || pick(HAIR), shoe = opts.shoes || pick(SHOES), shortSleeves = opts.short ?? Math.random() < .5;
-  const torso = mk(PG.torso, shirt, 0, .92, 0);
+  const torso = mk(P.torso, shirt, 0, .92, 0);
   const head = new THREE.Group(); head.position.set(0, 1.66, 0); body.add(head);
-  mk(PG.head, skin, 0, 0, 0, head); mk(PG.eyes, '#1a1512', 0, 0, 0, head);
-  if (!opts.cap) mk(PG.hair, hairCol, 0, 0, 0, head);
-  if (opts.longHair) mk(PG.hairLong, hairCol, 0, 0, 0, head);
-  const legs = [-.1, .1].map(x => { const g = new THREE.Group(); g.position.set(x, .93, 0); body.add(g); mk(PG.thigh, pants, 0, 0, 0, g); mk(PG.shin, pants, 0, 0, 0, g); mk(PG.shoe, shoe, 0, 0, 0, g); return g; });
-  const arms = [-.27, .27].map(x => { const g = new THREE.Group(); g.position.set(x, 1.47, 0); body.add(g); mk(PG.uarm, shirt, 0, 0, 0, g); mk(PG.farm, shortSleeves ? skin : shirt, 0, 0, 0, g); mk(PG.hand, skin, 0, 0, 0, g); return g; });
-  if (opts.cap) { mk(new THREE.SphereGeometry(.118, 10, 5, 0, Math.PI * 2, 0, Math.PI * .5), opts.cap, 0, .02, 0, head); mk(new THREE.BoxGeometry(.2, .015, .11), opts.cap, 0, .03, .12, head); }
+  mk(P.head, skin, 0, 0, 0, head, 'skin'); mk(P.eyes, '#f4f2ee', 0, 0, 0, head, 'eye'); mk(P.iris, ['#3a2a1a', '#4a6a8a', '#3a5a3a', '#2a1a10'][Math.random() * 4 | 0], 0, 0, 0, head, 'eye');
+  mk(P.brows, hairCol, 0, 0, 0, head, 'hair'); mk(P.lips, '#' + C(skin).multiplyScalar(.72).getHexString(), 0, 0, 0, head, 'skin');
+  if (!opts.cap) mk(P.hair, hairCol, 0, 0, 0, head, 'hair');
+  if (opts.longHair) mk(P.hairLong, hairCol, 0, 0, 0, head, 'hair');
+  const legs = [-.1, .1].map(x => { const g = new THREE.Group(); g.position.set(x, .93, 0); body.add(g); mk(P.thigh, pants, 0, 0, 0, g); mk(P.shin, pants, 0, 0, 0, g); mk(P.shoe, shoe, 0, 0, 0, g, 'shoe'); return g; });
+  const arms = [-.27, .27].map(x => { const g = new THREE.Group(); g.position.set(x, 1.47, 0); body.add(g); mk(P.uarm, shirt, 0, 0, 0, g); mk(P.farm, shortSleeves ? skin : shirt, 0, 0, 0, g, shortSleeves ? 'skin' : 'cloth'); mk(P.hand, skin, 0, 0, 0, g, 'skin'); return g; });
+  if (opts.cap) { mk(new THREE.SphereGeometry(.118, 20, 10, 0, Math.PI * 2, 0, Math.PI * .5), opts.cap, 0, .02, 0, head); mk(new THREE.CylinderGeometry(.1, .1, .012, 20, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.1).translate(0, .03, .08), opts.cap, 0, 0, 0, head); }
   return { root, body, torso, head, legs, arms };
 }
 // walk cycle: legs and arms swing in opposition, the body bobs twice per stride
@@ -2641,10 +2715,16 @@ const saveBest = () => { try { localStorage.setItem('bcn-run-best', JSON.stringi
 
 const beamGeo = new THREE.CylinderGeometry(1, 1, 70, 32, 1, true); beamGeo.translate(0, 35, 0);
 const ringGeo = new THREE.TorusGeometry(1, .06, 8, 48); ringGeo.rotateX(Math.PI / 2);
+const BEAMS = []; let beamFadeT = null;
+const beamFade = () => beamFadeT || (beamFadeT = (() => { const cv = document.createElement('canvas'); cv.width = 4; cv.height = 128; const c = cv.getContext('2d'), gr = c.createLinearGradient(0, 128, 0, 0); gr.addColorStop(0, '#fff'); gr.addColorStop(.25, '#999'); gr.addColorStop(1, '#000'); c.fillStyle = gr; c.fillRect(0, 0, 4, 128); return new THREE.CanvasTexture(cv); })()); // a glow that fades out going up
+function fadeBeams() { // a beam fades almost away when you're standing in it, so it doesn't tint the whole view
+  for (const g of BEAMS) { if (!g.visible) continue; const d = Math.hypot(camera.position.x - g.position.x, camera.position.z - g.position.z), r = g.userData.r;
+    g.children[0].material.opacity = g.userData.op * (.12 + .88 * smooth01((d - r) / (r * 2))); }
+}
 function beam(color, r, op = .28) {
   const g = new THREE.Group();
-  const m = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color, transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }));
-  m.scale.set(r, 1, r); g.add(m);
+  const m = new THREE.Mesh(beamGeo, new THREE.MeshBasicMaterial({ color, alphaMap: beamFade(), transparent: true, opacity: op, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, fog: false }));
+  m.scale.set(r, 1, r); g.add(m); g.userData = { r, op }; BEAMS.push(g);
   const ring = new THREE.Mesh(ringGeo, new THREE.MeshBasicMaterial({ color, fog: false })); ring.scale.set(r, 6, r); ring.position.y = .3; g.add(ring);
   scene.add(g); return g;
 }
@@ -4324,9 +4404,9 @@ JNG.build = () => {
   const jit = (g, a) => { const p = g.attributes.position; for (let k = 0; k < p.count; k++) p.setXYZ(k, p.getX(k) * rnd(1 - a, 1 + a), p.getY(k) * rnd(1 - a, 1 + a), p.getZ(k) * rnd(1 - a, 1 + a)); g.computeVertexNormals(); return g; };
   const G = {
     trunk: new THREE.CylinderGeometry(.55, .85, 1, 7).translate(0, .5, 0),
-    crown: jit(new THREE.IcosahedronGeometry(1, 1), .25).scale(1, .45, 1),
+    crown: leafCrownGeo({ r: 1, cy: 0, sy: .5, cards: 40, size: .62, seed: 5, detail: 1 }),
     palmTrunk: new THREE.CylinderGeometry(.14, .2, 1, 6).translate(0, .5, 0),
-    bush: jit(new THREE.IcosahedronGeometry(1, 1), .3).translate(0, .6, 0),
+    bush: leafCrownGeo({ r: 1, cy: .6, sy: .8, cards: 14, size: .95, seed: 9 }),
     liana: new THREE.CylinderGeometry(.04, .05, 1, 4).translate(0, -.5, 0),
     buttress: new THREE.BoxGeometry(.25, 1, 2.6).translate(0, .5, 1.3),
   };
@@ -4337,6 +4417,7 @@ JNG.build = () => {
     const pos = []; for (const g of fr) pos.push(...g.toNonIndexed().attributes.position.array); G.palm = new THREE.BufferGeometry(); G.palm.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); G.palm.computeVertexNormals(); }
   { const pos = []; for (let i = 0; i < 6; i++) { const g = new THREE.PlaneGeometry(.7, 1.6, 1, 3).translate(0, .8, 0); g.rotateX(-.5).rotateY(i / 6 * Math.PI * 2); pos.push(...g.toNonIndexed().attributes.position.array); } G.fern = new THREE.BufferGeometry(); G.fern.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); G.fern.computeVertexNormals(); }
   { const pos = []; for (let i = 0; i < 3; i++) { const g = new THREE.PlaneGeometry(.12, 1, 1, 3).translate(0, .5, 0); g.rotateY(i / 3 * Math.PI); pos.push(...g.toNonIndexed().attributes.position.array); } G.reed = new THREE.BufferGeometry(); G.reed.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); G.reed.computeVertexNormals(); }
+  const LMAT = {}, jleaf = col => LMAT[col] || (LMAT[col] = (() => { const m = leafMat('jungle'); m.color = C(col).lerp(C('#ffffff'), .6); return m; })()); // leafy, see-through crowns
   const MAT = {}; const mat = (col, o = {}) => MAT[col + JSON.stringify(o)] || (MAT[col + JSON.stringify(o)] = new THREE.MeshStandardMaterial(Object.assign({ color: C(col), roughness: .85 }, o)));
   const LEAF = ['#1f4a1c', '#2a5a20', '#245218', '#33621f', '#1c4020', '#3a6a28', '#2c5a2a'], BARK = ['#5a4a38', '#6a5a46', '#4a3e30', '#7a6e5a'];
   // the forest, in square chunks that switch off when they're far away
@@ -4367,8 +4448,8 @@ JNG.build = () => {
     for (let i = 0; i < 320; i++) { const s = spot(.5); if (!s) continue; const [x, z] = s, y = JNG.h(x, z); L.fern.push({ m: pick(['#3a7a2a', '#4a8a30', '#2f6a24', '#5a8a34']), M: M4(x, y - .05, z, 0, Math.random() * 6, 0, rnd(.7, 1.6), rnd(.6, 1.4), rnd(.7, 1.6)) }); }
     for (let i = 0; i < 26; i++) { const v = cj + Math.random() * CH; if (Math.abs(v) > HS + 120) continue; const sd = Math.random() < .5 ? -1 : 1, [x0, z0] = JNG.edge(v, sd, rnd(-1.5, 2)); if (Math.abs(x0 - JNG.x - ci - CH / 2) > CH / 2 || lodgeClear(x0, z0) || JNG.onJetty(x0, z0)) continue; // reeds and tall grass on the banks
       for (let k = 0; k < 14; k++) { const x = x0 + rnd(-1.5, 1.5), z = z0 + rnd(-1.5, 1.5); L.reed.push({ m: pick(['#5a7a2a', '#6a8a34', '#4a6a24', '#7a8a40']), M: M4(x, JNG.h(x, z) - .1, z, rnd(-.15, .15), Math.random() * 6, rnd(-.15, .15), rnd(1, 2), rnd(1, 2.4), 1) }); } }
-    const parts = [...put(L.trunk, G.trunk, k => mat(k, { roughness: 1 })), ...put(L.crown, G.crown, k => mat(k, { flatShading: true })), ...put(L.palmT, G.palmTrunk, k => mat(k)), ...put(L.palm, G.palm, k => mat(k, { side: THREE.DoubleSide })), ...put(L.bush, G.bush, k => mat(k, { flatShading: true })), ...put(L.fern, G.fern, k => mat(k, { side: THREE.DoubleSide })), ...put(L.liana, G.liana, k => mat(k)), ...put(L.butt, G.buttress, k => mat(k, { roughness: 1 })), ...put(L.reed, G.reed, k => mat(k, { side: THREE.DoubleSide }))];
-    parts.forEach(p => grp.add(p)); root.add(grp); chunks.push({ g: grp, x: cx, z: cz });
+    const parts = [...put(L.trunk, G.trunk, k => mat(k, { roughness: 1 })), ...put(L.crown, G.crown, k => jleaf(k)), ...put(L.palmT, G.palmTrunk, k => mat(k)), ...put(L.palm, G.palm, k => mat(k, { side: THREE.DoubleSide })), ...put(L.bush, G.bush, k => jleaf(k)), ...put(L.fern, G.fern, k => mat(k, { side: THREE.DoubleSide })), ...put(L.liana, G.liana, k => mat(k)), ...put(L.butt, G.buttress, k => mat(k, { roughness: 1 })), ...put(L.reed, G.reed, k => mat(k, { side: THREE.DoubleSide }))];
+    parts.forEach(p => { if (p.material.userData && p.material.userData.depth) p.customDepthMaterial = p.material.userData.depth; grp.add(p); }); root.add(grp); chunks.push({ g: grp, x: cx, z: cz });
   }
   // on the water: giant Amazon water lilies with turned-up rims, floating water hyacinth and old logs
   { const lil = [], rim = [], hy = [], fl = [];
@@ -4618,6 +4699,18 @@ DUB.mats = () => {
     g.fillStyle = '#dcdcd4'; g.fillRect(190, 60, 40, 30); g.fillStyle = '#9a9a92'; for (let y = 64; y < 88; y += 5) g.fillRect(194, y, 32, 2); });
   T.desG = canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); g.fillStyle = '#8a8e90'; g.fillRect(20, 40, 216, 152); g.fillStyle = 'rgba(0,0,0,.25)'; for (let y = 44; y < 190; y += 8) g.fillRect(20, y, 216, 2);
     g.fillStyle = ['#1f6a4a', '#8a2a1a', '#1f3a6a', '#c89a2a'][Math.random() * 4 | 0]; g.fillRect(20, 12, 216, 26); });
+  const plank = (g, w, h) => { g.fillStyle = '#5a3a22'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 12) { const v = Math.random() * 30 - 15; g.fillStyle = `rgb(${92 + v | 0},${60 + v * .7 | 0},${36 + v * .5 | 0})`; g.fillRect(0, y, w, 11); g.fillStyle = 'rgba(0,0,0,.45)'; g.fillRect(0, y + 11, w, 1); for (let k = 0; k < 6; k++) { g.fillStyle = 'rgba(30,18,8,.35)'; g.fillRect(Math.random() * w, y + 2 + Math.random() * 7, 8 + Math.random() * 30, 1); } } }; // sun-darkened larch logs
+  T.chaletS = canvasTex(256, 192, (g, w, h) => { plank(g, w, h);
+    g.fillStyle = '#f0ece2'; g.fillRect(70, 26, 116, 98); g.fillStyle = '#1e2a33'; g.fillRect(78, 34, 100, 82); g.fillStyle = 'rgba(160,200,230,.3)'; g.fillRect(78, 34, 50, 40); g.fillStyle = '#f0ece2'; g.fillRect(126, 34, 4, 82); g.fillRect(78, 72, 100, 4); // white window frames
+    for (const sx of [40, 188]) { g.fillStyle = '#3a5a2a'; g.fillRect(sx, 26, 28, 98); g.fillStyle = 'rgba(0,0,0,.3)'; for (let y = 30; y < 122; y += 6) g.fillRect(sx + 2, y, 24, 2); } // green shutters
+    g.fillStyle = '#4a2e18'; g.fillRect(0, 128, w, 8); g.fillStyle = '#6a4428'; for (let x = 4; x < w; x += 14) g.fillRect(x, 136, 8, 46); g.fillStyle = '#4a2e18'; g.fillRect(0, 180, w, 8); // a wooden balcony
+    for (let k = 0; k < 60; k++) { g.fillStyle = ['#d8202e', '#e83040', '#c01828', '#f05060'][k % 4]; g.beginPath(); g.arc(74 + Math.random() * 108, 118 + Math.random() * 12, 3 + Math.random() * 3, 0, 7); g.fill(); } g.fillStyle = '#3a6a2a'; for (let k = 0; k < 30; k++) g.fillRect(74 + Math.random() * 108, 122 + Math.random() * 8, 4, 3); }); // red geraniums
+  T.chaletG = canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 28) for (let x = (y / 28 % 2) * 30; x < w; x += 60) { g.fillStyle = `rgba(0,0,0,${.03 + Math.random() * .07})`; g.beginPath(); g.ellipse(x + 30, y + 14, 27, 12, 0, 0, 7); g.fill(); }
+    g.fillStyle = '#5a3a22'; g.fillRect(40, 70, 64, 122); g.fillStyle = 'rgba(0,0,0,.3)'; for (let y = 74; y < 190; y += 10) g.fillRect(42, y, 60, 2); g.fillStyle = '#c9a227'; g.fillRect(92, 130, 6, 4);
+    g.fillStyle = '#e8e4da'; g.fillRect(140, 60, 80, 70); g.fillStyle = '#1e2a33'; g.fillRect(148, 68, 64, 54); g.fillStyle = 'rgba(160,200,230,.3)'; g.fillRect(148, 68, 30, 26); });
+  T.chaletShopG = canvasTex(256, 192, (g, w, h) => { g.fillStyle = '#ffffff'; g.fillRect(0, 0, w, h); const c = ['#8a1a1a', '#1a3a6a', '#2a4a2a', '#5a3a1a'][Math.random() * 4 | 0]; g.fillStyle = c; g.fillRect(8, 12, 240, 30);
+    g.fillStyle = '#f2e6c8'; g.font = 'bold 20px Georgia'; g.textAlign = 'center'; g.fillText(['SPORT', 'CHOCOLAT', 'BÄCKEREI', 'UHREN', 'SKI RENT', 'KÄSE'][Math.random() * 6 | 0], 128, 34);
+    g.fillStyle = '#26323a'; g.fillRect(20, 52, 160, 140); g.fillStyle = 'rgba(255,230,170,.45)'; g.fillRect(24, 56, 152, 80); g.fillStyle = '#5a3a22'; g.fillRect(190, 60, 50, 132); });
   const GH = 3.4; // the ground floor is a bit taller than the floors above
   T.hausS = facadeTex; T.hausG = shopTex; // the Eixample facades are the same family as Paris's Haussmann blocks
   const wall = (s, gname, um = 1, gh = GH, sh_ = 3, gm = 1) => { const m = new THREE.MeshStandardMaterial({ map: T[s], vertexColors: true, roughness: .9 });
@@ -4630,11 +4723,12 @@ DUB.mats = () => {
   grassT.wrapS = grassT.wrapT = THREE.RepeatWrapping;
   const rt = roadTexW.clone(); rt.needsUpdate = true;
   DUB.M = {
-    haus: wall('hausS', 'hausG', 1 / 3, 4.2, 15, .5), med: wall('medS', 'medG'), desert: wall('desS', 'desG'),
+    haus: wall('hausS', 'hausG', 1 / 3, 4.2, 15, .5), med: wall('medS', 'medG'), desert: wall('desS', 'desG'), chalet: wall('chaletS', 'chaletG', 1, 3.2, 2.9), chaletshop: wall('chaletS', 'chaletShopG', 1, 3.6, 2.9),
     brick: wall('brickS', 'brickG'), ...Object.fromEntries([0, 1, 2, 3, 4, 5, 6, 7].map(i => ['shop' + i, wall('brickS', 'shopG' + i)])), render: wall('renderS', 'renderG'), glass: wall('glassS', 'glassG'), stone: wall('stoneS', 'stoneG'), tin: wall('tinS', 'tinG'),
     roof: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .8, flatShading: true }),
     road: new THREE.MeshStandardMaterial({ map: rt, color: C('#e4e6e8'), roughness: .9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -6 }),
     path: new THREE.MeshStandardMaterial({ color: C('#a8a49a'), roughness: .95, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -5 }),
+    track: new THREE.MeshStandardMaterial({ color: C('#a49680'), map: grassT, roughness: 1, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -5 }), // gravel and dirt tracks
     mark: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .6, polygonOffset: true, polygonOffsetFactor: -4, polygonOffsetUnits: -10 }),
     rail: new THREE.MeshStandardMaterial({ vertexColors: true, roughness: .85, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -5 }),
     ground: new THREE.MeshStandardMaterial({ vertexColors: true, map: grassT, roughness: 1 }),
@@ -4645,7 +4739,8 @@ DUB.mats = () => {
   return DUB.M;
 };
 // land cover colours: fields, houses and gardens, town, parks, forest, heather, scrub, rock, sand, bog, graveyard, water, sea, airport, building sites, meadow
-DUB.COVER = [DUB.ground0 || '#6f9a48', '#8a9a74', '#8e8c86', '#5f9a44', '#2f5a2a', '#7a6a52', '#5a7040', '#8a8a82', '#d8c89a', '#6a7a5a', '#6a8a50', '#4a6a72', '#2a4a5a', '#9aa08a', '#8a7a62', '#86a858'].map(c => C(c));
+DUB.COVER = [DUB.ground0 || '#6f9a48', '#8a9a74', '#8e8c86', '#5f9a44', '#2f5a2a', '#7a6a52', '#5a7040', '#8a8a82', '#d8c89a', '#6a7a5a', '#6a8a50', '#4a6a72', '#2a4a5a', '#9aa08a', '#8a7a62', '#86a858', '#dfe9f2'].map(c => C(c)); // ... and glacier ice
+const SNOWC = C('#f3f6fa');
 // ---------- the terrain: 128-cell blocks, finer close by ----------
 DUB.buildBlock = (B, step) => {
   const G = DUB.G, NX = DUB.NX, NZ = DUB.NZ, i0 = B.i0, j0 = B.j0, i1 = Math.min(NX - 1, i0 + 128), j1 = Math.min(NZ - 1, j0 + 128);
@@ -4656,14 +4751,18 @@ DUB.buildBlock = (B, step) => {
     for (const [h0, hr, tc] of DUB.tints) if (h > h0 && (cv === 0 || cv === 15 || cv === 5 || cv === 3 || cv === 6)) c.lerp(C(tc), clamp((h - h0) / hr, 0, .85)); // bare mountain tops
     const sl = i > 0 && i < NX - 1 && j > 0 && j < NZ - 1 ? Math.hypot(DUB.H[j * NX + i + 1] - DUB.H[j * NX + i - 1], DUB.H[(j + 1) * NX + i] - DUB.H[(j - 1) * NX + i]) / (2 * G) : 0;
     if (sl > .45) c.lerp(DUB.COVER[7], clamp((sl - .45) * 2, 0, .7)); // rocky crags on steep slopes
+    if (cv === 16) c.offsetHSL(0, 0, ((hs >> 4) % 9 - 4) * .012); // glacier ice, with darker crevasse streaks
+    if (DUB.snow && cv < 11) { const k = clamp((h - DUB.snow[0] - ((hs % 17) - 8) * 9) / DUB.snow[1], 0, 1) * clamp(1.25 - sl * 1.15, 0, 1); if (k > 0) c.lerp(SNOWC, k); } // snowfields above the snow line, but not on the steepest rock
     col.push(c.r, c.g, c.b); return pos.length / 3 - 1; };
   for (let r = 0; r < rows; r++) for (let q = 0; q < cols; q++) vtx(Math.min(i1, i0 + q * step), Math.min(j1, j0 + r * step), 0);
   for (let r = 0; r < rows - 1; r++) for (let q = 0; q < cols - 1; q++) { const a = r * cols + q, d = a + 1, b = a + cols, cc = b + 1; idx.push(a, b, d, b, cc, d); }
+  const nSurf = idx.length; // (the skirts must not bend the ground's lighting: that drew a dark line round every block)
   // skirts hide the cracks where blocks of different detail meet
   const edge = (list) => { const base = list.map(([i, j]) => vtx(i, j, 6)); const top = list.map(([i, j]) => (Math.round((j - j0) / step)) * cols + Math.round((i - i0) / step)); for (let k = 0; k < list.length - 1; k++) idx.push(top[k], base[k], top[k + 1], top[k + 1], base[k], base[k + 1], top[k], top[k + 1], base[k], top[k + 1], base[k + 1], base[k]); };
   const ri = [], rj = []; for (let q = 0; q < cols; q++) ri.push(Math.min(i1, i0 + q * step)); for (let r = 0; r < rows; r++) rj.push(Math.min(j1, j0 + r * step));
   edge(ri.map(i => [i, j0])); edge(ri.map(i => [i, rj[rows - 1]])); edge(rj.map(j => [i0, j])); edge(rj.map(j => [ri[cols - 1], j]));
-  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx.slice(0, nSurf)); g.computeVertexNormals(); { const nr = g.attributes.normal; for (let k = rows * cols; k < nr.count; k++) nr.setXYZ(k, 0, 1, 0); } g.setIndex(idx); // light the ground from its own slopes only
   const m = new THREE.Mesh(g, DUB.mats().ground); m.position.set(B.cx, 0, B.cz); m.receiveShadow = step === 1; m.matrixAutoUpdate = false; m.updateMatrix(); return m;
 };
 // ---------- what is near a point: roads (for names and keeping trees off them) and collision shapes ----------
@@ -4705,7 +4804,8 @@ DUB.buildTile = (key) => {
     const CREAM = ['#efe5d2', '#e9dcc4', '#e4d6bc', '#f0e6d4', '#ddd0b8', '#e8dcc8'].map(c => C(c)), MED = ['#f4f0e6', '#efe4cc', '#e8cf9a', '#e0c08a', '#f2e6d8', '#e8d8c0', '#f0d8c8'].map(c => C(c)), DESERT = ['#d8c8a8', '#c8b490', '#e0d4b8', '#b8a080', '#c89878', '#d0c0a0'].map(c => C(c));
     if (DUB.look === 'paris') SLATE = FLAT = ['#6f7a86', '#7a8490', '#68727c', '#5f6a76'].map(c => C(c));
     if (DUB.look === 'med') { SLATE = ['#b5653d', '#a85a38', '#c0704a', '#9a5032'].map(c => C(c)); FLAT = ['#d8d0c0', '#c8c0b0', '#e0d8c8'].map(c => C(c)); }
-    if (DUB.look === 'alpine') SLATE = ['#3e4248', '#4a4e54', '#5a5048', '#46484c'].map(c => C(c));
+    if (DUB.look === 'alpine' || DUB.look === 'swiss') SLATE = ['#3e4248', '#4a4e54', '#5a5048', '#46484c', '#55585c'].map(c => C(c));
+    const LARCH = ['#ffffff', '#f2ece4', '#e8e0d8', '#faf4ea'].map(c => C(c));
     if (DUB.look === 'desert') FLAT = ['#c8b898', '#b8a888', '#d0c0a0', '#a89878'].map(c => C(c));
     const cityDist = Math.hypot(tcx - DUB.ox, tcz - DUB.oz);
     for (let b = 0; b < n; b++) {
@@ -4721,6 +4821,7 @@ DUB.buildTile = (key) => {
       if (DUB.look === 'paris') { if ([7, 14, 16, 17].includes(typ)) { style = 'stone'; pal = STONE; } else if (typ === 5 && h > 30 || h > 45) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else if (typ === 1 && h < 10) { style = 'render'; } else { style = 'haus'; pal = CREAM; } }
       else if (DUB.look === 'med') { if ([7, 14, 16, 17].includes(typ)) { style = 'stone'; pal = STONE; } else if (typ === 5 && h > 20) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else if ((typ === 12 || cityDist > 9000) && hs % 3 === 0) { style = 'stone'; pal = STONE; } else { style = 'med'; pal = MED; } }
       else if (DUB.look === 'alpine') { if ([7, 14, 16, 17].includes(typ)) { style = 'stone'; pal = STONE; } else if (typ === 5 && h > 15 || h > 40) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else if (typ === 4) { style = 'shop' + (hs >> 3) % 8; pal = STONE; } else { style = hs % 5 < 2 ? 'stone' : 'render'; pal = style === 'stone' ? STONE : RENDER; } }
+      else if (DUB.look === 'swiss') { if ([7, 14, 16, 17].includes(typ)) { style = 'stone'; pal = STONE; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = h < 6 ? 'chalet' : 'tin'; pal = h < 6 ? LARCH : TIN; } else if (h > 32) { style = 'render'; pal = RENDER; } else if (typ === 4) { style = 'chaletshop'; pal = LARCH; } else { style = 'chalet'; pal = LARCH; } } // dark larch chalets on white stone bases
       else if (DUB.look === 'desert') { if (typ === 7) { style = 'stone'; pal = DESERT; } else if (typ === 5 && h > 25 || h > 60) { style = 'glass'; pal = GLASS; } else if ([6, 11, 13, 15, 18].includes(typ)) { style = 'tin'; pal = TIN; } else { style = 'desert'; pal = DESERT; } }
       else if (typ === 7 || typ === 14 || typ === 16 || typ === 17) { style = 'stone'; pal = STONE; }
       else if (typ === 5 && h > 9 || h > 24 || /aviva/i.test(name)) { style = 'glass'; pal = GLASS; }
@@ -4738,7 +4839,7 @@ DUB.buildTile = (key) => {
         run += L;
       }
       // roof: slate hips on houses, flat elsewhere
-      const rb = BF('roof'), pitched = DUB.look === 'desert' ? false : roof === 2 || roof === 3 || roof === 4 || (roof === 0 && !isp && (DUB.look === 'alpine' ? h <= 30 && area < 2500 : DUB.look === 'paris' ? h <= 10 && area < 400 : DUB.look === 'med' ? h <= 9 && area < 450 : h <= 11.5 && area < 700) && [0, 1, 2, 3, 4, 10, 11, 12].includes(typ));
+      const rb = BF('roof'), pitched = DUB.look === 'desert' ? false : roof === 2 || roof === 3 || roof === 4 || (roof === 0 && !isp && (DUB.look === 'alpine' || DUB.look === 'swiss' ? h <= 34 && area < 3000 : DUB.look === 'paris' ? h <= 10 && area < 400 : DUB.look === 'med' ? h <= 9 && area < 450 : h <= 11.5 && area < 700) && [0, 1, 2, 3, 4, 10, 11, 12].includes(typ));
       if (pitched && N >= 3) {
         let sxx = 0, szz = 0, sxz = 0; for (let k = 0; k < N; k++) { const dx = P[2 * k] - cx, dz = P[2 * k + 1] - cz; sxx += dx * dx; szz += dz * dz; sxz += dx * dz; }
         const an = .5 * Math.atan2(2 * sxz, sxx - szz), ax_ = Math.cos(an), az_ = Math.sin(an); let amax = 0, cmax = 0;
@@ -4768,7 +4869,7 @@ DUB.buildTile = (key) => {
     const p = R.p, pts = [];
     for (let k = a; k <= b; k++) { if (k > a) { const ax = p[2 * k - 2], az = p[2 * k - 1], L = Math.hypot(p[2 * k] - ax, p[2 * k + 1] - az), s = Math.ceil(L / 12); for (let q = 1; q < s; q++) pts.push([ax + (p[2 * k] - ax) * q / s, az + (p[2 * k + 1] - az) * q / s]); } pts.push([p[2 * k], p[2 * k + 1]]); }
     if (pts.length < 2) continue;
-    const hw = R.w / 2, rb = BF(R.cls === 8 ? 'path' : 'road'), urban = R.cls >= 2 && R.cls <= 6 && !R.deck && [1, 2].includes(DUB.coverAt(pts[pts.length >> 1][0], pts[pts.length >> 1][1]));
+    const hw = R.w / 2, rb = BF(R.cls === 8 ? 'path' : R.cls === 9 ? 'track' : 'road'), urban = R.cls >= 2 && R.cls <= 6 && !R.deck && [1, 2].includes(DUB.coverAt(pts[pts.length >> 1][0], pts[pts.length >> 1][1]));
     const pb = urban ? BF('path') : null, mb = BF('mark'), wl = R.deck ? BF('wall') : null;
     const yAt = (x, z) => R.deck ? (DUB.deckAt(x, z) ?? DUB.th(x, z)) + .14 : DUB.th(x, z) + .14;
     let prev = null, run = 0;
@@ -4831,7 +4932,7 @@ DUB.buildTile = (key) => {
       if (cy < 0) { const t = b.idx[k + 1]; b.idx[k + 1] = b.idx[k + 2]; b.idx[k + 2] = t; } }
     const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(b.p, 3)); g.setAttribute('normal', new THREE.Float32BufferAttribute(b.n, 3));
     if (b.uv.length) g.setAttribute('uv', new THREE.Float32BufferAttribute(b.uv, 2)); if (b.c.length) g.setAttribute('color', new THREE.Float32BufferAttribute(b.c, 3)); g.setIndex(b.idx);
-    const m = new THREE.Mesh(g, M[name]); m.castShadow = /^(brick|shop|render|glass|stone|tin|roof|haus|med|desert)/.test(name); m.receiveShadow = true; grp.add(m);
+    const m = new THREE.Mesh(g, M[name]); m.castShadow = /^(brick|shop|render|glass|stone|tin|roof|haus|med|desert|chalet)/.test(name); m.receiveShadow = true; grp.add(m);
   }
   DUB.trees(T, TD, tcx, tcz);
   DUB.root.add(grp); return T;
@@ -4851,8 +4952,13 @@ DUB.waterMesh = (W, b, tcx, tcz, V) => { // a water polygon draped on the ground
 // ---------- trees: the real street trees, plus woods, forests, parks and hedgerow trees from the land cover ----------
 DUB.treeG = null;
 DUB.trees = (T, TD, tcx, tcz) => {
-  if (!DUB.treeG) DUB.treeG = { con: new THREE.ConeGeometry(1, 1, 7).translate(0, .5, 0), brd: new THREE.IcosahedronGeometry(1, 0).scale(1, .85, 1), trk: new THREE.CylinderGeometry(.12, .18, 1, 5).translate(0, .5, 0),
-    mats: { c1: new THREE.MeshStandardMaterial({ color: C('#1f3a1c'), roughness: .95, flatShading: true }), c2: new THREE.MeshStandardMaterial({ color: C('#2a4a24'), roughness: .95, flatShading: true }), b1: new THREE.MeshStandardMaterial({ color: C('#3f6a2a'), roughness: .9, flatShading: true }), b2: new THREE.MeshStandardMaterial({ color: C('#557a34'), roughness: .9, flatShading: true }), t: new THREE.MeshStandardMaterial({ color: C('#5a4a38'), roughness: 1 }) } };
+  if (!DUB.treeG) { // conifers: tiers of drooping branches; broadleaves: leafy crowns with see-through gaps
+    const tiers = []; for (let i = 0; i < 3; i++) { const r = 1 - i * .27, g = new THREE.ConeGeometry(r, .46, 9, 1, true), p = g.attributes.position;
+      for (let k = 0; k < p.count; k++) if (p.getY(k) < 0) { const a = Math.atan2(p.getZ(k), p.getX(k)); p.setY(k, p.getY(k) - .05 - .04 * Math.sin(a * 4.5 + i)); } // branch tips hang down
+      g.computeVertexNormals(); g.translate(0, .23 + i * .26, 0); tiers.push(g); }
+    const leafB = (col) => { const m = leafMat(DUB.look === 'med' ? 'plane' : 'oak'); m.color = C(col); return m; };
+    DUB.treeG = { con: mergeGeos(tiers), brd: leafCrownGeo({ r: 1, cy: 0, sy: .85, cards: 14, size: .95, seed: 21 }), trk: new THREE.CylinderGeometry(.12, .18, 1, 6).translate(0, .5, 0),
+      mats: { c1: new THREE.MeshStandardMaterial({ color: C('#1f3a1c'), roughness: .9, side: THREE.DoubleSide }), c2: new THREE.MeshStandardMaterial({ color: C('#2e4a26'), roughness: .9, side: THREE.DoubleSide }), b1: leafB('#c8d8b0'), b2: leafB('#e0ecc0'), t: new THREE.MeshStandardMaterial({ map: barkTex('oak'), roughness: 1 }) } }; }
   const L = { c1: [], c2: [], b1: [], b2: [], t: [] }, m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), v = new THREE.Vector3(), s = new THREE.Vector3(), up = new THREE.Vector3(0, 1, 0);
   let seed = (Math.round(tcx) * 31 + Math.round(tcz) * 17) >>> 0; const rnd1 = () => (seed = (seed * 1664525 + 1013904223) >>> 0) / 4294967296;
   const inBld = (x, z) => { const l = DUB.cgrid.get(Math.floor(x / 32) + ',' + Math.floor(z / 32)); return l && l.some(o => !o.r && x > o.x0 - 1 && x < o.x1 + 1 && z > o.z0 - 1 && z < o.z1 + 1); };
@@ -4932,7 +5038,7 @@ DUB.setOn = (on) => {
     if (DUB.landmarks3D) DUB.landmarks3D();
   }
   if (DUB.root) DUB.root.visible = on;
-  camera.far = on ? 15000 : AWAY ? 16000 : 7000; camera.updateProjectionMatrix();
+  camera.far = on ? DUB.far || 15000 : AWAY ? 16000 : 7000; camera.updateProjectionMatrix();
   if (!wasUnder) applyAbove();
   $('mapWrap').style.opacity = 1;
 };
@@ -4967,8 +5073,8 @@ DUB.fill = (x, z, r) => { // build the tiles right around a spot straight away (
 DUB.mapCanvas = () => {
   if (DUB.mapC) return DUB.mapC;
   const cv = DUB.mapC = document.createElement('canvas'); cv.width = DUB.NX; cv.height = DUB.NZ; const g = cv.getContext('2d'), im = g.createImageData(DUB.NX, DUB.NZ);
-  const pal = [DUB.ground0 || '#86a868', '#a8a49a', '#9a968e', '#6aa858', '#2f6a34', '#8a7a68', '#6a8a4a', '#9a9a92', '#e0d0a0', '#7a8a6a', '#7a9a68', '#4a88b0', '#2a5a80', '#b8b8b0', '#a89a80', '#98b870'].map(c => C(c));
-  for (let k = 0; k < DUB.NX * DUB.NZ; k++) { const c = pal[DUB.cover[k]], h = DUB.H[k], sh = DUB.cover[k] >= 11 ? 1 : clamp(1 + ((DUB.H[k + 1] || h) - h) * .02, .75, 1.2); im.data[4 * k] = c.r * 255 * sh; im.data[4 * k + 1] = c.g * 255 * sh; im.data[4 * k + 2] = c.b * 255 * sh; im.data[4 * k + 3] = 255; }
+  const pal = [DUB.ground0 || '#86a868', '#a8a49a', '#9a968e', '#6aa858', '#2f6a34', '#8a7a68', '#6a8a4a', '#9a9a92', '#e0d0a0', '#7a8a6a', '#7a9a68', '#4a88b0', '#2a5a80', '#b8b8b0', '#a89a80', '#98b870', '#e8f0f6'].map(c => C(c)), snowM = C('#f2f5f8');
+  for (let k = 0; k < DUB.NX * DUB.NZ; k++) { let c = pal[DUB.cover[k]]; const h = DUB.H[k]; if (DUB.snow && DUB.cover[k] < 11 && h > DUB.snow[0] + DUB.snow[1] * .5) c = snowM; const sh = DUB.cover[k] === 11 || DUB.cover[k] === 12 ? 1 : clamp(1 + ((DUB.H[k + 1] || h) - h) * .02, .75, 1.2); im.data[4 * k] = c.r * 255 * sh; im.data[4 * k + 1] = c.g * 255 * sh; im.data[4 * k + 2] = c.b * 255 * sh; im.data[4 * k + 3] = 255; }
   g.putImageData(im, 0, 0); return cv;
 };
 DUB.ROADCOL = ['#3a7ad8', '#2f9a5a', '#2f9a5a', '#f2d24a', '#ffffff', '#f4f1ea', '#f4f1ea', '#e0dcd4', '#d8d0c0', '#c8b898'];
@@ -7602,6 +7708,7 @@ const PLACES = [
   ['Wicklow Mountains', 'Ireland: mountain roads, forests and lakes', [-1e6, -1e6], () => { goDublin('roundwood'); return 'Loading the real map of Wicklow…'; }, 'wicklow mountains ireland sally gap military road'],
   ['Paris (real map)', 'France: drive the real Paris (a free flight, your car comes too)', [-1e6, -1e6], () => { PAR.go('eiffel'); return 'Loading the real map of Paris…'; }, 'paris france eiffel tower'],
   ['Mallorca (real map)', 'Spain: the whole island of Mallorca', [-1e6, -1e6], () => { MAL.go('palma'); return 'Loading the real map of Mallorca…'; }, 'mallorca majorca palma balears island'],
+  ['Zermatt & the Matterhorn (real map)', 'The Swiss Alps: glaciers, chalets and the Matterhorn', [-1e6, -1e6], () => { ZER.go('village'); return 'Loading the real map of Zermatt…'; }, 'zermatt matterhorn switzerland swiss alps glacier gornergrat'],
   ['Andorra (real map)', 'The Pyrenees: real mountain roads', [-1e6, -1e6], () => { ADR.go('vella'); return 'Loading the real map of Andorra…'; }, 'andorra pyrenees mountains pirineus'],
   ['Pyramids of Giza (real map)', 'Egypt: the pyramids, the Sphinx and Cairo', [-1e6, -1e6], () => { GIZ.go('pyramids'); return 'Loading the real map of Giza…'; }, 'egypt giza pyramids sphinx cairo nile'],
   ['Amazon rainforest', 'River monster fishing at a jungle lodge (a free flight)', [JNG.x, JNG.z], () => { JNG.build(); const L = JNG.lodge, [wx, wz] = JNG.wdir; footTo(L.x + wx * 12, L.z + wz * 12, Math.atan2(wx, wz)); return 'Bem-vindo! Fish from the riverbank. Fly home from the ✈ counter at the lodge.'; }, 'amazon jungle rainforest river monsters brazil piranha arapaima fishing'],
@@ -7957,7 +8064,7 @@ function loop() {
     arrow.rotation.y = Math.atan2(t.x - c.x, t.z - c.z);
   } else { cpBeam.visible = cpNext.visible = arrow.visible = false; }
   const pulse = 1 + Math.sin(performance.now() / 400) * .08;
-  startMarkers.forEach(b => b.children[1].scale.set(6 * pulse, 6, 6 * pulse));
+  startMarkers.forEach(b => b.children[1].scale.set(6 * pulse, 6, 6 * pulse)); fadeBeams();
 
   // third-person chase camera
   const dist = [7.2, 11, 4.6][camMode], ht = [2.5, 3.8, 1.75][camMode];
@@ -8077,10 +8184,11 @@ function loop() {
   updateWallet(dt);
   audio.update(plane.on ? planeAudio() : foot.boat ? boatAudio() : c, police.state === 'hunt' ? police.dmin : 1e9, heli.g.visible ? Math.hypot(heli.x - c.x, heli.y - (c.gy || 0), heli.z - c.z) : 1e9);
   if (window.__cam) { camera.clearViewOffset(); camera.position.set(...window.__cam.p); camera.lookAt(...window.__cam.t); camera.fov = window.__cam.fov || 60; camera.updateProjectionMatrix(); if (frame % 15 === 1) updateTiles(); } // test hook
+  sky.position.copy(camera.position); // the sky dome always sits round the camera, wherever it ended up this frame
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { ZER, restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
