@@ -3295,6 +3295,26 @@ function applyRodLook() {
   const b = gearOf('bait'), fl = b.kind === 'bait';
   R.bob.geometry = fl ? floatGeo : lureGeo; R.bob.material.map = fl ? floatMap() : null; R.bob.material.color.set(fl ? '#ffffff' : b.col); R.bob.material.needsUpdate = true;
   R.bob.scale.set(b.kind === 'lure' ? .7 : 1, b.kind === 'lure' ? .7 : 1, b.kind === 'lure' ? 1.8 : 1);
+  if (R.lureM) { scene.remove(R.lureM); R.lureM = null; }
+  if (b.kind === 'lure') { // the real lure hangs on the line above the water too, not just underneath
+    const m = makeBaitModel(b), ll = []; m.traverse(o => { if (o.name === 'lureLine') ll.push(o); }); ll.forEach(o => o.parent.remove(o)); m.rotation.order = 'YXZ'; m.userData.k = 2.4 * m.userData.sc; m.visible = false; scene.add(m); R.lureM = m;
+  }
+}
+const TOPWATER = new Set(['Popper', 'Walk-the-dog', 'Prop bait', 'Soft frog', 'Dry fly']);
+function updateLureAir(R, F, st, showBob, lineEnd, bx, by, bz, now, dt) { // the lure on the line out of the water: dangling, swinging, flying out on the cast, dripping wet
+  const LM = R.lureM; if (!LM) return; R.bob.visible = false;
+  const inW = ['wait', 'bite', 'reel', 'jig', 'retrieve', 'snag'].includes(st), fly = st === 'cast' && showBob, hang = !inW && !fly && !R.fishMesh && !lineEnd;
+  if (R.lureInW && !inW) R.wetT = 3; R.lureInW = inW; R.wetT = Math.max(0, (R.wetT || 0) - dt);
+  LM.visible = fly || hang; LM.scale.setScalar(LM.userData.k);
+  const half = .05 * LM.userData.k;
+  if (fly) { const u = F.T / 1.4; LM.position.set(bx, by - half, bz); LM.rotation.set(u < .55 ? -1.3 : -.2 - (u - .55) * 1.5, Math.atan2(F.cdx || 0, F.cdz || 0), 0); }
+  else if (hang) { R.tip.getWorldPosition(_tw); LM.position.set(_tw.x, _tw.y - .6 - half, _tw.z); LM.rotation.set(-Math.PI / 2 + Math.sin(now * 1.9) * .12, now * .35 + Math.sin(now * .8) * .8, Math.sin(now * 1.3) * .1); }
+  if (LM.visible) LM.userData.anim(now, fly ? 1 : .05, dt);
+  if (!R.drips) { R.drips = []; const dm = new THREE.MeshStandardMaterial({ color: 0xdff0ff, metalness: .9, roughness: 0, transparent: true, opacity: .55 }), dg = new THREE.SphereGeometry(.007, 8, 6).scale(1, 1.5, 1);
+    for (let i = 0; i < 6; i++) { const d = new THREE.Mesh(dg, dm); d.visible = false; d.userData.t = i / 6 * .5; scene.add(d); R.drips.push(d); } }
+  for (const d of R.drips) { d.visible = hang && R.wetT > 0 && LM.visible; if (!d.visible) continue;
+    d.userData.t += dt; if (d.userData.t > .5) d.userData.t -= .5 + Math.random() * .4 * (1 - R.wetT / 3);
+    const t = Math.max(0, d.userData.t); d.position.set(LM.position.x + Math.sin(d.id) * .02, LM.position.y - half * 1.1 - 4.9 * t * t, LM.position.z + Math.cos(d.id) * .02); d.scale.setScalar(d.userData.t < 0 ? .01 : 1); }
 }
 function buildWalker() {
   const p = makePerson('#c8102e', '#1d2a44', '#e8b996', { cap: '#f9c80e' });
@@ -3461,7 +3481,7 @@ function updateRests(dt, now) {
 }
 function stopFishing() {
   clearRests();
-  const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false;
+  const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false; if (R.lureM) R.lureM.visible = false; if (R.drips) R.drips.forEach(d => d.visible = false);
   if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
   foot.p.arms[0].rotation.z = foot.p.arms[1].rotation.z = 0;
   clearUnder(foot.fish); fishCam = false; fishFpv = false; if (foot.p) foot.p.head.visible = true; renderBaitBar(); if (AIM) AIM.visible = false;
@@ -3982,8 +4002,9 @@ function updateFishing(dt, act, press) {
   bendRod(R, st === 'bite' || st === 'cast' ? B : lerp(R.bendNow, B, 1 - Math.exp(-dt * 10)));
   if (act && ['reel', 'retrieve', 'jig', 'snag'].includes(st)) { const sp = dt * 14 * gearOf('reel').spd; R.handle.rotation.x -= sp; if (fishLog.gear.reel < 2) R.spool.rotation.y += sp * 1.3; else R.spool.rotation.x -= sp * 2.5; }
   R.bob.visible = showBob; R.bob.position.set(bx, by, bz);
+  updateLureAir(R, F, st, showBob, lineEnd, bx, by, bz, now, dt);
   R.tip.getWorldPosition(_tw);
-  const end = R.fishMesh ? [R.fishMesh.position.x, R.fishMesh.position.y, R.fishMesh.position.z] : lineEnd ? lineEnd : showBob ? [bx, by + .17, bz] : [_tw.x, _tw.y - .6, _tw.z];
+  const end = R.fishMesh ? [R.fishMesh.position.x, R.fishMesh.position.y, R.fishMesh.position.z] : lineEnd ? lineEnd : showBob ? (R.lureM ? [bx, st === 'cast' ? by : WYf, bz] : [bx, by + .17, bz]) : R.lureM ? [_tw.x, _tw.y - .6, _tw.z] : [_tw.x, _tw.y - .6, _tw.z];
   drawLine(R, end, R.fishMesh || st === 'snag' ? .004 : st === 'reel' ? Math.max(.003, .03 - ten * .03) : st === 'wait' ? (F.bottom ? .025 : .07) : st === 'cast' ? .12 : st === 'retrieve' || st === 'jig' ? .015 : st === 'bite' ? .01 : 0, now);
   if (!R.bell) { R.bell = new THREE.Mesh(new THREE.SphereGeometry(.025, 10, 8, 0, Math.PI * 2, 0, Math.PI * .6), new THREE.MeshStandardMaterial({ color: C('#f2c230'), metalness: .8, roughness: .25, side: THREE.DoubleSide })); R.tip.add(R.bell); R.bell.position.y = -.03; R.bell.rotation.x = Math.PI; }
   R.bell.visible = !!F.bottom && ['wait', 'bite'].includes(F.st); if (R.bell.visible && (F.tinked || F.st === 'bite')) R.bell.rotation.z = Math.sin(now * 40) * .5; else R.bell.rotation.z = 0;
@@ -4025,6 +4046,7 @@ function toggleFishCam() {
 function clearUnder(F) {
   if (!F) return;
   for (const k of ['ug', 'visM', 'rigM']) if (F[k]) { F[k].parent && F[k].parent.remove(F[k]); F[k] = null; }
+  F.foam = null;
   if (F.amb) { F.amb.forEach(a => a.m.parent && a.m.parent.remove(a.m)); F.amb = null; }
 }
 // ---------- real-looking bait and lures for the underwater camera (nose along +z, hook point at the origin) ----------
@@ -4053,15 +4075,53 @@ function chain(n, r, cols, taper = .5) { // a bendy string of beads: worms, magg
   g.userData.bend = (f) => { const k = g.children, n1 = k.length - 1; let x = 0, y = 0, z = 0, a = 0, pitch = 0; for (let i = 0; i <= n1; i++) { const [da, dp] = f(i / n1, i); a += da; pitch += dp; x += Math.sin(a) * Math.cos(pitch) * r * 1.3; y += Math.sin(pitch) * r * 1.3; z += Math.cos(a) * Math.cos(pitch) * r * 1.3; k[i].position.set(x, y, z); k[i].rotation.y = a; } };
   return g;
 }
-function fishBody(len, top, belly, o = {}) { // a hard plastic fish-shaped lure body with a painted back, pale belly and big eyes
+const LURE_TEX = {};
+function lurePaint(top, belly, pat) { // a painted lure skin: back to belly fade, scales, lateral line, gill plate, bars or holo flake
+  const key = top + belly + pat; if (LURE_TEX[key]) return LURE_TEX[key];
+  const W = 512, H = 256, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const c = cv.getContext('2d'), im = c.createImageData(W, H), d = im.data;
+  const ct = C(top), cb = C(belly), cc = new THREE.Color(), hs = (x, y) => { const v = Math.sin(x * 127.1 + y * 311.7) * 43758.5453; return v - Math.floor(v); };
+  for (let j = 0; j < H; j++) { const th = (j + .5) / H * Math.PI, y = Math.cos(th), st = Math.sin(th);
+    for (let i = 0; i < W; i++) { const ph = (i + .5) / W * Math.PI * 2, z = Math.sin(ph) * st; // z: +1 nose, -1 tail; y: +1 back, -1 belly
+      cc.copy(cb).lerp(ct, smooth01(clamp(y * 1.8 + .35, 0, 1)));
+      let k = 1, add = 0;
+      if (pat === 'bars' && y > -.35) { const bar = Math.sin(z * 13 + 1.2); if (bar > .35) k *= lerp(1, .45, smooth01((bar - .35) * 3) * smooth01((y + .35) * 3)); }
+      if (pat === 'tiger' && y > -.3) { const bar = Math.sin(z * 15 + Math.sin(y * 7) * .8); if (bar > .5) k *= .3; }
+      if (pat === 'dots' && y > -.2) { const du = z * 9, dv = y * 6, rr = Math.hypot(du - Math.floor(du) - .5, dv - Math.floor(dv) - .5); if (rr < .28 && hs(Math.floor(du), Math.floor(dv)) > .45) k *= lerp(.35, 1, smooth01((rr - .2) * 12)); }
+      // fish scales: little overlapping arcs, darker at the edges
+      const su = z * 34, sv = y * 26 + (Math.floor(su) % 2) * .5, fu = su - Math.floor(su), fv = sv - Math.floor(sv), r = Math.hypot(fu - .5, (fv - .2) * 1.2);
+      if (y > -.75) { k *= r > .42 && r < .55 ? .82 : 1; add += r < .3 ? .05 : 0; }
+      if (pat === 'holo' && y > -.7) { const f = hs(Math.floor(su * 2), Math.floor(sv * 2)); add += f > .55 ? (f - .55) * .7 : 0; }
+      if (pat === 'glitter' && hs(i * .37, j * .91) > .985) add += .5;
+      if (Math.abs(y - .08 + z * .04) < .012 && z < .55 && (Math.floor(su * 1.5) % 2)) k *= .7; // lateral line
+      const gz = .62 + y * y * .12; if (Math.abs(z - gz) < .012 && y < .6) k *= .55; // gill plate edge
+      if (z > gz && z < gz + .05 && y < .1 && y > -.6) cc.lerp(C('#d42030'), .35); // a red gill flash
+      if (y > .93) k *= .7; // a darker spine
+      d.set([clamp((cc.r * k + add) * 255, 0, 255), clamp((cc.g * k + add) * 255, 0, 255), clamp((cc.b * k + add) * 255, 0, 255), 255], (j * W + i) * 4);
+    } }
+  c.putImageData(im, 0, 0); const t = new THREE.CanvasTexture(cv); t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; return LURE_TEX[key] = t;
+}
+let dimpleTex = null;
+const dimpleMap = () => dimpleTex || (dimpleTex = canvasTex(256, 256, (c, w, h) => { c.fillStyle = '#808080'; c.fillRect(0, 0, w, h); // hammered metal
+  for (let k = 0; k < 260; k++) { const x = Math.random() * w, y = Math.random() * h, r = 5 + Math.random() * 9, gr = c.createRadialGradient(x - r * .3, y - r * .3, 0, x, y, r); gr.addColorStop(0, '#5a5a5a'); gr.addColorStop(.8, '#8a8a8a'); gr.addColorStop(1, 'rgba(128,128,128,0)'); c.fillStyle = gr; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); } }, 1, 1));
+function lureMetal(col, o = {}) { return new THREE.MeshPhysicalMaterial(Object.assign({ color: C(col), metalness: .85, roughness: .2, envMapIntensity: 1.6, clearcoat: 1, clearcoatRoughness: .05, bumpMap: dimpleMap(), bumpScale: .004, side: THREE.DoubleSide }, o)); }
+function lureEye(r, gold = '#e8c030') { // a stick-on 3D eye: gold iris, black pupil, under a clear glossy dome
   const g = new THREE.Group();
-  const geo = new THREE.SphereGeometry(1, 20, 14), p = geo.attributes.position, cols = new Float32Array(p.count * 3), ct = C(top), cb = C(belly), c = new THREE.Color();
-  for (let k = 0; k < p.count; k++) { const y = p.getY(k); c.copy(cb).lerp(ct, clamp(y * 1.4 + .45, 0, 1)); cols.set([c.r, c.g, c.b], k * 3); const z = p.getZ(k); p.setX(k, p.getX(k) * (1 - Math.max(0, -z) * .35)); }
-  geo.setAttribute('color', new THREE.BufferAttribute(cols, 3)); geo.computeVertexNormals();
-  const body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ vertexColors: true, metalness: o.metal ?? .55, roughness: o.rough ?? .22, emissive: o.glow ? C(o.glow) : C('#000'), emissiveIntensity: o.glow ? .35 : 0 }));
-  body.scale.set(len * (o.w || .16), len * (o.h || .22), len * .5); g.add(body);
-  for (const sd of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(len * .045, 10, 8), BM.mat('#f7f2d0', { roughness: .2 })); e.position.set(sd * len * .065, len * .03, len * .3); g.add(e);
-    const pu = new THREE.Mesh(new THREE.SphereGeometry(len * .025, 8, 6), BM.mat('#111', { roughness: .1 })); pu.position.set(sd * len * .09, len * .032, len * .31); g.add(pu); }
+  const iris = new THREE.Mesh(new THREE.CircleGeometry(r, 20), new THREE.MeshPhysicalMaterial({ color: C(gold), metalness: .9, roughness: .25, clearcoat: 1 })); g.add(iris);
+  const pu = new THREE.Mesh(new THREE.CircleGeometry(r * .5, 16), new THREE.MeshStandardMaterial({ color: 0x050505, roughness: .1 })); pu.position.z = r * .02; pu.position.x = r * .12; g.add(pu);
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(r * 1.02, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: 0, roughness: 0, transparent: true, opacity: .18, clearcoat: 1, clearcoatRoughness: 0 })); dome.scale.z = .45; g.add(dome);
+  return g;
+}
+function fishBody(len, top, belly, o = {}) { // a hard plastic (or soft rubber) fish-shaped lure: painted skin, scales, gill plate and 3D eyes
+  const g = new THREE.Group(), w = o.w || .16, h = o.h || .22;
+  const geo = new THREE.SphereGeometry(1, 40, 24), p = geo.attributes.position;
+  for (let k = 0; k < p.count; k++) { const z = p.getZ(k), t = Math.max(0, -z); p.setX(k, p.getX(k) * (1 - t * .45)); p.setY(k, p.getY(k) * (1 - t * .35) - (z > 0 ? 0 : t * t * .05)); if (z < 0) p.setZ(k, z * 1.12); if (o.cut && z > o.cut) p.setZ(k, o.cut); }
+  geo.computeVertexNormals();
+  const pat = o.pat || (o.glow ? 'holo' : o.soft ? 'glitter' : 'scale');
+  const mat = o.soft ? new THREE.MeshPhysicalMaterial({ map: lurePaint(top, belly, pat), roughness: o.rough ?? .5, metalness: 0, clearcoat: .5, clearcoatRoughness: .35, transparent: true, opacity: .96 })
+    : new THREE.MeshPhysicalMaterial({ map: lurePaint(top, belly, pat), metalness: o.metal ?? .35, roughness: o.rough ?? .3, clearcoat: 1, clearcoatRoughness: .03, emissive: o.glow ? C(o.glow) : C('#000'), emissiveIntensity: o.glow ? .25 : 0 });
+  const body = new THREE.Mesh(geo, mat); body.scale.set(len * w, len * h, len * .5); g.add(body);
+  const nz = .6, ny = .15, nx = Math.sqrt(1 - nz * nz - ny * ny), A = len * w, B = len * h, Cz = len * .5, er = len * Math.min(.045, w * .3); // the eyes sit on the head's surface, facing out along its normal
+  for (const sd of [-1, 1]) { const e = lureEye(er, o.eye), nrm = new THREE.Vector3(sd * nx / A, ny / B, nz / Cz).normalize(); e.position.set(sd * nx * A, ny * B, nz * Cz).addScaledVector(nrm, er * .15); e.lookAt(e.position.clone().add(nrm)); g.add(e); }
   g.userData.body = body; return g;
 }
 function makeBaitModel(b) {
@@ -4070,7 +4130,7 @@ function makeBaitModel(b) {
   const add = (o, x = 0, y = 0, z = 0) => { o.position.set(x, y, z); g.add(o); return o; };
   const lineTo = () => { // the line runs from the lure's nose back up towards you
     const l = new THREE.Mesh(new THREE.CylinderGeometry(.0012, .0012, 4, 4).translate(0, 2, 0), new THREE.MeshBasicMaterial({ color: 0xe8e8e8, transparent: true, opacity: .7 }));
-    l.rotation.x = Math.PI / 2 - .45; return l; };
+    l.rotation.x = Math.PI / 2 - .45; l.name = 'lureLine'; return l; };
   if (n === 'Worms') {
     const w = add(chain(18, .0065, ['#b5585a', '#c46a6a', '#a94f52']), 0, .01, -.05); w.children[5].material = BM.mat('#e39a8e', { roughness: .35 }); w.children[5].scale.multiplyScalar(1.15); // the saddle
     const w2 = add(chain(14, .0055, ['#c07070', '#b06060']), .01, -.02, -.03);
@@ -4113,14 +4173,16 @@ function makeBaitModel(b) {
   } else if (n === 'Spoon' || n === 'Giant spoon') {
     const sp = new THREE.Group(); g.add(sp);
     const geo = new THREE.SphereGeometry(1, 20, 10), p = geo.attributes.position; for (let k = 0; k < p.count; k++) { const x = p.getX(k), z = p.getZ(k); p.setY(k, p.getY(k) * .12 + (x * x) * .35); } geo.computeVertexNormals();
-    const s = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: C(n === 'Giant spoon' ? '#f0c040' : '#e4e8ec'), metalness: 1, roughness: .12, side: THREE.DoubleSide })); s.scale.set(.02, .02, .045); sp.add(s);
-    const st = new THREE.Mesh(new THREE.PlaneGeometry(.008, .05).rotateX(-Math.PI / 2), BM.mat('#c8102e', { side: THREE.DoubleSide })); st.position.y = .003; sp.add(st);
+    const s = new THREE.Mesh(geo, lureMetal(n === 'Giant spoon' ? '#f0c040' : '#e4e8ec')); s.scale.set(.02, .02, .045); sp.add(s);
+    for (const z of [.046, -.044]) { const ring = new THREE.Mesh(new THREE.TorusGeometry(.0045, .0009, 5, 12), BM.metal()); ring.position.z = z; ring.rotation.y = Math.PI / 2; sp.add(ring); } // split rings
+    const st = new THREE.Mesh(new THREE.PlaneGeometry(.008, .05).rotateX(-Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: C('#c8102e'), roughness: .3, clearcoat: 1, side: THREE.DoubleSide })); st.position.y = .0036; sp.add(st);
+    for (const sd of [-1, 1]) { const dot = new THREE.Mesh(new THREE.CircleGeometry(.003, 10).rotateX(-Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: C('#111'), roughness: .2, clearcoat: 1 })); dot.position.set(sd * .008, .0044, .02); sp.add(dot); }
     const tr = trebleHook(1.3); tr.rotation.x = Math.PI / 2; tr.position.z = -.05; sp.add(tr); g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { sp.rotation.z = Math.sin(t * (sp2 > .2 ? 16 : 3)) * (sp2 > .2 ? .9 : .3); sp.position.x = Math.sin(t * 16) * .008 * Math.min(1, sp2 * 3); });
   } else if (n === 'Wire spinnerbait') { // a bent wire: a spinning blade on the top arm, a lead head and a rubber skirt on the bottom one
     const w1 = add(new THREE.Mesh(new THREE.CylinderGeometry(.0012, .0012, .07, 4).translate(0, .035, 0), BM.metal())); w1.rotation.x = -.9;
     const blade = new THREE.Group(); blade.position.set(0, .04, -.045); g.add(blade);
-    const bm = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), new THREE.MeshStandardMaterial({ color: C('#e8d070'), metalness: 1, roughness: .1, side: THREE.DoubleSide })); bm.scale.set(.012, .002, .024); bm.position.x = .01; blade.add(bm);
+    const bm = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8), lureMetal('#e8d070')); bm.scale.set(.012, .002, .024); bm.position.x = .01; blade.add(bm);
     add(new THREE.Mesh(new THREE.SphereGeometry(.009, 12, 10), BM.mat('#ff3a8a', { metalness: .4 })), 0, 0, .012);
     const skirt = new THREE.Group(); skirt.position.z = 0; g.add(skirt);
     for (let i = 0; i < 16; i++) { const st = new THREE.Mesh(new THREE.CylinderGeometry(.0012, .0006, .045, 3).translate(0, -.0225, 0).rotateX(-Math.PI / 2), BM.mat(i % 2 ? '#ff3a8a' : '#ffffff')); st.rotation.set((Math.random() - .5) * .5, (Math.random() - .5) * .5, 0); skirt.add(st); }
@@ -4132,7 +4194,7 @@ function makeBaitModel(b) {
     const beadCols = n === 'Spinner lure' ? ['#c8102e', '#f9c80e', '#c8102e', '#f9c80e'] : n === 'Inline spinner' ? ['#f2c230', '#1d1d1d', '#f2c230'] : ['#1d1d1d', '#1d1d1d', '#c8102e'];
     beadCols.forEach((c, i) => add(new THREE.Mesh(new THREE.SphereGeometry(.0055 * s, 10, 8), BM.mat(c, { metalness: .3, roughness: .25 })), 0, 0, (-.005 - i * .01) * s));
     const blade = new THREE.Group(); blade.position.z = .02 * s; g.add(blade);
-    const bm = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), new THREE.MeshStandardMaterial({ color: C(n === 'Inline spinner' ? '#f2c230' : '#e4e8ec'), metalness: 1, roughness: .1, side: THREE.DoubleSide })); bm.scale.set(.012 * s, .002, .022 * s); bm.position.set(.012 * s, 0, 0); bm.rotation.y = .5; blade.add(bm);
+    const bm = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 8), lureMetal(n === 'Inline spinner' ? '#f2c230' : '#e4e8ec')); bm.scale.set(.012 * s, .002, .022 * s); bm.position.set(.012 * s, 0, 0); bm.rotation.y = .5; blade.add(bm);
     const tr = trebleHook(1.1 * s); tr.rotation.x = Math.PI / 2; tr.position.z = -.055 * s; g.add(tr);
     if (n === 'Inline spinner') { const tuft = new THREE.Mesh(new THREE.ConeGeometry(.008, .03, 8).rotateX(-Math.PI / 2), BM.mat('#e8e0d0', { roughness: 1 })); tuft.position.z = -.06; g.add(tuft); }
     g.add(lineTo()); moveMode = 'lure';
@@ -4140,26 +4202,31 @@ function makeBaitModel(b) {
   } else if (['Jerkbait', 'Deep diver', 'Golden lure', 'Mini crankbait', 'Monster plug'].includes(n)) {
     const L = n === 'Monster plug' ? .2 : n === 'Mini crankbait' ? .07 : n === 'Jerkbait' ? .14 : .11, cr = n === 'Mini crankbait';
     const cols = { Jerkbait: ['#ff7a1a', '#fff1d0'], 'Deep diver': ['#1f3fae', '#eef2ff'], 'Golden lure': ['#b8860b', '#fff3b0'], 'Mini crankbait': ['#3f8a1a', '#f2e87a'], 'Monster plug': ['#d42a1e', '#f4f0e0'] }[n];
-    const fb = fishBody(L, cols[0], cols[1], { h: cr ? .36 : .2, w: cr ? .22 : .14, glow: n === 'Golden lure' ? '#ffcc33' : null }); g.add(fb);
+    const fb = fishBody(L, cols[0], cols[1], { h: cr ? .34 : n === 'Jerkbait' ? .13 : .17, w: cr ? .22 : n === 'Jerkbait' ? .1 : .13, glow: n === 'Golden lure' ? '#ffcc33' : null, pat: { Jerkbait: 'tiger', 'Deep diver': 'holo', 'Golden lure': 'holo', 'Mini crankbait': 'bars', 'Monster plug': 'scale' }[n], metal: n === 'Deep diver' || n === 'Golden lure' ? .7 : .3 }); g.add(fb);
     if (n !== 'Jerkbait' || true) { const lip = new THREE.Mesh(new THREE.PlaneGeometry(L * (n === 'Jerkbait' ? .12 : .2), L * (n === 'Deep diver' ? .42 : n === 'Jerkbait' ? .12 : .26)), new THREE.MeshStandardMaterial({ color: C('#dfefff'), transparent: true, opacity: .55, roughness: .1, side: THREE.DoubleSide })); lip.position.set(0, -L * .06, L * .52); lip.rotation.x = n === 'Deep diver' ? 1.1 : .7; g.add(lip); }
     if (cr) { const bars = fb.userData.body; for (let i = 0; i < 3; i++) { const bar = new THREE.Mesh(new THREE.TorusGeometry(L * .17, L * .02, 4, 16, Math.PI), BM.mat('#1e3a10')); bar.rotation.y = Math.PI / 2; bar.position.set(0, L * .02, L * (.1 - i * .12)); g.add(bar); } }
-    for (const z of [L * .08, -L * .38]) { const tr = trebleHook(L * 11); tr.position.set(0, -L * .12, z); g.add(tr); }
+    for (const z of [L * .08, -L * .34]) { const tr = trebleHook(L * 8.5); tr.position.set(0, -L * (cr ? .15 : .1), z); g.add(tr); }
     g.add(lineTo()); moveMode = 'lure';
     let dart = 0; anim.push((t, sp2, dt) => { const m = Math.min(1, sp2 * 3); if (n === 'Jerkbait') { dart -= dt; if (dart < 0) dart = rnd(.5, 1.1); fb.rotation.y = Math.sin(dart * 9) * .5 * m; fb.rotation.z = Math.sin(t * 6) * .2 * m; } else { fb.rotation.z = Math.sin(t * 14) * .35 * m + Math.sin(t * 1.3) * .05; fb.rotation.y = Math.sin(t * 14 + 1) * .12 * m; } });
   } else if (n === 'Soft shad' || n === 'Paddle-tail shad' || n === 'Big swimbait') {
     const top = n === 'Soft shad' ? '#2f8f4f' : n === 'Big swimbait' ? '#4a6070' : '#8a8470', bel = n === 'Soft shad' ? '#b8f0c0' : n === 'Big swimbait' ? '#e8ecef' : '#f4efe0';
-    const fb = fishBody(.09, top, bel, { metal: .05, rough: .6, h: .2, w: .13 }); g.add(fb);
-    const head = new THREE.Mesh(new THREE.SphereGeometry(.011, 12, 10), BM.mat(n === 'Soft shad' ? '#c8102e' : '#4a4a4a', { metalness: .5, roughness: .3 })); head.position.z = .05; g.add(head);
+    const fb = fishBody(.09, top, bel, { soft: true, rough: .5, h: .17, w: .11 }); g.add(fb);
+    const head = new THREE.Mesh(new THREE.SphereGeometry(.0085, 14, 10), new THREE.MeshPhysicalMaterial({ color: C(n === 'Soft shad' ? '#c8102e' : '#4a4a4a'), metalness: .6, roughness: .3, clearcoat: 1 })); head.scale.set(.9, 1, 1.1); head.position.z = .046; g.add(head); // the lead jig head
     const tail = new THREE.Group(); tail.position.z = -.045; g.add(tail);
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.003, .006, .02, 8).rotateX(Math.PI / 2), BM.mat(top, { roughness: .6 })); stem.position.z = -.008; tail.add(stem);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(.003, .006, .02, 8).rotateX(Math.PI / 2), BM.mat(top, { roughness: .5, transparent: true, opacity: .95 })); stem.position.z = -.008; tail.add(stem);
     const pad = new THREE.Mesh(new THREE.CylinderGeometry(.013, .013, .004, 16).rotateZ(Math.PI / 2), BM.mat(bel, { roughness: .6 })); pad.position.z = -.02; pad.scale.set(1, 1.3, .7); tail.add(pad);
     const hk = singleHook(1.1); hk.position.set(0, .02, .03); g.add(hk); g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { const m = Math.min(1, sp2 * 3) * .9 + .1; tail.rotation.y = Math.sin(t * 20) * .9 * m; fb.rotation.y = -Math.sin(t * 20) * .08 * m; });
   } else if (n === 'Rubber worm') {
-    const w = add(chain(22, .0055, ['#7b2cbf', '#8a3ad0'], .3), 0, 0, 0);
-    add(new THREE.Mesh(new THREE.SphereGeometry(.008, 10, 8), BM.mat('#3a3a3a', { metalness: .5 })), 0, 0, .012);
+    const w = add(chain(22, .0055, ['#7b2cbf'], .3), 0, 0, 0); w.visible = false; // an invisible spine; the worm itself is a smooth, tapered, glossy tube along it
+    const wm = new THREE.MeshPhysicalMaterial({ color: C('#7b2cbf'), roughness: .35, clearcoat: .9, clearcoatRoughness: .15, transparent: true, opacity: .92 }), tube = add(new THREE.Mesh(new THREE.BufferGeometry(), wm));
+    const wormTube = () => { const pts = w.children.map(c => c.position.clone()); const cu = new THREE.CatmullRomCurve3(pts), TS = 48, RS = 8, geo = new THREE.TubeGeometry(cu, TS, .0055, RS, false), pa = geo.attributes.position, P = new THREE.Vector3();
+      for (let i = 0; i <= TS; i++) { const u = i / TS, f = u < .12 ? .55 + u / .12 * .45 : u > .6 ? Math.max(.12, 1 - (u - .6) / .4 * .88) : 1; cu.getPointAt(u, P); for (let j = 0; j <= RS; j++) { const k = i * (RS + 1) + j; pa.setXYZ(k, P.x + (pa.getX(k) - P.x) * f, P.y + (pa.getY(k) - P.y) * f, P.z + (pa.getZ(k) - P.z) * f); } }
+      geo.computeVertexNormals(); tube.geometry.dispose(); tube.geometry = geo; };
+    const sinker = add(new THREE.Mesh(new THREE.ConeGeometry(.0042, .012, 10).rotateX(Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: C('#3a3d40'), metalness: .6, roughness: .35, clearcoat: .6 })), 0, 0, -.006); // a little bullet weight
     g.add(lineTo()); moveMode = 'lure';
-    anim.push((t, sp2) => w.userData.bend((u, i) => [Math.PI + (i === 0 ? 0 : Math.sin(t * 5 - i * .5) * .25 * (.4 + u)), Math.sin(t * 3 - i * .4) * .05]));
+    anim.push((t, sp2) => { w.userData.bend((u, i) => [i === 0 ? Math.PI : Math.sin(t * 5 - i * .5) * .12 * (.4 + u), Math.sin(t * 3 - i * .4) * .03]); wormTube(); });
+    w.userData.bend((u, i) => [i === 0 ? Math.PI : 0, 0]); wormTube();
   } else if (n === 'Soft frog') {
     const body = add(new THREE.Mesh(new THREE.SphereGeometry(.025, 16, 12), BM.mat('#4fbf4a', { roughness: .55 })), 0, 0, 0); body.scale.set(1, .6, 1.2);
     const bel = add(new THREE.Mesh(new THREE.SphereGeometry(.022, 14, 10), BM.mat('#f2f0c0', { roughness: .6 })), 0, -.005, 0); bel.scale.set(.95, .45, 1.1);
@@ -4168,8 +4235,8 @@ function makeBaitModel(b) {
     const hk = singleHook(1.3); hk.position.set(0, .012, -.01); g.add(hk); g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { const m = Math.min(1, sp2 * 3); legs.forEach((l, k) => { l.rotation.y = (k ? 1 : -1) * (.3 + Math.max(0, Math.sin(t * 9 + k * Math.PI)) * .8 * m); }); });
   } else if (n === 'Popper') {
-    const fb = fishBody(.09, '#ff6a2a', '#f7f3ea', { h: .2, w: .18 }); g.add(fb);
-    const face = new THREE.Mesh(new THREE.CircleGeometry(.012, 16), BM.mat('#1d1d1d', { side: THREE.DoubleSide })); face.position.z = .046; g.add(face);
+    const fb = fishBody(.09, '#ff6a2a', '#f7f3ea', { h: .2, w: .18, pat: 'dots', cut: .78 }); g.add(fb);
+    const face = new THREE.Mesh(new THREE.SphereGeometry(.0085, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2).rotateX(-Math.PI / 2), new THREE.MeshPhysicalMaterial({ color: C('#6a0a0a'), roughness: .3, clearcoat: 1, side: THREE.DoubleSide })); face.scale.set(1.15, 1.25, .5); face.position.z = .0352; g.add(face); // the cupped mouth that goes 'bloop'
     for (const z of [.01, -.035]) { const tr = trebleHook(1.1); tr.position.set(0, -.012, z); g.add(tr); }
     g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { fb.rotation.x = Math.sin(t * 5) * .25 * Math.min(1, sp2 * 3); });
@@ -4200,8 +4267,10 @@ function makeBaitModel(b) {
     const hk = singleHook(1.2); hk.rotation.x = Math.PI / 2; hk.position.z = -.03; g.add(hk); g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { g.position.y = Math.abs(Math.sin(t * 3)) * .04 * Math.min(1, sp2 * 3); hair.children.forEach((c, i) => c.rotation.y = Math.sin(t * 5 + i) * .15); });
   } else if (n === 'Walk-the-dog' || n === 'Prop bait') {
-    const prop = n === 'Prop bait', fb = fishBody(.11, prop ? '#3a3a3a' : '#2a8a3a', prop ? '#f0f0f0' : '#f2d430', { h: .15, w: .14 }); g.add(fb);
-    const props = prop ? [.06, -.06].map(z => { const pr = new THREE.Mesh(new THREE.BoxGeometry(.03, .004, .002), BM.metal()); pr.position.z = z; g.add(pr); return pr; }) : [];
+    const prop = n === 'Prop bait', fb = fishBody(.11, prop ? '#3a3a3a' : '#2a8a3a', prop ? '#f0f0f0' : '#f2d430', { h: .13, w: .12, pat: prop ? 'scale' : 'tiger' }); g.add(fb);
+    const props = prop ? [.058, -.058].map(z => { const pr = new THREE.Group(); pr.position.z = z; g.add(pr); // little three-bladed metal propellers
+      for (let i = 0; i < 3; i++) { const bl = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 6), lureMetal('#d8dde2')); bl.scale.set(.0045, .009, .0007); bl.position.y = .008; const arm = new THREE.Group(); arm.rotation.z = i / 3 * Math.PI * 2; bl.rotation.y = .6; arm.add(bl); pr.add(arm); }
+      return pr; }) : [];
     for (const z of [.01, -.035]) { const tr = trebleHook(1.1); tr.position.set(0, -.012, z); g.add(tr); }
     g.add(lineTo()); moveMode = 'lure';
     anim.push((t, sp2) => { const m = Math.min(1, sp2 * 3); if (prop) props.forEach(p => p.rotation.z += .9 * m + .02); else fb.rotation.y = Math.sin(t * 6) * .6 * m; });
@@ -4228,7 +4297,7 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
   F.ug.visible = inWater;
   if (!inWater) { if (F.visM) { scene.remove(F.visM); F.visM = null; } F.leaving = false; F.leaveT = 0; if (F.rigM) { scene.remove(F.rigM); F.rigM = null; } return; }
   // where the hook sits: under the float, or wherever the fish drags it
-  const floor = F.lake ? waterBed(F.lake, bx, bz) : seabedY(bx, bz), depth = F.st === 'snag' ? floor + .1 : F.st === 'jig' ? Math.max(floor + .5, -2.4) : F.st === 'retrieve' || (F.lure && F.st !== 'reel') ? Math.max(floor + .15, -.7 - (F.sink || 0) * .9) : F.bottom && F.st !== 'reel' ? floor + .08 : Math.max(floor + .6, -1.7);
+  const floor = F.lake ? waterBed(F.lake, bx, bz) : seabedY(bx, bz), depth = F.lure && F.st === 'retrieve' && TOPWATER.has(gearOf('bait').name) ? (F.lake ? .12 : .02) - .012 : F.st === 'snag' ? floor + .1 : F.st === 'jig' ? Math.max(floor + .5, -2.4) : F.st === 'retrieve' || (F.lure && F.st !== 'reel') ? Math.max(floor + .15, -.7 - (F.sink || 0) * .9) : F.bottom && F.st !== 'reel' ? floor + .08 : Math.max(floor + .6, -1.7);
   F.hookPos.set(bx, depth, bz);
   const L = F.ug.children[0]; F.ug.position.set(bx, Math.min(by, 0), bz); L.scale.y = Math.max(.05, Math.min(by, 0) - depth); F.ug.children[1].position.y = F.ug.children[2].position.y = depth - Math.min(by, 0);
   F.ug.children[1].visible = F.st !== 'jig';
@@ -4240,6 +4309,9 @@ function updateUnderBait(F, bx, by, bz, now, dt) {
     if (F.lureLook) { bm.rotation.y = Math.atan2(foot.x - bx, foot.z - bz); bm.position.y += Math.sin(F.ugT * 2) * .01; if (F.ugSp < .2 && F.st === 'retrieve') bm.position.y -= Math.min(.25, (F.ugT % 3) * .05); }
     else if (bm.userData.mode !== 'swim') bm.rotation.y = Math.sin(F.ugT * .5) * .6;
     bm.userData.anim(F.ugT, F.ugSp, dt);
+    if (!F.foam) { F.foam = new THREE.Mesh(new THREE.RingGeometry(.06, .2, 24).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0, depthWrite: false })); F.ug.add(F.foam); }
+    const tw = F.lure && F.st === 'retrieve' && TOPWATER.has(gearOf('bait').name); F.foam.visible = tw; // topwater lures leave a little splashy wake
+    if (tw) { F.foam.position.set(0, bm.position.y + .014, 0); const pul = (F.ugT * 2.5) % 1; F.foam.scale.setScalar(.6 + pul * 1.6); F.foam.material.opacity = Math.min(.55, F.ugSp * .8) * (1 - pul); }
   }
   // sabiki: show the rig with whatever has already bitten
   if (F.st === 'jig') {
@@ -8554,7 +8626,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { CARS, buildCar, setCar, audio, stopFishing, startDeckWalk, boatPlan, setBoatModel, deckAction, ANIM, ZER, restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { CARS, buildCar, setCar, audio, stopFishing, startDeckWalk, boatPlan, setBoatModel, deckAction, ANIM, ZER, restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, makeBaitModel, GEAR, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
