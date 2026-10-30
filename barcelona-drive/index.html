@@ -1572,6 +1572,9 @@ const MODELS = {
   sedan: { L: 4.7, W: 1.84, H: 1.47, R: .33, clr: .16, fw: .95, rw: 3.75, nose: .74, belt: .98, tail: 1.02, cs: 1.55, rs: 2.3, re: 3.4, ce: 4.05 },
   ev: { L: 4.85, W: 1.96, H: 1.4, R: .35, clr: .14, fw: 1.0, rw: 3.9, nose: .62, belt: .93, tail: .99, cs: 1.45, rs: 2.3, re: 3.35, ce: 4.35 },
   muscle: { L: 4.8, W: 1.95, H: 1.3, R: .35, clr: .14, fw: 1.05, rw: 3.85, nose: .82, belt: .99, tail: .99, cs: 1.95, rs: 2.6, re: 3.3, ce: 4.02 },
+  lambo: { hyper: 'lambo', L: 4.94, W: 2.12, H: 1.14, R: .36, clr: .1, fw: 1.15, rw: 3.85, nose: .45, belt: .86, tail: .85, cs: 1.6, rs: 2.2, re: 2.9, ce: 3.9 },
+  bugatti: { hyper: 'bugatti', L: 4.54, W: 2.04, H: 1.21, R: .36, clr: .11, fw: 1.02, rw: 3.72, nose: .48, belt: .88, tail: .9, cs: 1.5, rs: 2.1, re: 2.9, ce: 3.6 },
+  ferrari: { hyper: 'ferrari', L: 4.66, W: 1.98, H: 1.28, R: .35, clr: .12, fw: 1.03, rw: 3.75, nose: .5, belt: .86, tail: .9, cs: 2.1, rs: 2.5, re: 3.3, ce: 4.0 },
 };
 const CARS = [
   { name: 'Rossa V12', tag: 'Mid-engine supercar', model: 'super', color: '#b3121b', hp: 780, mass: 1550, drive: 'RWD', redline: 8700, gears: [3.1, 2.2, 1.7, 1.35, 1.1, .92, .78], final: 3.9, grip: 1.18, cda: .85, cyl: 12 },
@@ -1580,6 +1583,9 @@ const CARS = [
   { name: 'Volt S', tag: 'Electric saloon, 1,000 hp', model: 'ev', color: '#2f8f8a', hp: 1000, mass: 2150, drive: 'AWD', ev: true, redline: 18000, gears: [1], final: 8.6, grip: 1.12, cda: .62, cyl: 0 },
   { name: 'Taxi BCN', tag: 'Black and yellow city cab', model: 'sedan', color: '#151515', taxi: true, hp: 150, mass: 1400, drive: 'FWD', redline: 6200, gears: [3.6, 2.1, 1.4, 1.03, .82], final: 4.1, grip: .98, cda: .72, cyl: 4 },
   { name: 'Toro 70', tag: 'Old-school V8 muscle', model: 'muscle', color: '#e2711d', hp: 480, mass: 1650, drive: 'RWD', redline: 6500, gears: [2.9, 1.9, 1.35, 1.0], final: 3.5, grip: .95, cda: .95, cyl: 8 },
+  { name: 'Lamborghini Aventador SVJ', tag: 'V12, 770 hp, four-wheel drive, 350 km/h', model: 'lambo', color: '#7fc31c', hp: 770, mass: 1525, drive: 'AWD', redline: 8700, gears: [3.91, 2.44, 1.81, 1.46, 1.19, .97, .84], final: 3.4, grip: 1.3, cda: .74, cyl: 12, sound: 'lambo' },
+  { name: 'Bugatti Chiron Super Sport', tag: 'Quad-turbo W16, 1,600 hp, 440 km/h', model: 'bugatti', color: '#1d4fa8', hp: 1600, mass: 1995, drive: 'AWD', redline: 6900, gears: [3.6, 2.4, 1.75, 1.36, 1.08, .88, .72], final: 3.0, grip: 1.28, cda: .58, cyl: 16, sound: 'bugatti' },
+  { name: 'Ferrari 812 Superfast', tag: 'Front-engined V12, 800 hp, 340 km/h', model: 'ferrari', color: '#c8000a', hp: 800, mass: 1630, drive: 'RWD', redline: 8900, gears: [3.08, 2.19, 1.63, 1.29, 1.03, .84, .69], final: 3.9, grip: 1.25, cda: .7, cyl: 12, sound: 'ferrari' },
 ];
 function finishSpec(c) {
   const m = MODELS[c.model]; c.R = m.R; c.wb = m.rw - m.fw;
@@ -1683,7 +1689,159 @@ function designMats(modelKey, d) {
   return { side, top, roof, decal, number, all };
 }
 
+/* ---------- hypercars: lofted bodies with real curves, carbon trim, LED lights, big brakes ---------- */
+const HYPER = {
+  lambo: { // Lamborghini Aventador SVJ: a sharp, faceted wedge with Y-shaped lights and a huge wing
+    p: 4.2, calCol: '#f2c230', rimCol: '#1c1d20', trim: '#16171a',
+    body: [[2.47, .78, .40, .14], [2.32, .95, .52, .10], [1.95, 1.0, .64, .10], [1.32, 1.03, .74, .10], [.75, 1.0, .82, .10], [0, 1.03, .9, .10], [-.75, 1.06, .97, .10], [-1.38, 1.06, .98, .11], [-1.95, 1.03, .95, .14], [-2.35, .96, .88, .20], [-2.47, .9, .8, .3]],
+    cabin: [[.9, .45, .84, .78], [.55, .6, 1.0, .8], [.1, .66, 1.12, .84], [-.4, .66, 1.14, .87], [-.9, .6, 1.05, .9], [-1.35, .46, .98, .94]] },
+  bugatti: { // Bugatti Chiron: rounded, two-tone, the horseshoe grille and the big C-curve down the side
+    p: 2.7, calCol: '#1d3c8a', rimCol: '#b9bcc0', trim: '#0d0f14', two: '#0b0d12',
+    body: [[2.27, .74, .42, .17], [2.16, .9, .55, .13], [1.82, 1.0, .69, .11], [1.25, 1.02, .78, .11], [.6, .97, .84, .11], [0, .99, .9, .11], [-.7, 1.02, .97, .11], [-1.45, 1.03, 1.0, .12], [-1.95, 1.0, .99, .15], [-2.2, .98, .97, .2], [-2.27, .96, .93, .24]],
+    cabin: [[.78, .48, .84, .78], [.42, .6, 1.04, .8], [0, .64, 1.18, .84], [-.5, .63, 1.21, .87], [-1.0, .55, 1.1, .91], [-1.45, .44, 1.0, .95]] },
+  ferrari: { // Ferrari 812 Superfast: a long bonnet, a set-back cabin and round twin taillights
+    p: 2.6, calCol: '#d40000', rimCol: '#2a2b2e', trim: '#121214',
+    body: [[2.33, .6, .48, .15], [2.16, .86, .62, .12], [1.7, .95, .7, .12], [1.3, .98, .76, .12], [.6, .9, .82, .12], [0, .92, .86, .12], [-.6, .98, .92, .12], [-1.42, .99, .95, .13], [-1.9, .95, .94, .18], [-2.33, .88, .86, .32]],
+    cabin: [[.25, .5, .84, .78], [-.1, .6, 1.07, .8], [-.5, .62, 1.25, .84], [-.95, .6, 1.27, .87], [-1.45, .52, 1.12, .9], [-1.95, .4, .96, .93]] },
+};
+function genHyper(key) { // the classic cars, rebuilt with lofted bodies from their own dimensions
+  if (HYPER[key]) return HYPER[key];
+  const m = MODELS[key], hw = m.W / 2 - .02, F = z => m.L / 2 - z, boxy = { hatch: 3.4, sedan: 3.2, ev: 3, muscle: 3.6, super: 2.7, gt: 2.8 }[key] || 3;
+  return HYPER[key] = { p: boxy, gen: true, calCol: key === 'gt' ? '#f2c230' : key === 'super' ? '#c8102e' : '#3a3d42', rimCol: '#b9bcc0', trim: '#15161a',
+    body: [[F(0), hw * .74, m.nose * .86, m.clr + .06], [F(.16), hw * .93, m.nose + .05, m.clr], [F(m.cs * .5), hw * .99, lerp(m.nose, m.belt, .62), m.clr], [F(m.cs), hw, m.belt, m.clr], [F((m.cs + m.ce) / 2), hw, m.belt + .02, m.clr], [F(m.ce), hw, m.belt + .03, m.clr],
+      [F((m.ce + m.L) / 2), hw * .98, lerp(m.belt, m.tail, .6), m.clr + .02], [F(m.L - .1), hw * .92, m.tail, m.clr + .1], [F(m.L), hw * .86, m.tail - .12, m.clr + .2]],
+    cabin: [[F(m.cs - .05), hw * .6, m.belt + .02, m.belt - .07], [F((m.cs + m.rs) / 2), hw * .74, lerp(m.belt, m.H, .72), m.belt - .07], [F(m.rs), hw * .8, m.H, m.belt - .07], [F(m.re), hw * .8, m.H, m.belt - .07], [F((m.re + m.ce) / 2), hw * .73, lerp(m.H, m.belt, .45), m.belt - .06], [F(m.ce + .05), hw * .58, m.belt + .03, m.belt - .05]] };
+}
+const hSpline = (a, b, c, d, t) => .5 * (2 * b + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t * t + (-a + 3 * b - 3 * c + d) * t * t * t);
+function hyperLoft(st, o) { // stations [z, half-width, top, bottom] from nose to tail → a smooth body, with arches cut over the wheels
+  const SUB = 7, R = 72, rows = [];
+  for (let i = 0; i < st.length - 1; i++) for (let k = 0; k < SUB; k++) { const t = k / SUB, q = j => st[clamp(j, 0, st.length - 1)]; rows.push(q(i).map((_, n) => n === 0 ? lerp(q(i)[0], q(i + 1)[0], t) : hSpline(q(i - 1)[n], q(i)[n], q(i + 1)[n], q(i + 2)[n], t))); }
+  rows.push(st[st.length - 1].slice());
+  const pos = [], col = [], uv = [], idx = [], c = new THREE.Color(), sp = (v, e) => Math.sign(v) * Math.pow(Math.abs(v), 2 / e);
+  rows.forEach(([z, hw, yt, yb], i) => {
+    const yc = yb + (yt - yb) * .42;
+    for (let j = 0; j <= R; j++) { const a = j / R * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), up = sa > 0;
+      let x = hw * sp(ca, up ? o.p : Math.max(o.p, 5)), y = yc + (up ? (yt - yc) * sp(sa, o.p) : (yc - yb) * sp(sa, 6));
+      if (o.arch) { const ay = o.arch(z); if (ay > 0 && Math.abs(x) > hw - .36 && y < ay) y = ay; } // the wheel arch
+      pos.push(x, y, z); uv.push(i / (rows.length - 1), j / R);
+      o.color(c, x, y, z, hw, yt); col.push(c.r, c.g, c.b); }
+  });
+  for (let i = 0; i < rows.length - 1; i++) for (let j = 0; j < R; j++) { const a = i * (R + 1) + j, b = a + 1, cc = a + R + 1, d = cc + 1; idx.push(a, cc, b, b, cc, d); }
+  const caps = []; // close the nose and the tail with their own faces
+  for (const [ri, dir] of [[0, 1], [rows.length - 1, -1]]) { const base = pos.length / 3, r0 = ri * (R + 1); let cy = 0;
+    for (let j = 0; j <= R; j++) { pos.push(pos[3 * (r0 + j)], pos[3 * (r0 + j) + 1], pos[3 * (r0 + j) + 2]); col.push(col[3 * (r0 + j)], col[3 * (r0 + j) + 1], col[3 * (r0 + j) + 2]); uv.push(uv[2 * (r0 + j)], uv[2 * (r0 + j) + 1]); cy += pos[3 * (r0 + j) + 1]; }
+    pos.push(0, cy / (R + 1), rows[ri][0] + dir * .02); col.push(col[3 * r0], col[3 * r0 + 1], col[3 * r0 + 2]); uv.push(ri / (rows.length - 1), .25); const ctr = pos.length / 3 - 1;
+    for (let j = 0; j < R; j++) dir > 0 ? idx.push(base + j, base + j + 1, ctr) : idx.push(base + j + 1, base + j, ctr); caps.push([base, ctr, dir]); }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2)); g.setIndex(idx); g.computeVertexNormals();
+  { const nr = g.attributes.normal; for (const [b0, ctr, dir] of caps) for (let k = b0; k <= ctr; k++) nr.setXYZ(k, 0, .15, dir); }
+  let tex = null;
+  if (o.tex) { const TW = o.tex[0], TH = o.tex[1], cv = document.createElement('canvas'); cv.width = TW; cv.height = TH; const g2 = cv.getContext('2d'), im = g2.createImageData(TW, TH), D = im.data;
+    for (let tx = 0; tx < TW; tx++) { const fu = tx / (TW - 1) * (rows.length - 1), i0 = Math.min(rows.length - 2, Math.floor(fu)), t = fu - i0, rw = rows[i0].map((v, n) => lerp(v, rows[i0 + 1][n], t)), [z, hw, yt, yb] = rw, yc = yb + (yt - yb) * .42;
+      for (let ty = 0; ty < TH; ty++) { const a = (1 - ty / (TH - 1)) * Math.PI * 2, ca = Math.cos(a), sa = Math.sin(a), up = sa > 0;
+        let x = hw * sp(ca, up ? o.p : Math.max(o.p, 5)), y = yc + (up ? (yt - yc) * sp(sa, o.p) : (yc - yb) * sp(sa, 6)); if (o.arch) { const ay = o.arch(z); if (ay > 0 && Math.abs(x) > hw - .36 && y < ay) y = ay; }
+        o.color(c, x, y, z, hw, yt); c.convertLinearToSRGB(); const k = 4 * (ty * TW + tx); D[k] = c.r * 255; D[k + 1] = c.g * 255; D[k + 2] = c.b * 255; D[k + 3] = 255; } }
+    g2.putImageData(im, 0, 0); tex = new THREE.CanvasTexture(cv); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 8; }
+  const rowAt = z => { for (let i = 0; i < rows.length - 1; i++) if (z <= rows[i][0] && z >= rows[i + 1][0]) { const t = (rows[i][0] - z) / (rows[i][0] - rows[i + 1][0] || 1); return rows[i].map((v, n) => lerp(v, rows[i + 1][n], t)); } return z > rows[0][0] ? rows[0] : rows[rows.length - 1]; };
+  return { g, tex, rowAt, topY: (x, z) => { const [, hw, yt, yb] = rowAt(z), yc = yb + (yt - yb) * .42, u = Math.min(1, Math.abs(x) / hw); return yc + (yt - yc) * Math.pow(Math.max(0, 1 - Math.pow(u, o.p / 2)), 2 / o.p); }, hwAt: z => { for (let i = 0; i < rows.length - 1; i++) if (z <= rows[i][0] && z >= rows[i + 1][0]) { const t = (rows[i][0] - z) / (rows[i][0] - rows[i + 1][0] || 1); return lerp(rows[i][1], rows[i + 1][1], t); } return rows[0][1]; } };
+}
+function hyperWheel(m, H, rear, mats) { // tyre with a rounded sidewall, multi-spoke rim, cross-drilled disc
+  const R = m.R, w = rear ? .34 : .28, spin = new THREE.Group();
+  const tp = [[R * .72, -w / 2], [R * .95, -w / 2], [R, -w * .3], [R, w * .3], [R * .95, w / 2], [R * .72, w / 2]].map(([r, y]) => new THREE.Vector2(r, y));
+  const tyre = new THREE.Mesh(new THREE.LatheGeometry(tp, 30).rotateZ(Math.PI / 2), mats.tyre); tyre.castShadow = true; spin.add(tyre);
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(R * .72, R * .72, w * .9, 28, 1, true).rotateZ(Math.PI / 2), mats.rim); spin.add(barrel);
+  const face = new THREE.Group(); face.position.x = w * .38; spin.add(face);
+  const N = H === HYPER.bugatti ? 10 : H === HYPER.ferrari ? 10 : 10;
+  for (let k = 0; k < N; k++) { const sp = new THREE.Mesh(new THREE.BoxGeometry(.035, R * .62, .045).translate(0, R * .38, 0), mats.rim); sp.rotation.x = k / N * Math.PI * 2 + (H === HYPER.lambo ? (k % 2 ? .12 : -.12) : 0); face.add(sp); } // the spokes (in pairs on the Lambo)
+  face.add(new THREE.Mesh(new THREE.CylinderGeometry(R * .14, R * .16, .05, 16).rotateZ(Math.PI / 2), mats.chrome)); // centre lock
+  const disc = new THREE.Mesh(new THREE.CylinderGeometry(R * .6, R * .6, .03, 28).rotateZ(Math.PI / 2), mats.disc); disc.position.x = w * .05; spin.add(disc);
+  return { spin, w };
+}
+function buildHyper(modelKey, color, opts = {}) {
+  const m = MODELS[modelKey], H = m.hyper ? HYPER[m.hyper] : genHyper(modelKey), d = opts.design, paintCol = d ? d.color : color;
+  const root = new THREE.Group(), body = new THREE.Group(); root.add(body); const cgZ = (m.L / 2 - m.fw) - (m.rw - m.fw) * .5; body.position.z = -cgZ;
+  const zf = m.L / 2 - m.fw, zr = m.L / 2 - m.rw, disposables = [];
+  const paintC = C(paintCol), trimC = C(H.trim), twoC = H.two ? C(H.two) : null;
+  const add = (geo, mat, par = body, shadow = true) => { const x = new THREE.Mesh(geo, mat); x.castShadow = shadow; par.add(x); disposables.push(geo); return x; };
+  const bodyM = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: .55, roughness: .22, clearcoat: 1, clearcoatRoughness: .03 }); disposables.push(bodyM);
+  const glassM = new THREE.MeshPhysicalMaterial({ color: 0xffffff, metalness: .3, roughness: .04, clearcoat: 1, clearcoatRoughness: 0, envMapIntensity: 1.6 }); disposables.push(glassM);
+  const carbon = new THREE.MeshStandardMaterial({ color: C(H.trim), roughness: .35, metalness: .4 }), black = new THREE.MeshStandardMaterial({ color: 0x08090b, roughness: .6 }), chrome = new THREE.MeshStandardMaterial({ color: 0xe6e8ea, metalness: 1, roughness: .08 });
+  const LED = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: C('#f4f8ff'), emissiveIntensity: 2.2 }), tailMat = new THREE.MeshStandardMaterial({ color: C('#3a0000'), emissive: C('#ff1408'), emissiveIntensity: .9 });
+  disposables.push(carbon, black, chrome, LED, tailMat);
+  const arch = z => { for (const za of [zf, zr]) { const dz = Math.abs(z - za), Ra = m.R + .08; if (dz < Ra) return m.R + Math.sqrt(Ra * Ra - dz * dz) * .98; } return 0; };
+  const B = hyperLoft(H.body, { p: H.p, arch, tex: [1024, 512], color: (c, x, y, z, hw) => {
+    c.copy(paintC);
+    c.lerp(trimC, smooth01((m.clr + .23 - y) / .07)); // carbon sills, splitter and diffuser, blended in
+    if (twoC && Math.abs(x) > hw * .5) c.lerp(twoC, smooth01((1 - (((z + .1) / .85) ** 2 + ((y - .58) / .33) ** 2)) / .04)); // the Chiron's two-tone C panel
+    if (H === HYPER.bugatti) { c.lerp(twoC, smooth01((-1.25 - z) / .04) * smooth01((y - .7) / .03)); if (z > 1.93 && Math.abs(x) > .5 && Math.abs(x) < .84 && y > .46 && ((z - 2.07) / .15) ** 2 + ((Math.abs(x) - .67) / .17) ** 2 < 1) c.set(C('#0b0f14')); } // dark rear deck, and the headlight pods
+    if (H.gen && z > m.L / 2 - .4 && Math.abs(x) > m.W * .17 && Math.abs(x) < m.W * .45 && y > m.nose - .13 && y < m.nose + .05) c.set(C('#0b0f14')); // headlight glass, flush in the body
+    if (opts.taxi && Math.abs(x) > hw * .7 && z < m.L / 2 - m.cs - .1 && z > m.L / 2 - m.ce + .1 && y > m.clr + .28 && y < m.belt - .06) c.set(C('#f9c80e')); // Barcelona taxi doors
+  } });
+  bodyM.map = B.tex; disposables.push(B.tex); add(B.g, bodyM);
+  const roofTop = Math.max(...H.cabin.map(s => s[2]));
+  const Cb = hyperLoft(H.cabin, { p: 3.2, tex: [256, 256], color: (c, x, y, z, hw, yt) => { const glassy = y < yt - .07 || Math.abs(x) > hw * .55; c.copy(glassy ? C('#0b1016') : paintC); if (H === HYPER.lambo && glassy && y > yt - .2) c.copy(C('#0b1016')); } });
+  glassM.map = Cb.tex; disposables.push(Cb.tex); add(Cb.g, glassM);
+  // wheel wells, then the wheels
+  for (const za of [zf, zr]) for (const sx of [-1, 1]) { const ww = add(new THREE.CylinderGeometry(m.R + .07, m.R + .07, .42, 20, 1, true, Math.PI * .5, Math.PI).rotateZ(Math.PI / 2), black, body, false); ww.material = new THREE.MeshStandardMaterial({ color: 0x050506, roughness: .9, side: THREE.BackSide }); disposables.push(ww.material); ww.position.set(sx * (B.hwAt(za) - .2), m.R, za); }
+  const mats = { tyre: new THREE.MeshStandardMaterial({ color: 0x070707, roughness: .95, envMapIntensity: .25 }), rim: new THREE.MeshStandardMaterial({ color: C(d ? d.rims : H.rimCol), metalness: .85, roughness: .22 }), chrome, disc: new THREE.MeshStandardMaterial({ color: 0x8a8d92, metalness: .9, roughness: .35 }) };
+  disposables.push(mats.tyre, mats.rim, mats.disc);
+  const calM = new THREE.MeshPhysicalMaterial({ color: C(H.calCol), roughness: .3, clearcoat: 1 }); disposables.push(calM);
+  const wheels = [];
+  for (const [za, front] of [[zf, 1], [zr, 0]]) for (const sx of [-1, 1]) {
+    const hw = B.hwAt(za), pivot = new THREE.Group(); pivot.position.set(sx * (hw - .2), m.R, za - cgZ); root.add(pivot);
+    const { spin, w } = hyperWheel(m, H, !front, mats); if (sx < 0) spin.scale.x = -1; pivot.add(spin);
+    const cal = new THREE.Mesh(new THREE.BoxGeometry(.06, m.R * .42, m.R * .3), calM); cal.position.set(sx * w * .12, m.R * .3, -m.R * .32); pivot.add(cal); // the brake caliper stays put
+    wheels.push({ pivot, spin, front });
+  }
+  // lights
+  const bar = (mat, x0, y0, z0, x1, y1, z1, t = .035) => { const L = Math.hypot(x1 - x0, y1 - y0, z1 - z0), b = add(new THREE.BoxGeometry(t, t, L), mat, body, false); b.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); b.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), new THREE.Vector3(x1 - x0, y1 - y0, z1 - z0).normalize()); return b; };
+  const nose = m.L / 2, tail = -m.L / 2;
+  for (const sx of [-1, 1]) {
+    if (H === HYPER.lambo) { // Y-shaped daytime lights and Y taillights
+      const hx = sx * .66; bar(LED, hx, .56, nose - .32, hx + sx * .24, .52, nose - .46); bar(LED, hx, .56, nose - .32, hx - sx * .12, .5, nose - .24); bar(LED, hx, .56, nose - .32, hx + sx * .02, .62, nose - .5);
+      const tx = sx * .66; bar(tailMat, tx, .72, tail + .08, tx + sx * .26, .66, tail + .14, .05); bar(tailMat, tx, .72, tail + .08, tx - sx * .1, .62, tail + .06, .05); bar(tailMat, tx, .72, tail + .08, tx + sx * .04, .84, tail + .14, .05);
+      const sideIn = add(new THREE.PlaneGeometry(.75, .32), black, body, false); sideIn.position.set(sx * (B.hwAt(-.55) + .005), .62, -.55); sideIn.rotation.y = sx * Math.PI / 2; // side air intakes
+    } else if (H === HYPER.bugatti) { // four LED lamps a side, and the full-width rear light bar
+      for (let k = 0; k < 4; k++) { const lx = sx * (.6 + (k % 2) * .13), lz = 2.13 - (k >> 1) * .12, l = add(new THREE.BoxGeometry(.09, .03, .06), LED, body, false); l.position.set(lx, B.topY(lx, lz) + .022, lz); } // the four LED lamps in each dark pod
+      const cl = new THREE.CatmullRomCurve3([[.55, .93], [-.3, .92], [-.78, .62], [-.42, .27], [.3, .22]].map(([z, y]) => new THREE.Vector3(sx * (B.hwAt(z) + .012), y, z))); add(new THREE.TubeGeometry(cl, 40, .02, 6), chrome, body, false); // the C-line
+    } else if (H.gen) { // the classics: LED headlights in dark lenses, wide taillights
+      { const xa = sx * m.W * .2, xb = sx * m.W * .4, za = nose - .1, zb = nose - .24; bar(LED, xa, B.topY(xa, za) + .01, za, xb, B.topY(xb, zb) + .01, zb, .026); }
+      bar(tailMat, sx * m.W * .18, m.tail - .12, tail + .05, sx * m.W * .44, m.tail - .14, tail + .12, .06);
+    } else { // Ferrari: slim swept headlights and two round taillights a side
+      bar(LED, sx * .52, .55, nose - .3, sx * .82, .6, nose - .62, .045);
+      for (const k of [0, 1]) { const tl = add(new THREE.CylinderGeometry(.075, .075, .04, 20).rotateX(Math.PI / 2), tailMat, body, false); tl.position.set(sx * (.5 + k * .2), .74, tail + .06); }
+    }
+    const mir = add(new THREE.SphereGeometry(.09, 12, 8).scale(1.1, .7, 1.4), new THREE.MeshPhysicalMaterial({ color: paintC, metalness: .55, roughness: .22, clearcoat: 1 }), body); mir.position.set(sx * (B.hwAt(H.cabin[1][0]) * .78 + .2), H.cabin[0][2] + .06, H.cabin[1][0] - .05); disposables.push(mir.material); // mirrors
+  }
+  for (const sx of [-1, 1]) { // the door shut lines
+    const zc = H.cabin[0][0] - .18, top = H.cabin[0][3] - .02, dl = new THREE.CatmullRomCurve3([[zc, top], [zc + .02, .32], [zc - 1.15, .3], [zc - 1.25, top + .02]].map(([z, y]) => new THREE.Vector3(sx * (B.hwAt(z) + .004), y, z)));
+    add(new THREE.TubeGeometry(dl, 30, .006, 4), black, body, false); }
+  if (H.gen) { const gr = add(new THREE.PlaneGeometry(m.W * .42, .14), new THREE.MeshBasicMaterial({ color: 0x050505 }), body, false); gr.position.set(0, m.clr + .26, nose + .025);
+    if (m.wing) { const wing = add(new THREE.BoxGeometry(m.W * .92, .04, .34), carbon); wing.position.set(0, m.tail + .38, tail + .32); for (const sx of [-.3, .3]) { const st = add(new THREE.BoxGeometry(.04, .38, .18), carbon); st.position.set(sx * m.W, m.tail + .19, tail + .34); } }
+    if (opts.taxi) { const sign = add(new THREE.BoxGeometry(.5, .14, .2), new THREE.MeshStandardMaterial({ color: C('#1a1a1a'), emissive: C('#1bd13f'), emissiveIntensity: 1.4 })); sign.position.set(0, m.H + .1, m.L / 2 - m.rs - .25); } }
+  if (H === HYPER.bugatti) { // the horseshoe grille, and the full-width taillight
+    const hs = add(new THREE.TorusGeometry(.115, .022, 8, 24, Math.PI * 1.55).rotateZ(-Math.PI * .275 - Math.PI / 2), chrome, body, false); hs.position.set(0, .29, nose + .015); hs.scale.set(1, 1.3, 1);
+    const gm = add(new THREE.CircleGeometry(.105, 20), black, body, false); gm.position.set(0, .29, nose + .012); gm.scale.set(1, 1.3, 1);
+    for (const sx of [-1, 1]) { const ia = add(new THREE.PlaneGeometry(.42, .17), new THREE.MeshBasicMaterial({ color: 0x030303 }), body, false); ia.position.set(sx * .45, .27, nose - .03); ia.rotation.y = sx * .35; } // big intakes either side
+    const rp = add(new THREE.PlaneGeometry(m.W * .86, .58), new THREE.MeshStandardMaterial({ map: canvasTex(128, 64, (c2, w, h) => { c2.fillStyle = '#060708'; c2.fillRect(0, 0, w, h); c2.strokeStyle = '#1e2126'; c2.lineWidth = 1; for (let x2 = 0; x2 < w; x2 += 6) for (let y2 = 0; y2 < h; y2 += 6) { c2.beginPath(); c2.arc(x2 + (y2 / 6 % 2) * 3, y2, 2.2, 0, 7); c2.stroke(); } }, 6, 3), roughness: .7 }), body, false);
+    rp.position.set(0, .52, tail - .025); rp.rotation.y = Math.PI; disposables.push(rp.material); // the black honeycomb tail
+    bar(tailMat, -.86, .84, tail - .03, .86, .84, tail - .03, .03); // the 1.6 m light bar
+  }
+  // rear: diffuser, exhausts and wings
+  const diff = add(new THREE.BoxGeometry(m.W * .66, .1, .3), carbon); diff.position.set(0, m.clr + .07, tail + .26);
+  for (let k = -3; k <= 3; k++) { const f = add(new THREE.BoxGeometry(.015, .12, .32), carbon, body, false); f.position.set(k * .17, m.clr + .08, tail + .24); }
+  const ex = (x, y, r) => { const e = add(new THREE.CylinderGeometry(r, r * .92, .2, H === HYPER.lambo ? 6 : 18, 1, true).rotateX(Math.PI / 2), chrome, body, false); e.position.set(x, y, tail + .02); const inner = add(new THREE.CircleGeometry(r * .85, 18), black, body, false); inner.position.set(x, y, tail + .04); inner.rotation.y = Math.PI; };
+  if (H === HYPER.lambo) { ex(-.09, .58, .07); ex(.09, .58, .07); } else if (H === HYPER.bugatti) { for (const x of [-.2, -.07, .07, .2]) ex(x, .32, .045); } else if (H.gen) { for (const sx of [-1, 1]) ex(sx * m.W * .3, m.clr + .2, .045); } else for (const x of [-.58, -.42, .42, .58]) ex(x, .3, .05);
+  if (H === HYPER.bugatti) { const wing = add(new THREE.BoxGeometry(m.W * .82, .03, .42), carbon); wing.position.set(0, 1.0, tail + .4); wing.rotation.x = -.06; } // the Chiron's wing lies flush with the tail
+  else if (!H.gen && H !== HYPER.ferrari) { const wy = H === HYPER.lambo ? 1.22 : 1.06, wing = add(new THREE.BoxGeometry(m.W * .92, .035, .32), carbon); wing.position.set(0, wy, tail + .38); wing.rotation.x = .08;
+    for (const sx of [-.32, .32]) { const st = add(new THREE.BoxGeometry(.04, wy - .9, .18), carbon); st.position.set(sx, (wy + .9) / 2, tail + .4); }
+    for (const sx of [-1, 1]) { const ep = add(new THREE.BoxGeometry(.03, .16, .4), carbon); ep.position.set(sx * m.W * .46, wy + .03, tail + .38); } }
+  else if (!H.gen) { const lip = add(new THREE.BoxGeometry(m.W * .7, .04, .12), bodyM); lip.position.set(0, .93, tail + .12); }
+  const splitter = add(new THREE.BoxGeometry(m.W * .7, .025, .16), carbon); splitter.position.set(0, m.clr + .03, nose - .2);
+  const under = add(new THREE.PlaneGeometry(m.W * .9, m.L * .9).rotateX(Math.PI / 2), black, body, false); under.position.y = m.clr + .03;
+  return { root, body, wheels, tailMat, lightbar: null, m, disposables };
+}
 function buildCar(modelKey, color, opts = {}) {
+  if (MODELS[modelKey].hyper || (!opts.lite && !opts.police && !(opts.design && opts.design.decals && opts.design.decals.length))) return buildHyper(modelKey, color, opts);
   const m = MODELS[modelKey], g = carGeos(modelKey);
   const root = new THREE.Group(), body = new THREE.Group(); root.add(body);
   const cgZ = (m.L / 2 - m.fw) - (m.rw - m.fw) * .5; // CG midway between the axles
@@ -2039,17 +2197,61 @@ const audio = {
       const lg = A.createGain(); lg.gain.value = .45; lfo.connect(lg); lg.connect(chop.gain);
       this.hg = A.createGain(); this.hg.gain.value = 0;
       hs.connect(hl); hl.connect(chop); chop.connect(this.hg); this.hg.connect(this.master); hs.start(); lfo.start();
+      // the combustion engine: a shaped firing-order wave plus the crank's half order, driven into soft distortion,
+      // an exhaust resonance and a throttle-opened low-pass; intake roar, turbos, blow-off and crackles on the overrun
+      this.eo = A.createOscillator(); this.eoG = A.createGain(); this.esub = A.createOscillator(); this.esub.type = 'sine'; this.esubG = A.createGain();
+      this.eDrive = A.createGain(); this.shaper = A.createWaveShaper(); this.ebody = A.createBiquadFilter(); this.ebody.type = 'peaking'; this.ebody.Q.value = 1.2; this.ebody.gain.value = 7;
+      this.elp = A.createBiquadFilter(); this.elp.type = 'lowpass'; this.elp.Q.value = .9; this.eOut = A.createGain(); this.eOut.gain.value = 0;
+      { const n = 1024, cv = new Float32Array(n); for (let k = 0; k < n; k++) { const x = k / (n - 1) * 2 - 1; cv[k] = Math.tanh(x * 2.2) / Math.tanh(2.2); } this.shaper.curve = cv; this.shaper.oversample = '2x'; }
+      this.eo.connect(this.eoG); this.esub.connect(this.esubG); this.eoG.connect(this.eDrive); this.esubG.connect(this.eDrive); this.eDrive.connect(this.shaper); this.shaper.connect(this.ebody); this.ebody.connect(this.elp); this.elp.connect(this.eOut); this.eOut.connect(this.master);
+      const nsrc = (type, f, q, dest) => { const sN = A.createBufferSource(); sN.buffer = buf; sN.loop = true; sN.playbackRate.value = .7 + Math.random() * .6; const fl = A.createBiquadFilter(); fl.type = type; fl.frequency.value = f; fl.Q.value = q; const gg = A.createGain(); gg.gain.value = 0; sN.connect(fl); fl.connect(gg); gg.connect(dest); sN.start(); return [gg, fl]; };
+      [this.inG, this.inBP] = nsrc('bandpass', 400, 1.4, this.elp); [this.bovG] = nsrc('bandpass', 2900, 1.6, this.master); [this.crG] = nsrc('lowpass', 900, .8, this.master);
+      this.tOsc = A.createOscillator(); this.tOsc.type = 'sine'; this.tG = A.createGain(); this.tG.gain.value = 0; this.tOsc.connect(this.tG); this.tG.connect(this.master);
+      this.eo.start(); this.esub.start(); this.tOsc.start(); this.boost = 0; this.lastThr = 0; this.lastT = 0;
       this.retune();
     } catch (e) { this.ctx = null; }
   },
-  retune() { if (!this.ctx || !player.spec) return; this.o1.type = player.spec.ev ? 'sine' : 'sawtooth'; },
+  ENG: { // harmonic recipes for each kind of engine
+    lambo: { h: [1, .78, .62, .52, .58, .42, .38, .3, .34, .24, .22, .17, .15, .12, .1, .08], sub: .12, drive: 2.6, lp0: 900, lpT: 5600, peak: 1700, turbo: 0, crackle: .8, f: 1 }, // a raw, screaming V12
+    ferrari: { h: [1, .42, .66, .3, .42, .24, .48, .18, .26, .14, .32, .12, .2, .1, .13, .08], sub: .06, drive: 1.7, lp0: 1300, lpT: 7600, peak: 2700, turbo: 0, crackle: .4, f: 1 }, // a high, silky V12 wail
+    bugatti: { h: [1, .92, .58, .62, .32, .36, .22, .2, .13, .11, .08, .06], sub: .4, drive: 1.3, lp0: 480, lpT: 2700, peak: 650, turbo: 1, crackle: .2, f: .5 }, // a deep W16 under four turbos
+    v12: { h: [1, .6, .5, .42, .4, .3, .3, .22, .2, .15, .12, .1], sub: .1, drive: 1.9, lp0: 900, lpT: 5000, peak: 1800, turbo: 0, crackle: .5, f: 1 },
+    v8: { h: [1, .82, .56, .46, .36, .3, .22, .18, .12, .1], sub: .55, drive: 2.2, lp0: 480, lpT: 3300, peak: 850, turbo: 0, crackle: .7, f: 1, burble: 1 },
+    six: { h: [1, .7, .55, .4, .32, .25, .18, .14, .1], sub: .2, drive: 1.8, lp0: 700, lpT: 4600, peak: 1400, turbo: .6, crackle: .45, f: 1 },
+    four: { h: [1, .55, .42, .3, .22, .16, .12, .08], sub: .25, drive: 1.6, lp0: 600, lpT: 3600, peak: 1100, turbo: .8, crackle: .3, f: 1 },
+  },
+  setProfile(s) {
+    this.spec0 = s.sound || s.cyl; const P = this.prof = this.ENG[s.sound] || (s.cyl >= 12 ? this.ENG.v12 : s.cyl >= 8 ? this.ENG.v8 : s.cyl >= 6 ? this.ENG.six : this.ENG.four);
+    const re = new Float32Array(P.h.length + 1), im = new Float32Array(P.h.length + 1); P.h.forEach((v, k) => im[k + 1] = v); this.eo.setPeriodicWave(this.ctx.createPeriodicWave(re, im));
+    const t = this.ctx.currentTime; this.esubG.gain.setTargetAtTime(P.sub, t, .05); this.eoG.gain.setTargetAtTime(.5, t, .05); this.ebody.frequency.setTargetAtTime(P.peak, t, .05);
+  },
+  retune() { if (!this.ctx || !player.spec) return; this.o1.type = 'sine'; this.spec0 = null; },
   update(c, sirenDist, heliDist = 1e9) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime, s = c.spec;
-    const f = s.ev ? 80 + c.rpm / s.redline * 1300 : Math.max(22, c.rpm / 60 * s.cyl / 2);
+    const f = s.ev ? 80 + c.rpm / s.redline * 1300 : Math.max(22, c.rpm / 60 * s.cyl / 2), vol = foot.on && !foot.boat ? .35 : 1;
     this.o1.frequency.setTargetAtTime(f, t, .03); this.o2.frequency.setTargetAtTime(f / 2, t, .03);
-    this.lp.frequency.setTargetAtTime(s.ev ? 2500 : 500 + c.throttle * 2600 + c.rpm / 5, t, .05);
-    this.eg.gain.setTargetAtTime((s.ev ? .04 + c.throttle * .05 : .06 + c.throttle * .12) * (foot.on && !foot.boat ? .35 : 1), t, .05);
+    this.lp.frequency.setTargetAtTime(2500, t, .05);
+    this.eg.gain.setTargetAtTime(s.ev ? (.04 + c.throttle * .05) * vol : 0, t, .05); // electric whine
+    if (!s.ev) { // the combustion engine
+      if ((s.sound || s.cyl) !== this.spec0) this.setProfile(s);
+      const P = this.prof, dt = Math.min(.1, t - (this.lastT || t)), rf = clamp(c.rpm / s.redline, 0, 1.05), thr = clamp(c.throttle, 0, 1); this.lastT = t;
+      const f0 = Math.max(18, c.rpm / 60 * s.cyl / 2 * P.f);
+      this.eo.frequency.setTargetAtTime(f0, t, .02); this.esub.frequency.setTargetAtTime(f0 / 2, t, .02);
+      if (P.burble && rf < .35) this.esubG.gain.setTargetAtTime(P.sub * (.6 + Math.random() * .9), t, .015); else this.esubG.gain.setTargetAtTime(P.sub, t, .05); // a V8's lumpy idle
+      this.eDrive.gain.setTargetAtTime(.8 + thr * P.drive * (.5 + rf * .7), t, .04);
+      this.elp.frequency.setTargetAtTime(P.lp0 + thr * P.lpT * (.35 + .65 * rf) + rf * 900, t, .05);
+      const shiftDip = c.shift > 0 ? .35 : 1;
+      this.eOut.gain.setTargetAtTime((.045 + thr * .1 + rf * .035) * vol * shiftDip, t, c.shift > 0 ? .01 : .05);
+      this.inBP.frequency.setTargetAtTime(f0 * 2.3, t, .05); this.inG.gain.setTargetAtTime(thr * rf * (P.turbo ? .09 : .16) * vol, t, .06); // intake roar
+      if (P.turbo) { // the turbos spool up with load, whistle, and dump with a "pssh" when you lift
+        this.boost = clamp(this.boost + ((thr > .3 ? thr * (.4 + rf) : -1.5) * dt * 1.4), 0, 1);
+        this.tOsc.frequency.setTargetAtTime(2100 + this.boost * 5600, t, .05); this.tG.gain.setTargetAtTime(this.boost * .022 * P.turbo * vol, t, .05);
+        if (this.lastThr > .6 && thr < .2 && this.boost > .45) { this.bovG.gain.cancelScheduledValues(t); this.bovG.gain.setValueAtTime(.32 * vol, t); this.bovG.gain.exponentialRampToValueAtTime(.001, t + .45); this.boost = .1; }
+      } else this.tG.gain.setTargetAtTime(0, t, .05);
+      if ((thr < .12 && rf > .5 && Math.random() < .2 * P.crackle) || c.pop > 0) { const k = (.12 + Math.random() * .25) * vol; this.crG.gain.cancelScheduledValues(t); this.crG.gain.setValueAtTime(k, t); this.crG.gain.exponentialRampToValueAtTime(.001, t + .03 + Math.random() * .05); } // crackles on the overrun
+      this.lastThr = thr;
+    } else if (this.eOut) { this.eOut.gain.setTargetAtTime(0, t, .05); this.tG.gain.setTargetAtTime(0, t, .05); this.inG.gain.setTargetAtTime(0, t, .05); }
     const sl = Math.max(Math.abs(c.slipR), Math.abs(c.slipF) * .8);
     const sq = Math.hypot(c.u, c.v) > 4 ? clamp((sl - .12) * 2.5, 0, .35) + (c.wheelspin ? .12 : 0) : 0;
     this.screech.gain.setTargetAtTime(sq, t, .05);
@@ -6331,7 +6533,7 @@ function show(big, sub, t) { $('msg').textContent = big; $('msg').hidden = !big;
 function closeAll() { for (const id of ['garage', 'missions', 'result', 'design', 'bigmap', 'tackle', 'airport', 'hangar']) $(id).hidden = true; paused = false; camera.clearViewOffset(); document.body.classList.remove('designing'); }
 function openPanel(id) { closeAll(); $(id).hidden = false; paused = true; if (id === 'garage') renderGarage(); if (id === 'missions') renderMissions(); if (id === 'tackle') { shopNote = ''; renderShop(); $('tackle').scrollTop = 0; } }
 function renderGarage() {
-  const mx = { hp: 1000, grip: 1.35, mass: 2200 };
+  const mx = { hp: 1600, grip: 1.35, mass: 2200 };
   $('garageGrid').innerHTML = CARS.map((c, k) => `
     <button class="card${k === carIdx ? ' sel' : ''}" data-car="${k}">
       <div class="swatch" style="background:${c.taxi ? 'linear-gradient(90deg,#151515 50%,#f9c80e 50%)' : c.custom && c.custom.roof !== 'same' ? `linear-gradient(90deg,${c.color} 65%,${c.custom.roof} 65%)` : c.color}"></div>
@@ -8352,7 +8554,7 @@ function loop() {
   renderer.render(foot.inside ? inScene : scene, camera);
 }
 updateTiles();
-Object.assign(window, { G: { stopFishing, startDeckWalk, boatPlan, setBoatModel, deckAction, ANIM, ZER, restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
+Object.assign(window, { G: { CARS, buildCar, setCar, audio, stopFishing, startDeckWalk, boatPlan, setBoatModel, deckAction, ANIM, ZER, restKey, RESTS, toggleFpv, KIOSK, SHOP, makePlane, buildRodModel, planeStart, flyMode, DUB, PAR, ADR, MAL, GIZ, REGIONS, goDublin, stepCar, collideCar, get renderer() { return renderer; }, JNG, jungleTakeoff, goAmazon, amazonHome, beachNear, startBeachFishing, toggleBottom, rasAt, seaDist, LAKES, lakeNear, startLakeFishing, onJetty, lakeE, toggleFishCam, get fishCam() { return fishCam; }, updateFoot, marWorld, onMarina, MARINA_DOCK, CLUB, openHangar, paintPlane, planeSpec, GADGETS, seaDist, groundH, KEYS, peds, get trip() { return trip; }, sellTickets, finishTrip, earn, driveEarn, updatePolice, police, plane, openAirport, flyTo, boardPlane, exitPlane, updatePlane, get AWAY() { return AWAY; }, WORLDS, PLANES, TERM, DESK, STAND, itemPic, camera, updateBoat, get input() { return input; }, boat, DOCK, KIOSK, enterBoat, leaveBoat, openShop, setBait, GEAR, BOATS, startBoatFishing, sellCatch, releaseCatch, makeCatchMesh, freed, startSwim, updateSwim, seabedY, spotted, DIVE, UW, divePlatform, DOORS, nearDoor, enterDoor, exitDoor, get room() { return room; }, stepCar, collideCar, insideBuilding, agentsCount: () => agents.length, player, foot, police, heli, agents, peds, MISSIONS, EDGES, BLD, LM, MIS, groundH, seaDist, streetName, nearEdge, onStreet, penOct, toggleFoot, startFishing, railNear, setPolice, startMission, updateFoot, updateCop, updatePolice, updateHeli, updatePeds, input, cam, renderer, camera, scene, TILES, PIERW, pierWorld, PIER, RAILS, fishLog, FISH_TYPES, setCar, show, get paused() { return paused; }, set paused(v) { paused = v; }, get M() { return M; }, set msgT(v) { msgT = v; } } });
 loop();
 </script>
 </body>
