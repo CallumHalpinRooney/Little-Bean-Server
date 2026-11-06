@@ -146,6 +146,8 @@ button:focus-visible{outline:2px solid var(--taxi);outline-offset:2px}
 
 /* fishing */
 #fishing{border-left:4px solid #4fd1ff}
+#fSim{display:flex;justify-content:space-between;gap:10px;font-size:12px;margin-top:6px;opacity:.9}#fSim i{display:inline-block;width:5px;height:9px;margin-left:1px;border-radius:1px;background:rgba(255,255,255,.2)}#fSim i.on{background:#f9c80e}#fSim span.slip{color:#ff8a5c}
+#fStamW small{font-size:11px;opacity:.75}.sbar{height:6px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}.sbar b{display:block;height:100%;width:100%;background:#ff8a5c}
 #fTitle{font-family:var(--display);font-weight:800;font-size:18px;text-transform:uppercase;letter-spacing:.06em;color:#4fd1ff}
 #fState{font-size:14px;margin-top:4px}
 .tbar{position:relative;height:10px;border-radius:5px;background:rgba(255,255,255,.12);overflow:hidden;margin-top:8px}
@@ -264,6 +266,8 @@ body.touch #tl{top:calc(env(safe-area-inset-top,0px) + 60px)}
     <div id="fTitle">Fishing</div>
     <div id="fState"></div>
     <div class="tbar"><div class="zone"></div><b id="fTen"></b></div>
+    <div id="fSim"><span id="fDrag"></span><span id="fLine"></span></div>
+    <div id="fStamW" hidden><small>Fish energy</small><div class="sbar"><b id="fStam"></b></div></div>
     <div id="fCount"></div>
   </div>
   <div class="chip" id="wallet"><span class="wl">Wallet</span><b id="wMoney">€0.00</b><i id="wPlus" hidden></i></div>
@@ -2275,6 +2279,28 @@ const audio = {
     const g = A.createGain(); g.gain.setValueAtTime(.5, A.currentTime); g.gain.exponentialRampToValueAtTime(.001, A.currentTime + .12);
     s.connect(f); f.connect(g); g.connect(this.master); s.start(); s.stop(A.currentTime + .15);
   },
+  whoosh() { // the rod swishing through the air on the cast
+    if (!this.ctx) return; const A = this.ctx, t = A.currentTime, s = A.createBufferSource(); s.buffer = this.noise;
+    const f = A.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.setValueAtTime(320, t); f.frequency.exponentialRampToValueAtTime(2400, t + .15); f.frequency.exponentialRampToValueAtTime(450, t + .4);
+    const g = A.createGain(); g.gain.setValueAtTime(.001, t); g.gain.exponentialRampToValueAtTime(.55, t + .11); g.gain.exponentialRampToValueAtTime(.001, t + .42);
+    s.connect(f); f.connect(g); g.connect(this.master); s.start(t); s.stop(t + .45);
+  },
+  clack() { // the bail snapping shut, or a thumb landing on the spool
+    if (!this.ctx) return; const A = this.ctx, t = A.currentTime, o = A.createOscillator(), g = A.createGain(); o.type = 'square'; o.frequency.setValueAtTime(1800, t); o.frequency.exponentialRampToValueAtTime(600, t + .03);
+    g.gain.setValueAtTime(.12, t); g.gain.exponentialRampToValueAtTime(.001, t + .05); o.connect(g); g.connect(this.master); o.start(t); o.stop(t + .06); this.pop();
+  },
+  fishSnd(o = {}) { // running fishing sounds: line peeling off the spool on a cast, the drag screaming, the reel ticking as you wind
+    if (!this.ctx) return; const A = this.ctx, t = A.currentTime;
+    if (!this.fs) { const fs = this.fs = {}, M = this.master, G = () => { const g = A.createGain(); g.gain.value = 0; g.connect(M); return g; };
+      fs.n = A.createBufferSource(); fs.n.buffer = this.noise; fs.n.loop = true; fs.bp = A.createBiquadFilter(); fs.bp.type = 'bandpass'; fs.bp.Q.value = 2.5; fs.ng = G(); fs.n.connect(fs.bp); fs.bp.connect(fs.ng);
+      fs.o = A.createOscillator(); fs.o.type = 'sawtooth'; fs.lp = A.createBiquadFilter(); fs.lp.type = 'lowpass'; fs.lp.frequency.value = 1400; fs.og = G(); fs.o.connect(fs.lp); fs.lp.connect(fs.og);
+      fs.c = A.createOscillator(); fs.c.type = 'square'; fs.hp = A.createBiquadFilter(); fs.hp.type = 'highpass'; fs.hp.frequency.value = 2600; fs.cg = G(); fs.c.connect(fs.hp); fs.hp.connect(fs.cg);
+      fs.n.start(); fs.o.start(); fs.c.start(); }
+    const fs = this.fs, sm = (p, v) => p.setTargetAtTime(v, t, .04), spool = o.spool || 0, drag = o.drag || 0, reel = o.reel || 0;
+    sm(fs.ng.gain, spool * .16 + drag * .05); sm(fs.bp.frequency, 1600 + spool * 2600); // line hissing out through the guides
+    sm(fs.og.gain, o.bc ? spool * .07 : 0); sm(fs.o.frequency, 35 + spool * 240); // a baitcaster's spool buzzes as it spins
+    sm(fs.c.frequency, drag > 0 ? 30 + drag * 50 : 5 + reel * 12); sm(fs.cg.gain, drag > 0 ? .08 + drag * .12 : reel * .05); // clicks: ticks as you wind, a scream when the drag gives line
+  },
   plop() {
     if (!this.ctx) return;
     const A = this.ctx, o = A.createOscillator(), g = A.createGain(); o.type = 'sine';
@@ -3077,7 +3103,7 @@ const GEAR = {
   reel: [
     { name: 'Basic reel', desc: 'Winds in slowly.', price: 0, spd: 1 },
     { name: 'Spinning reel', desc: 'Smooth and quicker to wind in.', price: 35, spd: 1.3 },
-    { name: 'Baitcaster reel', desc: 'Powerful gears for heavy fish.', price: 110, spd: 1.6 },
+    { name: 'Baitcaster reel', desc: 'A real low-profile baitcaster with a star drag. Powerful gears, but thumb the spool as your cast lands or the line tangles!', price: 110, spd: 1.6 },
     { name: 'Electric reel', desc: 'A motor does the winding. Brrrrr!', price: 400, spd: 2.1 },
     { name: 'Turbo reel', desc: 'Twin motors. The fish barely has time to think.', price: 1500, spd: 2.8 },
   ],
@@ -3187,11 +3213,16 @@ const GADGETS = [
   { id: 'icebox', name: 'Ice box', desc: 'Keeps your catch fresh on ice: every fish sells for 25% more.', price: 500 },
   { id: 'net', name: 'Landing net', desc: 'Scoop up your catch: a slack line hardly ever loses the fish.', price: 200 },
 ];
-{ let f = null; try { f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); } catch (e) { } const g = f && typeof f.gadgets === 'object' && f.gadgets || {}; fishLog.gadgets = {}; for (const G2 of GADGETS) if (g[G2.id] === true) fishLog.gadgets[G2.id] = true; }
+{ let f = null; try { f = JSON.parse(localStorage.getItem('bcn-run-fish') || 'null'); } catch (e) { } const g = f && typeof f.gadgets === 'object' && f.gadgets || {}; fishLog.gadgets = {}; for (const G2 of GADGETS) if (g[G2.id] === true) fishLog.gadgets[G2.id] = true; fishLog.drag = clamp(f && f.drag | 0 || 5, 1, 10);
+  fishLog.gotBC = !!(f && f.gotBC); if (!fishLog.gotBC) { fishLog.gotBC = true; if (!fishLog.own.reel.includes(2)) fishLog.own.reel.push(2); if ((fishLog.gear.reel | 0) < 2) fishLog.gear.reel = 2; } } // a real baitcaster for everyone
 const biteTime = () => { const b = gearOf('bait').b, F = foot.fish, wrong = F && (F.lake ? (F.lake.river ? !gearOf('bait').water : gearOf('bait').water !== 'lake') : !!gearOf('bait').water); return rnd(b[0], b[1]) * (fishLog.gadgets.sonar ? .6 : 1) * (wrong ? 1.7 : 1); };
 const kgMul = () => gearOf('rod').kg * (foot.boat ? BOATS[fishLog.boat].kg : 1);
 const ROD_COLS = ['#e63946', '#ff7a1a', '#f9c80e', '#2ecc71', '#00b4d8', '#1f4fd0', '#7b2cbf', '#ff5fa2', '#f4f4f4', '#1c1c1c', '#c9a227', '#8b5a2b'];
 /* ---------- the fishing rod: a tapered carbon blank that really bends, cork handle, line guides and a working reel ---------- */
+const LINE_CAP = [120, 150, 220, 260, 400]; // metres of line on the spool
+function setDrag(v) { v = clamp(v | 0, 1, 10); if (v === fishLog.drag) return; fishLog.drag = v; saveFish(); audio.clack(); show('', `Drag ${v}/10${v <= 3 ? ': loose, the fish takes line easily' : v >= 8 ? ': tight, careful the line doesn\'t snap' : ''}`, 1); }
+let lineWrapTex = null;
+const lineWrap = () => lineWrapTex || (lineWrapTex = canvasTex(64, 64, (c, w, h) => { c.fillStyle = '#ffffff'; c.fillRect(0, 0, w, h); for (let y = 0; y < h; y += 2) { c.strokeStyle = `rgba(0,0,0,${.12 + Math.random() * .12})`; c.beginPath(); c.moveTo(0, y); c.lineTo(w, y + 6); c.stroke(); } }, 1, 3)); // criss-crossed turns of line
 const ROD_LEN = [2.7, 3.0, 4.2, 2.1, 3.3], LINE_COL = ['#e8f2f2', '#f4c4d6', '#3f9a3a', '#9aa2aa', '#d8dce2'];
 let corkTex = null, floatTex = null;
 const corkMap = () => corkTex || (corkTex = canvasTex(64, 128, (c, w, h) => { c.fillStyle = '#c69c66'; c.fillRect(0, 0, w, h);
@@ -3218,6 +3249,7 @@ function buildRodModel(pivot) {
   add(pivot, cyl(.018, .015, -hb - .07), grip, 0, (hb - .07) / 2);
   add(pivot, cyl(.0125, .0125, .19, 16), gun, 0, .025); // reel seat with its two locking hoods
   for (const y of [-.06, .11]) add(pivot, cyl(.0155, .0155, .03, 16), chrome, 0, y);
+  if (top) { const tr = add(pivot, new THREE.TorusGeometry(.011, .0035, 8, 14, Math.PI * .9).rotateY(Math.PI / 2), gun, 0, -.035, .014); tr.rotation.x = -.5; } // a casting rod's finger trigger under the reel seat
   add(pivot, cyl(.0145, .0115, .17), grip, 0, .21); add(pivot, cyl(.0118, .0108, .012, 14), chrome, 0, .3);
   // the blank: 14 joints that each bend a little more towards the tip
   const N = 14, y0 = .3, Lb = Lr + hb - y0, segL = Lb / N, rb = ri === 3 ? .016 : .011, rt = ri === 3 ? .003 : .0016, rad = u => lerp(rb, rt, Math.pow(u, .85));
@@ -3256,6 +3288,34 @@ function buildRodModel(pivot) {
     add(handle, new THREE.BoxGeometry(.004, .055, .007), chrome, .017, -.026);
     add(handle, cyl(.006, .007, .022, 12).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x151515, roughness: .5 }), .03, -.052);
     out.position.set(.03, .06, .082); reel.add(out);
+  } else if (rl === 2) { // a real low-profile baitcaster: oval side plates, star drag, brake dial, thumb bar, level-wind and a paddle handle
+    const plateM = new THREE.MeshPhysicalMaterial({ color: 0x232a33, metalness: .8, roughness: .28, clearcoat: 1, clearcoatRoughness: .05 }), redM = new THREE.MeshPhysicalMaterial({ color: 0xc0161c, metalness: .85, roughness: .25, clearcoat: 1 });
+    const Wd = .05, zc = -.036, R0 = .019;
+    add(reel, new THREE.BoxGeometry(.01, .075, .006), chrome, 0, 0, -.0135); // the foot in the reel seat
+    add(reel, new THREE.BoxGeometry(Wd, .05, .006), plateM, 0, -.004, -.019); // the frame under the spool
+    for (const s2 of [-1, 1]) { // side plates: the palming side (left) and the gear side (right), which bulges round the gears
+      const pl = add(reel, cyl(1, 1, .011, 30).rotateZ(Math.PI / 2), plateM, s2 * (Wd / 2 + .004), -.004, zc); pl.scale.set(1, .044, .029);
+      add(reel, new THREE.TorusGeometry(1, .06, 6, 30).rotateY(Math.PI / 2), redM, s2 * (Wd / 2 + .0098), -.004, zc).scale.set(.04, .042, .027); // a red trim ring
+      if (s2 > 0) { const bulge = add(reel, new THREE.SphereGeometry(1, 20, 14), plateM, Wd / 2 + .009, .004, zc + .002); bulge.scale.set(.012, .03, .024);
+        add(reel, cyl(.0055, .0055, .006, 16).rotateZ(Math.PI / 2), redM, Wd / 2 + .011, .03, zc - .006); } // the spool-tension knob
+      else { const dial = add(reel, cyl(.011, .011, .005, 18).rotateZ(Math.PI / 2), gun, -Wd / 2 - .011, -.012, zc); for (let k = 0; k < 8; k++) add(reel, new THREE.BoxGeometry(.006, .0015, .0015), chrome, -Wd / 2 - .0135, -.012 + Math.cos(k / 8 * 6.28) * .009, zc + Math.sin(k / 8 * 6.28) * .009); } // the cast-brake dial
+    }
+    spool.position.set(0, -.004, zc); reel.add(spool);
+    for (const s2 of [-1, 1]) { add(spool, cyl(R0, R0, .0022, 28).rotateZ(Math.PI / 2), chrome, s2 * Wd * .42); for (let k = 0; k < 6; k++) add(spool, cyl(.0024, .0024, .0026, 8).rotateZ(Math.PI / 2), plateM, s2 * Wd * .42, Math.cos(k / 6 * 6.28) * R0 * .62, Math.sin(k / 6 * 6.28) * R0 * .62); } // spool flanges with their drilled ports
+    add(spool, cyl(R0 * .45, R0 * .45, Wd * .82, 16).rotateZ(Math.PI / 2), gun); // the arbor
+    const wound = add(spool, cyl(R0 * .86, R0 * .86, Wd * .8, 28).rotateZ(Math.PI / 2), lineM); wound.material = lineM.clone(); wound.material.roughness = .35; wound.material.map = lineWrap(); // the line wound on, layer on layer
+    const thumb = add(reel, cyl(.005, .005, Wd + .004, 14).rotateZ(Math.PI / 2), redM, 0, -.03, zc - .016); thumb.scale.set(1, .6, 1); // the thumb bar: press it and the spool's free to cast
+    add(reel, cyl(.0035, .0035, Wd + .006, 10).rotateZ(Math.PI / 2), plateM, 0, .032, zc + .002); // level-wind bar
+    const lw = new THREE.Group(); lw.position.set(0, .033, zc - .006); reel.add(lw); add(lw, new THREE.TorusGeometry(.0035, .0012, 6, 14).rotateX(Math.PI / 2), ceramic); add(lw, new THREE.BoxGeometry(.008, .004, .01), plateM, 0, -.002, .006);
+    out.position.set(0, .036, zc - .006); reel.add(out);
+    const star = new THREE.Shape(); for (let k = 0; k <= 12; k++) { const a = k / 12 * Math.PI * 2, r = k % 2 ? .006 : .0135; star[k ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r); }
+    add(reel, new THREE.ExtrudeGeometry(star, { depth: .004, bevelEnabled: true, bevelThickness: .001, bevelSize: .001, bevelSegments: 1 }).rotateY(Math.PI / 2), redM, Wd / 2 + .02, .004, zc + .002); // the star drag
+    handle.position.set(Wd / 2 + .026, .004, zc + .002); reel.add(handle);
+    add(handle, cyl(.0035, .0035, .012, 8).rotateZ(Math.PI / 2), chrome, .002);
+    add(handle, cyl(.0048, .0048, .09, 14), new THREE.MeshPhysicalMaterial({ color: 0x1a1d22, metalness: .6, roughness: .2, clearcoat: 1 }), .007).scale.set(.55, 1, 1); // a carbon power handle
+    for (const yy of [1, -1]) { const k = add(handle, new THREE.SphereGeometry(1, 16, 12), new THREE.MeshStandardMaterial({ color: 0x0c0d0e, roughness: .75, envMapIntensity: .4 }), .015, yy * .041); k.scale.set(.006, .013, .01); add(handle, cyl(.0022, .0022, .006, 8).rotateZ(Math.PI / 2), chrome, .0105, yy * .041); } // paddle knobs on their spindles
+    const nest = new THREE.Mesh(new THREE.TorusKnotGeometry(.012, .0012, 90, 5, 7, 11), lineM); nest.position.set(0, -.004, zc - .012); nest.scale.set(1.4, 1, .9); nest.visible = false; reel.add(nest); // a bird's nest of tangled line
+    return { joints, guides, tip, handle, spool, out, lineM, N, lw, nest, lwW: Wd * .38 };
   } else { // casting / big-game reels sit on top, the spool across the rod
     const big = rl >= 3, R0 = big ? .045 : .028, Wd = big ? .085 : .06;
     const plateM = rl === 4 ? new THREE.MeshPhysicalMaterial({ color: 0xd4a73a, metalness: 1, roughness: .2, clearcoat: 1 }) : rl === 3 ? new THREE.MeshPhysicalMaterial({ color: 0xb01818, metalness: .6, roughness: .3, clearcoat: 1 }) : new THREE.MeshPhysicalMaterial({ color: 0x2a3a52, metalness: .7, roughness: .25, clearcoat: 1 });
@@ -3273,7 +3333,7 @@ function buildRodModel(pivot) {
     for (const yy of [1, -1]) add(handle, cyl(.007, .008, .022, 12).rotateZ(Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x151515, roughness: .5 }), .03, yy * (big ? .05 : .037));
     out.position.set(0, .02, zc - R0 * .5); reel.add(out);
   }
-  return { joints, guides, tip, handle, spool, out, lineM, N };
+  return { joints, guides, tip, handle, spool, out, lineM, N, lw: null, nest: null };
 }
 function bendRod(R, B) { // spread the bend along the blank, most of it in the soft tip
   R.bendNow = B; const n = R.joints.length; let s = 0; const w = R.joints.map((_, i) => { const v = Math.pow((i + 1) / n, 1.8); s += v; return v; });
@@ -3481,7 +3541,7 @@ function updateRests(dt, now) {
 }
 function stopFishing() {
   clearRests();
-  const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false; if (R.lureM) R.lureM.visible = false; if (R.drips) R.drips.forEach(d => d.visible = false);
+  const R = foot.rod; R.pivot.visible = false; R.line.visible = false; R.bob.visible = false; audio.fishSnd({}); if (R.lureM) R.lureM.visible = false; if (R.drips) R.drips.forEach(d => d.visible = false);
   if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; }
   foot.p.arms[0].rotation.z = foot.p.arms[1].rotation.z = 0;
   clearUnder(foot.fish); fishCam = false; fishFpv = false; if (foot.p) foot.p.head.visible = true; renderBaitBar(); if (AIM) AIM.visible = false;
@@ -3847,7 +3907,13 @@ function updateFishing(dt, act, press) {
   if (F.spot) { bx = F.spot.x; bz = F.spot.z; }
   if (!AIM) { AIM = new THREE.Group(); const am = new THREE.MeshBasicMaterial({ color: 0xf9c80e, transparent: true, opacity: .9, depthWrite: false }); AIM.add(new THREE.Mesh(new THREE.RingGeometry(.95, 1.25, 32).rotateX(-Math.PI / 2), am), new THREE.Mesh(new THREE.CircleGeometry(.2, 12).rotateX(-Math.PI / 2), am), new THREE.Mesh(new THREE.CylinderGeometry(.04, .04, 1.6, 6).translate(0, .8, 0), am), new THREE.Mesh(new THREE.ConeGeometry(.22, .45, 10).rotateX(Math.PI).translate(0, 1.9, 0), am)); scene.add(AIM); }
   AIM.visible = F.st === 'ready';
-  if (F.st === 'ready') { // aim: A/D left and right, W/S nearer and further, E to cast there
+  if (F.blNow) { F.blNow = false; F.tangle = 2.4; audio.crash(1); show('Bird\'s nest!', 'The spool kept spinning and the line tangled into a big knot. Hold E to pick it out.', 2.6); }
+  if (F.st !== 'ready' && F.st !== 'cast' && F.st !== 'show') { const dz = (input.up ? 1 : 0) - (input.down ? 1 : 0); if (dz && !F.dzHeld) setDrag(fishLog.drag + dz); F.dzHeld = dz; } // W/S: tighten or loosen the drag
+  if (F.tangle > 0) { // a baitcaster backlash
+    showBob = !F.lure && !F.bottom && !F.rig; if (!showBob) lineEnd = [bx, WYf, bz]; ang = .5; arm = act ? -.55 + Math.sin(now * 9) * .15 : -.35;
+    if (act) { F.tangle -= dt; if (Math.random() < dt * 9) audio.pop(); }
+    if (F.tangle <= 0) { F.T = 0; F.RT = 0; if (F.st === 'wait') F.biteAt = biteTime(); show('', 'Untangled! Now you\'re fishing.', 1.4); }
+  } else if (F.st === 'ready') { // aim: A/D left and right, W/S nearer and further, E to cast there
     ang = 1 + Math.sin(now * 1.2) * .03;
     const maxC = gearOf('rod').cast + (gearOf('bait').cast || 0) * 2 + 4;
     if (!F.aim) F.aim = { a: 0, d: Math.min(20, maxC * .7) };
@@ -3857,16 +3923,28 @@ function updateFishing(dt, act, press) {
     const tx = foot.x + dx * F.aim.d, tz = foot.z + dz * F.aim.d;
     AIM.position.set(tx, F.lake ? .14 : .08, tz); AIM.scale.setScalar(1 + Math.sin(now * 5) * .08);
     if (!foot.boat) foot.h = Math.atan2(dx, dz);
-    if (press) { F.st = 'cast'; F.T = 0; F.bottom = false; F.sink = 0; F.cdx = dx; F.cdz = dz; const sc = F.aim.d * .05; F.spot = { x: tx + rnd(-sc, sc), z: tz + rnd(-sc, sc) }; }
+    if (press) { F.st = 'cast'; F.T = 0; F.bottom = false; F.sink = 0; F.whooshed = false; F.thumb = null; F.stopK = null; F.cdx = dx; F.cdz = dz; const sc = F.aim.d * .05; F.spot = { x: tx + rnd(-sc, sc), z: tz + rnd(-sc, sc) }; }
   } else if (F.st === 'cast') { // back over the shoulder, whip forward, the float flies out
     const u = F.T / 1.4;
     ang = u < .4 ? lerp(1, -.55, smooth01(u / .4)) : u < .55 ? lerp(-.55, 1.3, (u - .4) / .15) : lerp(1.3, 1, smooth01((u - .55) / .45));
     arm = u < .4 ? -smooth01(u / .4) * .9 : u < .55 ? -.9 + (u - .4) / .15 * 1.1 : .2 * (1 - (u - .55) / .45);
     R.tip.getWorldPosition(_tw);
+    const BC = fishLog.gear.reel === 2; // a baitcaster: you have to stop the spool with your thumb as the lure lands
+    if (u > .38 && !F.whooshed) { F.whooshed = true; audio.whoosh(); }
     if (u < .55) { bx = _tw.x; by = _tw.y; bz = _tw.z; }
-    else if (u < .9) { const k = (u - .55) / .35; bx = lerp(_tw.x, F.spot.x, k); bz = lerp(_tw.z, F.spot.z, k); by = lerp(_tw.y, .07, k) + Math.sin(k * Math.PI) * (3 + F.aim.d * .12); }
+    else if (u < .9) { const k = (u - .55) / .35, sk = F.stopK ?? 2, kk = Math.min(k, sk), H = 3 + F.aim.d * .12, hy = q => lerp(_tw.y, .07, q) + Math.sin(q * Math.PI) * H;
+      bx = lerp(_tw.x, F.spot.x, kk); bz = lerp(_tw.z, F.spot.z, kk); by = k > sk ? lerp(hy(sk), .07, smooth01((k - sk) / Math.max(.05, 1 - sk))) : hy(k); }
+    else if (F.stopK != null) { bx = lerp(_tw.x, F.spot.x, F.stopK); bz = lerp(_tw.z, F.spot.z, F.stopK); }
+    F.castSp = u < .5 ? 0 : u >= 1 || (F.stopK != null && (u - .55) / .35 > F.stopK) || (BC && F.thumb != null) ? 0 : clamp(1.1 - (u - .5) * 1.2, .15, 1); // how fast the spool spins
+    if (BC && u > .55 && press && F.thumb == null) { F.thumb = u; audio.clack(); const k = (u - .55) / .35;
+      if (k < .7) { F.stopK = Math.max(.15, k); show('', 'You thumbed the spool too soon: a short cast!', 1.4); } else show('👍 Perfect thumbing!', 'You stopped the spool just as the lure landed.', 1.3); }
+    if (BC && u > .6 && F.thumb == null && !fishLog.toldThumb) { fishLog.toldThumb = true; saveFish(); show('Baitcaster', 'Press E again just as the lure lands to thumb the spool, or the line tangles!', 2.6); }
     showBob = true;
     if (u >= 1) {
+      if (F.stopK != null) F.spot = { x: lerp(_tw.x, F.spot.x, F.stopK), z: lerp(_tw.z, F.spot.z, F.stopK) };
+      if (!BC) audio.clack(); // flip the bail shut
+      F.blNow = BC && F.thumb == null && Math.random() < .6;
+      if (BC && F.thumb == null && !F.blNow) show('', 'Phew! You forgot to thumb the spool, but it didn\'t tangle this time.', 1.8);
       F.rig = gearOf('bait').kind === 'rig'; F.lure = gearOf('bait').kind === 'lure'; audio.plop();
       if (F.lure) { // lures are reeled back in: fish chase them and strike on the way
         const b = gearOf('bait'), rightWater = F.lake ? (F.lake.river ? b.water === 'river' : b.water === 'lake') : !b.water;
@@ -3908,17 +3986,23 @@ function updateFishing(dt, act, press) {
       const nx = F.next || (() => { const t = pickFish(F); return { type: t, kg: rollKg(t) }; })(), type = nx.type; F.next = null;
       F.type = type; F.kg = nx.kg;
       F.D0 = F.D = Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) + (type[4] >= 1.5 ? 14 + type[4] * 3 : type[4] * 4);
-      F.tension = .4; F.low = 0; F.st = 'reel'; F.T = 0; F.bitTest = false; F.jt = rnd(1.5, 4); audio.ding();
+      F.tension = .4; F.low = 0; F.fi = null; F.slip = 0; F.st = 'reel'; F.T = 0; F.bitTest = false; F.jt = rnd(1.5, 4); audio.ding();
     } else if (F.T > (F.bottom ? 1.6 : 1.1)) { F.st = F.lure ? 'retrieve' : 'wait'; F.T = 0; F.biteAt = biteTime() + 1; F.next = null; if (F.visM) F.leaving = true; show('', F.lure ? 'Too slow: it let go of the lure!' : 'Too slow: the fish stole the bait.', 1.8); }
   } else if (F.st === 'reel') { // hold E to reel; keep the tension in the green or the line snaps
     const fight = F.type[4], surge = .55 + .45 * Math.sin(F.T * (1.7 + fight)) + .35 * Math.sin(F.T * 5.3 + 1);
     const RT = gearOf('rod').ten, SN = gearOf('line').snap;
-    F.tension += (act ? (.5 + fight * surge * .55) * RT : -.8) * dt + fight * surge * .05 * RT * dt;
-    F.tension = Math.max(0, F.tension);
+    if (!F.fi) F.fi = { run: false, runT: rnd(.4, 1.4), stam: 1 };
+    const FI = F.fi, dragT = SN * (.25 + fishLog.drag * .08); // the drag: how hard the fish has to pull before the reel lets line out
+    if ((FI.runT -= dt) <= 0) { FI.run = !FI.run && FI.stam > .1; FI.runT = FI.run ? rnd(1, 2.2 + fight) * (.5 + FI.stam * .7) : rnd(1.5, 4) / (.6 + FI.stam); if (FI.run && FI.stam > .3) show('', fishLog.drag >= 8 ? 'It\'s running! Your drag is very tight: loosen it (S)!' : 'It\'s running! Let the drag work.', 1.1); }
+    const pull = (.15 + fight * .22 * surge) * (.3 + FI.stam * .7) * (FI.run ? 1.7 + fight * .35 : 1) * RT, want = act ? pull + .1 : pull * .55;
+    F.tension = lerp(F.tension, want, 1 - Math.exp(-dt * 5));
+    let slip = 0; if (F.tension > dragT) { slip = (F.tension - dragT) * 7 + (FI.run ? 1.2 + fight : .3); F.tension = dragT + (F.tension - dragT) * .3; F.D += slip * dt; } // the drag screams and the fish takes line
+    F.slip = slip;
+    FI.stam = Math.max(0, FI.stam - dt * (.01 + F.tension * .045 + slip * .012) / (1 + Math.sqrt(F.kg) * .12)); // fighting the rod and the drag tires it out
     if (F.type[0] === 'Electric eel' && Math.random() < dt * .35) { F.tension += .18; show('⚡ ZAP! ⚡', 'The electric eel gave you a shock!', 1); audio.crash(1); }
     if (F.type[0] === 'Red-bellied piranha' && !F.bitTest) { F.bitTest = true; if (fishLog.gear.line < 3 && Math.random() < .3) { F.st = 'ready'; F.T = 0; F.bitTest = false; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(3); show('Chomp!', 'The piranha bit right through your line! A steel leader (tackle shop) stops that.', 3); return; } }
-    if (act && F.tension > .2 && F.tension < .85 * SN) F.D -= (3.3 - fight * .9) * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 35) * dt;
-    else if (!act) F.D = Math.min(F.D0 + 8, F.D + fight * .45 * dt);
+    if (act && !slip) F.D -= (3.3 - fight * .9) * gearOf('reel').spd * (1 + Math.max(0, F.D - 15) / 35) * (1.25 - FI.stam * .45) * (FI.run ? .3 : 1) * dt;
+    else if (!act && FI.run && !slip) F.D += fight * .9 * dt;
     F.low = F.tension < .1 ? F.low + dt : 0;
     ang = .45 + Math.sin(now * 16) * .06 * F.tension - F.tension * .2; arm = act ? -.3 + Math.sin(now * 12) * .12 : -.1;
     R.tip.getWorldPosition(_tw);
@@ -3941,7 +4025,8 @@ function updateFishing(dt, act, press) {
           J.m.userData.wig(now * 2.5, 1); const px = J.m.rotation.x; showBob = false; lineEnd = [J.m.position.x + Math.sin(J.hd) * Math.cos(px) * L * .5, J.m.position.y - Math.sin(px) * L * .5, J.m.position.z + Math.cos(J.hd) * Math.cos(px) * L * .5]; }
       }
     }
-    if (F.tension >= SN) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Snap!', 'The line broke. Ease off when the bar goes red, or buy stronger line at the tackle shop (K).', 2.5); }
+    if (F.D > LINE_CAP[fishLog.gear.line | 0]) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Spooled!', 'The fish took every metre of line off your reel! Tighten the drag (W) so it can\'t run so far.', 3); }
+    else if (F.tension >= SN) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } audio.crash(4); show('Snap!', fishLog.drag >= 8 ? 'The line broke! Your drag was too tight: loosen it with S so the fish can take line.' : 'The line broke. Ease off when the bar goes red, or buy stronger line at the tackle shop (K).', 2.8); }
     else if (F.low > (fishLog.gadgets.net ? 5 : 2.2)) { F.st = 'ready'; F.T = 0; if (R.fishMesh) { scene.remove(R.fishMesh); R.fishMesh = null; } show('', 'The line went slack and the fish swam off. Keep reeling!', 2.5); }
     else if (F.D <= .4) {
       F.st = 'show'; F.T = 0;
@@ -4001,6 +4086,10 @@ function updateFishing(dt, act, press) {
   if (st === 'cast') B = cu < .4 ? smooth01(cu / .4) * .18 : lerp(.18, -.65 * Math.exp(-(cu - .4) * 5) * Math.cos((cu - .4) * 26), smooth01((cu - .4) / .06)); // the rod loads up, whips and shivers
   bendRod(R, st === 'bite' || st === 'cast' ? B : lerp(R.bendNow, B, 1 - Math.exp(-dt * 10)));
   if (act && ['reel', 'retrieve', 'jig', 'snag'].includes(st)) { const sp = dt * 14 * gearOf('reel').spd; R.handle.rotation.x -= sp; if (fishLog.gear.reel < 2) R.spool.rotation.y += sp * 1.3; else R.spool.rotation.x -= sp * 2.5; }
+  if (fishLog.gear.reel >= 2) { if (st === 'cast') R.spool.rotation.x -= dt * 90 * (F.castSp || 0); if (F.slip) R.spool.rotation.x += F.slip * dt * 6; } // the spool spins on the cast, and backwards when the drag gives line
+  if (R.lw) R.lw.position.x = Math.sin(R.spool.rotation.x * .08) * R.lwW; // the level-wind guide slides across to lay the line evenly
+  if (R.nest) R.nest.visible = F.tangle > 0;
+  audio.fishSnd({ spool: st === 'cast' ? F.castSp || 0 : 0, bc: fishLog.gear.reel === 2, drag: st === 'reel' && F.slip ? Math.min(1, F.slip / 5) : 0, reel: act && ['reel', 'retrieve', 'jig', 'snag', 'wait'].includes(st) ? Math.min(1, gearOf('reel').spd / 2) : 0 });
   R.bob.visible = showBob; R.bob.position.set(bx, by, bz);
   updateLureAir(R, F, st, showBob, lineEnd, bx, by, bz, now, dt);
   R.tip.getWorldPosition(_tw);
@@ -5904,12 +5993,13 @@ function footPrompt() {
   }
   if (foot.fish) {
     const st = foot.fish.st;
+    if (foot.fish.tangle > 0) return IS_TOUCH ? 'Bird\'s nest! Hold DRIFT to pick the tangle out' : 'Bird\'s nest! Hold E to pick the tangle out';
     if (st === 'ready') return IS_TOUCH ? 'Arrows aim · GAS/BRAKE nearer or further · tap to cast' : 'A/D aim · W/S nearer or further · E to cast · Q to stop';
     if (st === 'snag') return IS_TOUCH ? 'Snagged! Hold DRIFT to pull it free · don\'t snap it' : 'Snagged! Hold E to pull it free (watch the tension) · Q cuts the line';
     if (st === 'wait' && foot.fish.bottom) return IS_TOUCH ? 'Watch the rod tip for bites! · hold DRIFT to reel in' : 'Watch the rod tip for bites! · hold E to reel in · T float/bottom';
     if (st === 'retrieve') return IS_TOUCH ? 'Hold DRIFT to reel the lure in · let go to pause' : 'Hold E to reel the lure in · let go to pause';
     if (st === 'jig') return IS_TOUCH ? 'Hold DRIFT to reel the rig in slowly · let go to jig' : 'Hold E to reel the rig in slowly · let go to jig';
-    return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in' : 'Hold E to reel in') : '';
+    return st === 'ready' ? (IS_TOUCH ? 'Tap DRIFT (or here) to cast' : 'Press E to cast · W or S to stop fishing') : st === 'wait' ? 'Waiting for a bite…' : st === 'bite' ? 'BITE! Press E now!' : st === 'reel' ? (IS_TOUCH ? 'Hold DRIFT to reel in · GAS/BRAKE drag tighter/looser' : 'Hold E to reel in · W/S drag tighter/looser · reel when it rests, let it run') : st === 'cast' && fishLog.gear.reel === 2 ? (IS_TOUCH ? 'Tap DRIFT as it lands to thumb the spool!' : 'Press E as it lands to thumb the spool!') : '';
   }
   if (foot.boat && foot.boat.swim) return IS_TOUCH ? 'Swim to the swim platform at the back and tap DRIFT to climb aboard' : 'Swim to the swim platform at the back · E to climb aboard · Shift dives';
   if (foot.boat && foot.boat.walk) return deckHint(foot.boat.walk);
@@ -8536,7 +8626,7 @@ function loop() {
     const FP = fishing && fishFpv && (!F.boat || !!F.boat.walk);
     if (F.p) F.p.head.visible = !FP;
     if (FP) { // first person: from your own eyes, down the rod to wherever the line goes
-      const Fi = F.fish; F.p.head.getWorldPosition(_fpE); _fpE.x += Math.sin(F.h) * .05 + Math.cos(F.h) * .32; _fpE.z += Math.cos(F.h) * .05 - Math.sin(F.h) * .32; _fpE.y += .02; // eyes beside the rod, like holding it at your hip
+      const Fi = F.fish; F.p.head.getWorldPosition(_fpE); _fpE.x += Math.sin(F.h) * .05 + Math.cos(F.h) * .25; _fpE.z += Math.cos(F.h) * .05 - Math.sin(F.h) * .25; _fpE.y += .02; // eyes beside the rod, like holding it at your hip
       if (AIM && AIM.visible) _fpT.set(AIM.position.x, AIM.position.y, AIM.position.z);
       else if (F.rod.fishMesh) _fpT.copy(F.rod.fishMesh.position);
       else if (Fi.spot && Fi.st !== 'cast') _fpT.set(Fi.spot.x, Fi.lake ? .12 : 0, Fi.spot.z);
@@ -8545,6 +8635,7 @@ function loop() {
       const tr = Fi.st === 'reel' ? (Fi.tension || 0) * .012 : 0; // the rod shakes in your hands when a fish pulls
       camera.position.set(_fpE.x + rnd(-tr, tr), _fpE.y + rnd(-tr, tr), _fpE.z + rnd(-tr, tr));
       camera.lookAt(lerp(cam.fpt.x, _fpE.x, .15), lerp(cam.fpt.y, _fpE.y, .15) + .3, lerp(cam.fpt.z, _fpE.z, .15));
+      camera.rotateX(-.42); // tip your head down a little so the reel in your hands is in view
     } else cam.fpt = null;
     const DW = F.boat && F.boat.walk && !fishing && !F.swim ? F.boat.walk : null;
     if (DW) { // on deck: through your own eyes (or over your shoulder with C)
@@ -8603,6 +8694,12 @@ function loop() {
       if (F.st === 'wait' && F.bottom) $('fState').textContent = '⚓ On the bottom: watch the rod tip';
       if (F.st === 'retrieve') $('fState').textContent = `Reeling in the lure: ${Math.max(0, F.D).toFixed(0)} m to go`;
       $('fTen').style.background = F.tension > .85 * SN ? 'var(--bad)' : F.tension < .2 ? 'var(--muted)' : 'var(--good)';
+      const dragV = fishLog.drag, out = ['reel', 'retrieve', 'jig', 'wait', 'bite', 'snag'].includes(F.st) ? Math.max(0, F.D || (F.spot ? Math.hypot(F.spot.x - foot.x, F.spot.z - foot.z) : 0)) : 0;
+      $('fDrag').innerHTML = (F.slip ? '🔊 ' : '') + 'Drag ' + Array.from({ length: 10 }, (_, k) => `<i class="${k < dragV ? 'on' : ''}"></i>`).join('') + ` ${dragV}`; $('fDrag').className = F.slip && F.st === 'reel' ? 'slip' : '';
+      $('fLine').textContent = `Line ${out.toFixed(0)}/${LINE_CAP[fishLog.gear.line | 0]} m`;
+      $('fStamW').hidden = F.st !== 'reel'; if (F.st === 'reel' && F.fi) $('fStam').style.width = (F.fi.stam * 100).toFixed(0) + '%';
+      if (F.st === 'reel' && F.fi && F.fi.run) $('fState').textContent = `It's running! ${Math.max(0, F.D).toFixed(1)} m out`;
+      if (F.tangle > 0) $('fState').textContent = `Bird's nest! Hold E to untangle (${Math.ceil(F.tangle / 2.4 * 100)}%)`;
       $('fCount').textContent = `${gearOf('bait').kind === 'lure' ? 'Lure' : 'Bait'}: ${gearOf('bait').name} · Catches: ${fishLog.count}${fishLog.gadgets.sonar ? ' · 📡 Sonar on' : ''}`;
     }
     $('plaque').hidden = !st; if (st) { $('plaqueT').textContent = st[0]; $('plaqueD').textContent = st[1]; }
