@@ -2340,8 +2340,9 @@ const icoq = (r, x, y, z, sx = 1, sy = 1, sz = 1) => new THREE.IcosahedronGeomet
 let PGQ = 1;
 const buildPG = q => { PGQ = q; const G = {
   torso: (() => { // chest, waist and hips turned on a lathe, flattened front to back, with rounded shoulders
-    const prof = [[0, 0], [.16, 0], [.175, .07], [.15, .22], [.172, .38], [.19, .5], [.16, .58], [.06, .62], [0, .63]].map(([r, y]) => new THREE.Vector2(r, y));
-    return mergeGeos([new THREE.LatheGeometry(prof, 9 * q).scale(1, 1, .62), icoq(.07, -.19, .52, 0), icoq(.07, .19, .52, 0)]);
+    const prof = [[0, 0], [.155, 0], [.172, .06], [.162, .14], [.145, .23], [.158, .33], [.178, .43], [.19, .5], [.178, .56], [.13, .605], [.06, .625], [0, .63]].map(([r, y]) => new THREE.Vector2(r, y));
+    const sh = sd => new THREE.SphereGeometry(.068, 6 * q + 2, 4 * q + 2).scale(1, .78, .9).translate(sd * .175, .54, 0); // rounded shoulders that sit into the chest
+    return mergeGeos([new THREE.LatheGeometry(prof, 10 * q + 2).scale(1, 1, .6), sh(-1), sh(1)]);
   })(),
   skirt: new THREE.CylinderGeometry(.17, .27, .42, 10 * q, 1, true).translate(0, -.12, 0),
   head: mergeGeos([
@@ -2353,11 +2354,11 @@ const buildPG = q => { PGQ = q; const G = {
   hair: new THREE.SphereGeometry(.115, 10 * q, 5 * q, 0, Math.PI * 2, 0, Math.PI * .55).rotateX(-.4).translate(0, .012, -.012),
   hairLong: new THREE.CylinderGeometry(.108, .13, .26, 10 * q, 1, true, Math.PI * .55, Math.PI * .9).translate(0, -.1, -.01),
   eyes: mergeGeos([icoq(.015, -.037, .018, .093), icoq(.015, .037, .018, .093)]),
-  thigh: new THREE.CylinderGeometry(.07, .092, .47, 7 * q, 2 * q, true).translate(0, -.235, 0),
-  shin: mergeGeos([icoq(.07, 0, -.47, 0), new THREE.CylinderGeometry(.05, .068, .42, 7 * q, 2 * q, true).translate(0, -.68, 0)]),
-  shoe: mergeGeos([new THREE.BoxGeometry(.1, .07, .25).translate(0, -.895, .045), icoq(.05, 0, -.9, .15, 1, .7, 1)]),
-  uarm: mergeGeos([icoq(.062, 0, 0, 0), new THREE.CylinderGeometry(.052, .06, .3, 7 * q, 2 * q, true).translate(0, -.15, 0)]),
-  farm: new THREE.CylinderGeometry(.038, .05, .27, 7 * q, 2 * q, true).translate(0, -.435, 0),
+  thigh: mergeGeos([new THREE.SphereGeometry(.09, 6 * q + 2, 4 * q + 2).scale(1, .7, 1), new THREE.CylinderGeometry(.068, .09, .47, 8 * q, 2 * q, true).translate(0, -.235, 0)]),
+  shin: mergeGeos([new THREE.SphereGeometry(.068, 6 * q + 2, 4 * q + 2).translate(0, -.47, 0), new THREE.CylinderGeometry(.047, .066, .42, 8 * q, 3 * q, true).translate(0, -.68, 0), new THREE.SphereGeometry(.052, 6 * q + 2, 4 * q).scale(1, .75, 1.1).translate(0, -.08, -.025).translate(0, -.5, 0)]), // knee, shin and calf
+  shoe: mergeGeos([new THREE.SphereGeometry(.058, 8 * q, 5 * q).scale(.9, .62, 2.2).translate(0, -.9, .05), new THREE.CylinderGeometry(.06, .062, .025, 8 * q).scale(.9, 1, 2.3).translate(0, -.925, .05)]), // a rounded shoe with a sole
+  uarm: mergeGeos([new THREE.SphereGeometry(.062, 6 * q + 2, 4 * q + 2), new THREE.CylinderGeometry(.05, .06, .3, 8 * q, 2 * q, true).translate(0, -.15, 0), new THREE.SphereGeometry(.05, 6 * q + 2, 4 * q + 2).translate(0, -.3, 0)]),
+  farm: new THREE.CylinderGeometry(.036, .049, .27, 8 * q, 2 * q, true).translate(0, -.435, 0),
   hand: icoq(.05, 0, -.61, 0, .75, 1.3, .55),
 };
   if (q > 1) { // close-up people get a proper face: eye whites with irises, eyebrows and lips
@@ -2390,21 +2391,27 @@ function makePerson(shirt, pants, skin, opts = {}) {
   const hairCol = opts.hair || pick(HAIR), shoe = opts.shoes || pick(SHOES), shortSleeves = opts.short ?? Math.random() < .5;
   const torso = mk(P.torso, shirt, 0, .92, 0);
   const head = new THREE.Group(); head.position.set(0, 1.66, 0); body.add(head);
-  mk(P.head, skin, 0, 0, 0, head, 'skin'); mk(P.eyes, '#f4f2ee', 0, 0, 0, head, 'eye'); mk(P.iris, ['#3a2a1a', '#4a6a8a', '#3a5a3a', '#2a1a10'][Math.random() * 4 | 0], 0, 0, 0, head, 'eye');
+  mk(P.head, skin, 0, 0, 0, head, 'skin'); const eyeM = [mk(P.eyes, '#f4f2ee', 0, 0, 0, head, 'eye'), mk(P.iris, ['#3a2a1a', '#4a6a8a', '#3a5a3a', '#2a1a10'][Math.random() * 4 | 0], 0, 0, 0, head, 'eye')];
   mk(P.brows, hairCol, 0, 0, 0, head, 'hair'); mk(P.lips, '#' + C(skin).multiplyScalar(.72).getHexString(), 0, 0, 0, head, 'skin');
   if (!opts.cap) mk(P.hair, hairCol, 0, 0, 0, head, 'hair');
   if (opts.longHair) mk(P.hairLong, hairCol, 0, 0, 0, head, 'hair');
-  const legs = [-.1, .1].map(x => { const g = new THREE.Group(); g.position.set(x, .93, 0); body.add(g); mk(P.thigh, pants, 0, 0, 0, g); mk(P.shin, pants, 0, 0, 0, g); mk(P.shoe, shoe, 0, 0, 0, g, 'shoe'); return g; });
-  const arms = [-.27, .27].map(x => { const g = new THREE.Group(); g.position.set(x, 1.47, 0); body.add(g); mk(P.uarm, shirt, 0, 0, 0, g); mk(P.farm, shortSleeves ? skin : shirt, 0, 0, 0, g, shortSleeves ? 'skin' : 'cloth'); mk(P.hand, skin, 0, 0, 0, g, 'skin'); return g; });
+  const knees = [], elbows = []; // the shin and forearm hang from their own joints so knees and elbows can bend
+  const legs = [-.1, .1].map(x => { const g = new THREE.Group(); g.position.set(x, .93, 0); body.add(g); mk(P.thigh, pants, 0, 0, 0, g); const kn = new THREE.Group(); kn.position.y = -.47; g.add(kn); knees.push(kn); mk(P.shin, pants, 0, .47, 0, kn); mk(P.shoe, shoe, 0, .47, 0, kn, 'shoe'); return g; });
+  const arms = [-.27, .27].map(x => { const g = new THREE.Group(); g.position.set(x, 1.47, 0); body.add(g); mk(P.uarm, shirt, 0, 0, 0, g); const el = new THREE.Group(); el.position.y = -.3; g.add(el); elbows.push(el); mk(P.farm, shortSleeves ? skin : shirt, 0, .3, 0, el, shortSleeves ? 'skin' : 'cloth'); mk(P.hand, skin, 0, .3, 0, el, 'skin'); return g; });
   if (opts.cap) { mk(new THREE.SphereGeometry(.118, 20, 10, 0, Math.PI * 2, 0, Math.PI * .5), opts.cap, 0, .02, 0, head); mk(new THREE.CylinderGeometry(.1, .1, .012, 20, 1, false, -Math.PI / 2, Math.PI).scale(1, 1, 1.1).translate(0, .03, .08), opts.cap, 0, 0, 0, head); }
-  return { root, body, torso, head, legs, arms };
+  return { root, body, torso, head, legs, arms, knees, elbows, eyeM, seed: Math.random() * 9 };
 }
 // walk cycle: legs and arms swing in opposition, the body bobs twice per stride
 function animPerson(p, ph, amp, armsUp = 0) {
-  const s = Math.sin(ph);
+  const s = Math.sin(ph), c = Math.cos(ph), t = performance.now() / 1000 + (p.seed || 0);
   p.legs[0].rotation.x = s * amp; p.legs[1].rotation.x = -s * amp;
   p.arms[0].rotation.x = -s * amp * .8 - armsUp; p.arms[1].rotation.x = s * amp * .8 - armsUp;
-  p.body.position.y = Math.abs(Math.cos(ph)) * amp * .06;
+  p.body.position.y = Math.abs(c) * amp * .06 + (amp ? 0 : Math.sin(t * 1.7) * .004); // a bounce in the step, or slow breathing standing still
+  p.body.position.x = s * amp * .035; p.body.rotation.z = -s * amp * .03; // hips sway over the standing leg
+  if (p.torso) { p.torso.rotation.y = s * amp * .14; p.torso.scale.y = 1 + (amp ? 0 : Math.sin(t * 1.7) * .012); } // shoulders twist against the hips; the chest rises and falls
+  if (p.knees) { p.knees[0].rotation.x = .05 + Math.max(0, -c) * amp * 1.5; p.knees[1].rotation.x = .05 + Math.max(0, c) * amp * 1.5; } // the knee folds as the leg swings through
+  if (p.eyeM) { const bl = (t * .27) % 1 < .025 ? .1 : 1; for (const e of p.eyeM) e.scale.y = bl; } // blink every few seconds
+  if (p.elbows) for (const k of [0, 1]) p.elbows[k].rotation.x = -(.18 + Math.max(0, -p.arms[k].rotation.x) * .45); // elbows soft, more bent on the forward swing
 }
 
 // crowds: instanced walkers on Barcelona's real pavements and footpaths, always gathered around you
@@ -2443,6 +2450,7 @@ const pedIM = { // one instanced mesh per body part: body parts once per person,
   thigh: new THREE.InstancedMesh(PG.thigh, PM(), PALL * 2), shin: new THREE.InstancedMesh(PG.shin, PM(), PALL * 2), shoe: new THREE.InstancedMesh(PG.shoe, PM(), PALL * 2),
   uarm: new THREE.InstancedMesh(PG.uarm, PM(), PALL * 2), farm: new THREE.InstancedMesh(PG.farm, PM(), PALL * 2), hand: new THREE.InstancedMesh(PG.hand, PM(), PALL * 2),
 };
+pedIM.phone = new THREE.InstancedMesh(new THREE.BoxGeometry(.075, .15, .012), new THREE.MeshStandardMaterial({ color: 0x111317, roughness: .25, metalness: .4 }), PALL);
 const PED_BODY = ['torso', 'skirt', 'head', 'hair', 'hairLong', 'eyes'], PED_LEG = ['thigh', 'shin', 'shoe'], PED_ARM = ['uarm', 'farm', 'hand'];
 const PED_Y = { torso: .92, skirt: .92, head: 1.66, hair: 1.66, hairLong: 1.66, eyes: 1.66 };
 {
@@ -2451,6 +2459,8 @@ const PED_Y = { torso: .92, skirt: .92, head: 1.66, hair: 1.66, hairLong: 1.66, 
     q.ph = rnd(0, 6); q.dodge = 0; q.x = 0; q.z = 0; q.h = 0; q.dx = 0; q.dz = 0;
     const sh = pick(SHIRTS), pa = pick(PANTS), sk = pick(SKIN), hr = Math.random() < .08 ? sk : pick(HAIR), shoe = pick(SHOES);
     q.skirt = Math.random() < .16; q.longHair = Math.random() < .35; q.scale = rnd(.9, 1.08);
+    const r = Math.random(); q.style = r < .12 ? 1 : r < .3 ? 2 : 0; // 1: eyes on their phone, 2: hands in pockets
+    q.swing = q.style === 2 ? .22 : rnd(.65, 1.1); q.stride = rnd(.85, 1.15); q.stop = 0; q.wsh = Math.random() < .5 ? 0 : 1; if (q.style === 1) q.v *= .75;
     const shorts = !q.skirt && Math.random() < .3, shortSleeves = Math.random() < .55;
     set('torso', k, sh); set('skirt', k, pick(['#1d2a44', '#c8102e', '#2b2d31', '#e8c4d8', '#f4f4f4', '#6b8f3a'])); set('head', k, sk); set('hair', k, hr); set('hairLong', k, hr);
     for (const i of [0, 1]) {
@@ -2463,7 +2473,10 @@ const PED_Y = { torso: .92, skirt: .92, head: 1.66, hair: 1.66, hairLong: 1.66, 
 }
 const _ZERO = new THREE.Matrix4().makeScale(0, 0, 0), _SC = new THREE.Matrix4();
 const _M = new THREE.Matrix4(), _L = new THREE.Matrix4(), _O = new THREE.Matrix4(), _W = { x: 0, z: 0, dx: 0, dz: 0 };
+const _J = new THREE.Matrix4(), _J2 = new THREE.Matrix4(), _TW = new THREE.Matrix4();
+const jointAt = (y, rx, out) => out.makeTranslation(0, y, 0).multiply(_J.makeRotationX(rx)).multiply(_J2.makeTranslation(0, -y, 0)); // bend a limb about a joint y down its length
 function updatePeds(dt, full) {
+  const now1 = performance.now() / 1000;
   const pvx = player.u * Math.sin(player.h) + player.v * Math.cos(player.h), pvz = player.u * Math.cos(player.h) - player.v * Math.sin(player.h);
   const pspd = Math.hypot(pvx, pvz), f = focusPos();
   peds.forEach((q, k) => {
@@ -2476,8 +2489,10 @@ function updatePeds(dt, full) {
     const rx = q.x - player.x, rz = q.z - player.z, d = Math.hypot(rx, rz);
     const threat = !foot.on && d < 11 && pspd > 3 && (rx * pvx + rz * pvz) > -2;
     q.dodge = threat ? Math.min(1, q.dodge + dt * 5) : Math.max(0, q.dodge - dt * .6);
-    const run = 1 + q.dodge * 1.8, step = q.v * run * (1 - q.dodge * .6) * dt;
-    q.ph += q.v * run * dt * 3.3;
+    q.stop = (q.stop || 0) - dt; if (!threat && q.stop <= 0 && q.stop > -1e3 && Math.random() < dt * .025) q.stop = rnd(2, 7); // now and then someone stops to look around
+    const idle = q.stop > 0 && !threat;
+    const run = 1 + q.dodge * 1.8, step = idle ? 0 : q.v * run * (1 - q.dodge * .6) * dt;
+    if (!idle) q.ph += q.v * run * dt * 3.3 / q.stride;
     let x, z, tx, tz, y;
     if (q.kind === 'walk') {
       const w = WALKS[q.w];
@@ -2495,18 +2510,34 @@ function updatePeds(dt, full) {
     const off = smooth01(q.dodge) * 2.8;
     q.x = x + q.dx * off; q.z = z + q.dz * off; q.h = Math.atan2(tx, tz);
     const hop = q.dodge > .05 && q.dodge < .95 && threat ? Math.sin(q.dodge * Math.PI) * .25 : 0;
-    const sn = Math.sin(q.ph), amp = .5 + q.dodge * .35, armsUp = q.dodge * 2.2;
-    _M.makeRotationY(q.h); _M.setPosition(q.x, y + Math.abs(Math.cos(q.ph)) * .035 * q.scale + hop, q.z); _M.multiply(_SC.makeScale(q.scale, q.scale, q.scale));
+    const tt = now1 + k * 1.37, sn = idle ? 0 : Math.sin(q.ph), cs = Math.cos(q.ph), amp = idle ? 0 : (.42 + q.v * .08) * q.stride + q.dodge * .35, armsUp = q.dodge * 2.2;
+    const sway = idle ? Math.sin(tt * .45) * .025 : sn * .03; // hips sway over the standing leg (or a slow weight shift)
+    _M.makeRotationY(q.h); _M.setPosition(q.x, y + (idle ? 0 : Math.abs(cs) * .035 * q.scale) + hop, q.z);
+    _M.multiply(_SC.makeRotationX(idle ? 0 : .04 + q.dodge * .2)); _M.multiply(_SC.makeTranslation(sway, 0, 0)); _M.multiply(_SC.makeRotationZ(-sway * .8)); _M.multiply(_SC.makeScale(q.scale, q.scale, q.scale)); // lean into the walk
+    _TW.makeRotationY(sn * amp * .16); // shoulders twist against the hips
+    const look = idle ? Math.sin(tt * .6) * .7 + Math.sin(tt * 1.3) * .2 : Math.sin(q.ph * .21 + k) * .25, nod = q.style === 1 && !threat ? .45 : idle ? Math.sin(tt * .4) * .08 : .04;
     for (const part of PED_BODY) {
       if ((part === 'skirt' && !q.skirt) || (part === 'hairLong' && !q.longHair)) { pedIM[part].setMatrixAt(k, _ZERO); continue; }
-      _L.makeTranslation(0, PED_Y[part], 0); if (part === 'head' || part === 'hair' || part === 'hairLong' || part === 'eyes') _L.multiply(_SC.makeRotationY(Math.sin(q.ph * .21 + k) * .25));
+      _L.makeTranslation(0, PED_Y[part], 0);
+      if (part === 'torso') { _L.multiply(_TW); if (idle) _L.multiply(_SC.makeScale(1, 1 + Math.sin(tt * 1.7) * .012, 1)); } // breathing
+      else if (part !== 'skirt') _L.multiply(_SC.makeRotationY(look)).multiply(_SC.makeRotationX(nod)); // the head looks about (or down at a phone)
       pedIM[part].setMatrixAt(k, _O.multiplyMatrices(_M, _L));
     }
+    let phoneSet = false;
     for (const i of [0, 1]) {
-      const sg = i ? -1 : 1;
-      _L.makeRotationX(sn * amp * sg); _L.setPosition(i ? .1 : -.1, .93, 0); _O.multiplyMatrices(_M, _L); for (const part of PED_LEG) pedIM[part].setMatrixAt(k * 2 + i, _O);
-      _L.makeRotationX(-sn * amp * .8 * sg - armsUp); _L.setPosition(i ? .27 : -.27, 1.47, 0); _O.multiplyMatrices(_M, _L); for (const part of PED_ARM) pedIM[part].setMatrixAt(k * 2 + i, _O);
+      const sg = i ? -1 : 1, legA = sn * amp * sg, swingFwd = Math.max(0, -cs * sg);
+      const knee = idle ? .04 + (i === q.wsh ? .14 : 0) : .07 + swingFwd * amp * 1.6 + q.dodge * .4;
+      _L.makeRotationX(legA); _L.setPosition(i ? .1 : -.1, .93, 0); _O.multiplyMatrices(_M, _L); pedIM.thigh.setMatrixAt(k * 2 + i, _O);
+      _O.multiply(jointAt(-.47, knee, _L)); pedIM.shin.setMatrixAt(k * 2 + i, _O); pedIM.shoe.setMatrixAt(k * 2 + i, _O); // the knee folds as the leg swings through
+      const phone = q.style === 1 && i === 1 && !threat, pocket = q.style === 2 && !threat;
+      let armA = idle ? Math.sin(tt * .9 + i) * .03 : -sn * amp * .8 * sg * q.swing, elbow = .2 + Math.max(0, -armA) * .5;
+      if (phone) { armA = -.35; elbow = 1.45; } else if (pocket) { armA = .12 + armA * .3; elbow = .55; }
+      armA -= armsUp;
+      _L.makeRotationX(armA); _L.multiply(_SC.makeRotationZ(pocket ? -sg * .12 : -sg * .06)); _L.setPosition(i ? .27 : -.27, 1.47, 0); _O.multiplyMatrices(_M, _TW).multiply(_L); pedIM.uarm.setMatrixAt(k * 2 + i, _O);
+      _O.multiply(jointAt(-.3, -elbow, _L)); pedIM.farm.setMatrixAt(k * 2 + i, _O); pedIM.hand.setMatrixAt(k * 2 + i, _O);
+      if (phone) { _L.makeTranslation(0, -.62, .045); _L.multiply(_SC.makeRotationX(-.5)); pedIM.phone.setMatrixAt(k, _O.multiply(_L)); phoneSet = true; }
     }
+    if (!phoneSet) pedIM.phone.setMatrixAt(k, _ZERO);
   });
   for (const m of Object.values(pedIM)) m.instanceMatrix.needsUpdate = true;
 }
